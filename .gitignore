@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.whl
+*.egg-info/
+.eggs/
+*.eggs-info/
+*.pytest_cache/
+*.coverage
+*.hypothesis/
+
+# Panda3D specific
+*.p3d
+*.egg
+*.log
+*.p3d.ini
+*.p3d.pyo
+temp/
+build/
+dist/
