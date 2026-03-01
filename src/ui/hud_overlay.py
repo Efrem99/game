@@ -28,6 +28,10 @@ class HUDOverlay:
         self._xp = 0
         self._gold = 0
         self._checkpoint_pulse = 0.0
+        self._breadcrumb_pulse = 0.0
+        self._breadcrumb_nodes = []
+        self._breadcrumb_max = 16
+        self._minimap_range = 120.0
         self._xp_label_text = self.app.data_mgr.t("stats.xp", "XP")
         self._gold_label_text = self.app.data_mgr.t("stats.gold", "Gold")
 
@@ -42,6 +46,7 @@ class HUDOverlay:
         self._create_bars()
         self._create_combo()
         self._create_checkpoint_tracker()
+        self._create_minimap()
         self._create_damage_feed()
         self._create_profile_block()
         self._create_mount_hint()
@@ -220,6 +225,201 @@ class HUDOverlay:
                 pass
         self._checkpoint_marker = marker
         self._checkpoint_marker_root.hide()
+
+        self._breadcrumb_root = self.app.render.attachNewNode("hud_breadcrumbs")
+        step_card = CardMaker("hud_breadcrumb_step")
+        step_card.setFrame(-0.10, 0.10, -0.03, 0.03)
+        for idx in range(self._breadcrumb_max):
+            node = self._breadcrumb_root.attachNewNode(step_card.generate())
+            node.setBillboardPointEye()
+            node.setTransparency(TransparencyAttrib.MAlpha)
+            node.setLightOff(1)
+            alpha = max(0.18, 0.72 - (idx * 0.03))
+            node.setColorScale(1.0, 0.78, 0.24, alpha)
+            node.hide()
+            self._breadcrumb_nodes.append(node)
+        self._breadcrumb_root.hide()
+
+    def _create_minimap(self):
+        self.minimap_frame = DirectFrame(
+            frameColor=(0.03, 0.03, 0.04, 0.72),
+            frameSize=(-0.195, 0.195, -0.195, 0.195),
+            pos=(1.16, 0, -0.62),
+            parent=self.root,
+        )
+        place_ui_on_top(self.minimap_frame, 84)
+
+        self.minimap_border = DirectFrame(
+            frameColor=(0.72, 0.62, 0.32, 0.66),
+            frameSize=(-0.172, 0.172, -0.172, 0.172),
+            parent=self.minimap_frame,
+        )
+        self.minimap_inner = DirectFrame(
+            frameColor=(0.10, 0.11, 0.13, 0.78),
+            frameSize=(-0.166, 0.166, -0.166, 0.166),
+            parent=self.minimap_frame,
+        )
+        self.minimap_grid_h = DirectFrame(
+            frameColor=(0.58, 0.56, 0.52, 0.20),
+            frameSize=(-0.154, 0.154, -0.001, 0.001),
+            parent=self.minimap_frame,
+        )
+        self.minimap_grid_v = DirectFrame(
+            frameColor=(0.58, 0.56, 0.52, 0.20),
+            frameSize=(-0.001, 0.001, -0.154, 0.154),
+            parent=self.minimap_frame,
+        )
+        self.minimap_player = DirectFrame(
+            frameColor=(0.34, 0.76, 0.95, 0.98),
+            frameSize=(-0.010, 0.010, -0.010, 0.010),
+            parent=self.minimap_frame,
+        )
+        self.minimap_pin = DirectFrame(
+            frameColor=(0.95, 0.78, 0.28, 0.96),
+            frameSize=(-0.012, 0.012, -0.012, 0.012),
+            parent=self.minimap_frame,
+        )
+        self.minimap_pin.hide()
+        place_ui_on_top(self.minimap_border, 84)
+        place_ui_on_top(self.minimap_inner, 85)
+        place_ui_on_top(self.minimap_grid_h, 86)
+        place_ui_on_top(self.minimap_grid_v, 86)
+        place_ui_on_top(self.minimap_player, 87)
+        place_ui_on_top(self.minimap_pin, 88)
+
+        self.minimap_title = OnscreenText(
+            text=self.app.data_mgr.t("hud.minimap", "MINIMAP"),
+            pos=(1.16, -0.82),
+            scale=0.021,
+            fg=THEME["text_muted"],
+            shadow=(0, 0, 0, 0.75),
+            align=TextNode.ACenter,
+            parent=self.root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        self.minimap_hint = OnscreenText(
+            text="",
+            pos=(1.16, -0.86),
+            scale=0.020,
+            fg=THEME["gold_soft"],
+            shadow=(0, 0, 0, 0.82),
+            align=TextNode.ACenter,
+            parent=self.root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        place_ui_on_top(self.minimap_title, 84)
+        place_ui_on_top(self.minimap_hint, 84)
+
+    def _coerce_vec3(self, value):
+        if value is None:
+            return None
+        if isinstance(value, (list, tuple)) and len(value) >= 3:
+            try:
+                return (float(value[0]), float(value[1]), float(value[2]))
+            except Exception:
+                return None
+        try:
+            return (float(value.x), float(value.y), float(value.z))
+        except Exception:
+            return None
+
+    def _get_player_world_pos(self, char_state=None):
+        if char_state and hasattr(char_state, "position"):
+            pos = self._coerce_vec3(char_state.position)
+            if pos:
+                return pos
+        player = getattr(self.app, "player", None)
+        actor = getattr(player, "actor", None) if player else None
+        if actor:
+            try:
+                return self._coerce_vec3(actor.getPos(self.app.render))
+            except Exception:
+                return self._coerce_vec3(actor.getPos())
+        return None
+
+    def _hide_breadcrumbs(self):
+        if hasattr(self, "_breadcrumb_root"):
+            self._breadcrumb_root.hide()
+        for node in self._breadcrumb_nodes:
+            node.hide()
+
+    def _update_breadcrumbs(self, dt, player_pos, target):
+        if not player_pos or not target:
+            self._hide_breadcrumbs()
+            return
+
+        px, py, pz = player_pos
+        tx, ty, tz = target
+        dx = tx - px
+        dy = ty - py
+        dz = tz - pz
+        dist = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+        if dist < 3.0:
+            self._hide_breadcrumbs()
+            return
+
+        step = 6.0
+        count = int(dist / step)
+        count = max(1, min(count, len(self._breadcrumb_nodes)))
+        self._breadcrumb_pulse += max(0.0, float(dt)) * 4.0
+        self._breadcrumb_root.show()
+
+        for idx, node in enumerate(self._breadcrumb_nodes):
+            if idx >= count:
+                node.hide()
+                continue
+            t = float(idx + 1) / float(count + 1)
+            wobble = 0.08 * math.sin(self._breadcrumb_pulse + (idx * 0.6))
+            node.show()
+            node.setPos(px + (dx * t), py + (dy * t), pz + (dz * t) + 0.25 + wobble)
+            node.setScale(0.65 + (0.35 * t))
+
+    def _update_minimap(self, quest_data, player_pos):
+        tracked = None
+        if isinstance(quest_data, list):
+            for item in quest_data:
+                if not isinstance(item, dict):
+                    continue
+                target = self._coerce_vec3(item.get("target"))
+                if target:
+                    tracked = item
+                    break
+
+        if not player_pos:
+            self.minimap_pin.hide()
+            self.minimap_hint.setText(self.app.data_mgr.t("hud.no_target", "No target"))
+            return
+
+        if not tracked:
+            self.minimap_pin.hide()
+            self.minimap_hint.setText(self.app.data_mgr.t("hud.no_target", "No target"))
+            return
+
+        target = self._coerce_vec3(tracked.get("target"))
+        if not target:
+            self.minimap_pin.hide()
+            self.minimap_hint.setText(self.app.data_mgr.t("hud.no_target", "No target"))
+            return
+
+        px, py, _ = player_pos
+        tx, ty, _ = target
+        dx = tx - px
+        dy = ty - py
+        map_range = max(1.0, float(self._minimap_range))
+        nx = max(-1.0, min(1.0, dx / map_range))
+        ny = max(-1.0, min(1.0, dy / map_range))
+        self.minimap_pin.show()
+        self.minimap_pin.setPos(nx * 0.145, 0, ny * 0.145)
+
+        status = str(tracked.get("status", "")).strip() or "Reach"
+        if status.lower() == "reach":
+            status = self.app.data_mgr.t("hud.reach", "Reach")
+        elif status.lower() == "interact":
+            status = self.app.data_mgr.t("hud.interact", "Interact")
+        dist_txt = self._format_dist(tracked.get("distance"))
+        self.minimap_hint.setText(f"{status}: {dist_txt}")
 
     def _create_damage_feed(self):
         self.damage_text = OnscreenText(
@@ -725,12 +925,16 @@ class HUDOverlay:
     def hide(self):
         self.root.hide()
         self._checkpoint_marker_root.hide()
+        self._hide_breadcrumbs()
+        self.minimap_pin.hide()
+        self.minimap_hint.setText("")
 
     def refresh_locale(self):
         self.hp_label.setText(self.app.data_mgr.t("stats.health", "Health"))
         self.sp_label.setText(self.app.data_mgr.t("stats.stamina", "Stamina"))
         self.mp_label.setText(self.app.data_mgr.t("stats.mana", "Mana"))
         self.quest_header.setText(self.app.data_mgr.t("hud.active_quests", "ACTIVE QUESTS"))
+        self.minimap_title.setText(self.app.data_mgr.t("hud.minimap", "MINIMAP"))
         self._xp_label_text = self.app.data_mgr.t("stats.xp", "XP")
         self._gold_label_text = self.app.data_mgr.t("stats.gold", "Gold")
         self._refresh_profile_text()
@@ -767,7 +971,7 @@ class HUDOverlay:
             return f"{meters / 1000.0:.1f} km"
         return f"{int(round(meters))} m"
 
-    def _update_checkpoint_tracker(self, dt, quest_data):
+    def _update_checkpoint_tracker(self, dt, quest_data, player_pos):
         tracked = None
         if isinstance(quest_data, list):
             for item in quest_data:
@@ -782,6 +986,7 @@ class HUDOverlay:
             self.checkpoint_text.setText("")
             self.checkpoint_hint_text.setText("")
             self._checkpoint_marker_root.hide()
+            self._hide_breadcrumbs()
             return
 
         objective = str(tracked.get("objective", "") or "Objective").strip()
@@ -798,6 +1003,7 @@ class HUDOverlay:
         target = tracked.get("target")
         if not (isinstance(target, (list, tuple)) and len(target) >= 3):
             self._checkpoint_marker_root.hide()
+            self._hide_breadcrumbs()
             return
 
         try:
@@ -806,6 +1012,7 @@ class HUDOverlay:
             tz = float(target[2])
         except Exception:
             self._checkpoint_marker_root.hide()
+            self._hide_breadcrumbs()
             return
 
         self._checkpoint_pulse += max(0.0, float(dt)) * 5.0
@@ -813,6 +1020,7 @@ class HUDOverlay:
         self._checkpoint_marker_root.show()
         self._checkpoint_marker_root.setPos(tx, ty, tz + 2.2 + (0.12 * pulse))
         self._checkpoint_marker_root.setScale(0.95 * pulse)
+        self._update_breadcrumbs(dt, player_pos, (tx, ty, tz))
 
     def update(
         self,
@@ -825,6 +1033,7 @@ class HUDOverlay:
         spell_labels=None,
         active_skill_idx=0,
         ultimate_skill_idx=0,
+        player_pos=None,
     ):
         if not isinstance(profile, dict):
             profile = getattr(self.app, "profile", {})
@@ -852,6 +1061,9 @@ class HUDOverlay:
             self.checkpoint_text.setText("")
             self.checkpoint_hint_text.setText("")
             self._checkpoint_marker_root.hide()
+            self._hide_breadcrumbs()
+            self.minimap_pin.hide()
+            self.minimap_hint.setText("")
             return
         self._set_fill(self.hp_fill, char_state.health / max(1.0, char_state.maxHealth))
         self._set_fill(self.sp_fill, char_state.stamina / max(1.0, char_state.maxStamina))
@@ -882,7 +1094,9 @@ class HUDOverlay:
             self.quest_text.setText("\n".join(lines))
         else:
             self.quest_text.setText("")
-        self._update_checkpoint_tracker(dt, quest_data or [])
+        resolved_player_pos = self._coerce_vec3(player_pos) or self._get_player_world_pos(char_state)
+        self._update_checkpoint_tracker(dt, quest_data or [], resolved_player_pos)
+        self._update_minimap(quest_data or [], resolved_player_pos)
 
         if isinstance(mount_hint, str):
             self.mount_hint_text.setText(mount_hint)

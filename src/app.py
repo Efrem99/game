@@ -1081,6 +1081,7 @@ class XBotApp(ShowBase):
             spell_labels,
             active_skill_idx,
             ultimate_skill_idx,
+            player_pos,
         )
 
         self._follow_camera(dt)

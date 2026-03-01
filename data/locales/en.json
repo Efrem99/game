@@ -27,7 +27,9 @@
         "press_space_skip": "Press Space to skip",
         "intro_tagline": "The Kingdom is Waiting",
         "loading_default_recap": "The kingdom of Aethelgard is vast and full of secrets. Shadows grow long in the Whispering Woods, and many look to you for hope. Your journey has only just begun...",
-        "recap_objective_header": "Currently:\n"
+        "recap_objective_header": "Currently:\n",
+        "map_hint": "Blue dot is player, gold markers are tracked objectives.",
+        "map_no_target": "No active target."
     },
     "stats": {
         "health": "Health",
@@ -76,6 +78,8 @@
     "hud": {
         "checkpoint": "Checkpoint",
         "reach": "Reach",
-        "interact": "Interact"
+        "interact": "Interact",
+        "minimap": "MINIMAP",
+        "no_target": "No target"
     }
 }
