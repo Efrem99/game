@@ -155,5 +155,16 @@
     "combat_hold_time": 5.0,
     "boss_hold_time": 8.0,
     "ambient_enabled": true,
-    "sfx_polyphony": 4
+    "sfx_polyphony": 4,
+    "sfx_cooldowns": {
+        "default": 0.0,
+        "ui_hover": 0.05,
+        "dragon_fire": 0.22,
+        "sword_hit": 0.03,
+        "enemy_hit": 0.04,
+        "footstep_grass": 0.04,
+        "footstep_stone": 0.04,
+        "footstep_wood": 0.04,
+        "footstep_water": 0.04
+    }
 }

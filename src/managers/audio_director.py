@@ -312,6 +312,19 @@ class AudioDirector:
         self._ambient_no_overlap = bool(cfg.get("ambient_no_overlap", True))
         self._ambient_enabled = bool(cfg.get("ambient_enabled", True))
         self._sfx_polyphony = max(1, int(cfg.get("sfx_polyphony", 4) or 4))
+        raw_cooldowns = cfg.get("sfx_cooldowns", {})
+        self._sfx_cooldowns = {}
+        if isinstance(raw_cooldowns, dict):
+            for key, value in raw_cooldowns.items():
+                norm_key = _norm_key(key)
+                if not norm_key:
+                    continue
+                try:
+                    seconds = max(0.0, float(value))
+                except Exception:
+                    continue
+                self._sfx_cooldowns[norm_key] = seconds
+        self._sfx_last_play = {}
 
         self._music_channel = _LoopChannel(
             self.app,
@@ -401,6 +414,12 @@ class AudioDirector:
         key = _norm_key(sfx_key)
         if not key:
             return False
+        now = globalClock.getFrameTime()
+        cooldown = float(self._sfx_cooldowns.get(key, self._sfx_cooldowns.get("default", 0.0)))
+        if cooldown > 0.0:
+            last_play = float(self._sfx_last_play.get(key, -9999.0))
+            if (now - last_play) < cooldown:
+                return False
         spec = self._sfx.get(key)
         path, base_vol = self._resolve_spec(spec)
         if not path:
@@ -417,6 +436,7 @@ class AudioDirector:
             snd.setVolume(final_vol)
             snd.setPlayRate(play_rate)
             snd.play()
+            self._sfx_last_play[key] = now
             return True
         except Exception as exc:
             logger.warning(f"[Audio] Failed to play SFX '{key}' ({path}): {exc}")
