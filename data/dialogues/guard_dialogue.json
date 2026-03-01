@@ -1,0 +1,110 @@
+{
+    "npc_id": "guard_city",
+    "npc_name": "Guard Captain Marcus",
+    "portrait": "assets/portraits/guard.png",
+    "dialogue_tree": {
+        "start": {
+            "speaker": "Guard Captain Marcus",
+            "text": "Halt! State your business, citizen.",
+            "animation": "salute",
+            "choices": [
+                {
+                    "text": "I'm just passing through.",
+                    "next_node": "passing_through"
+                },
+                {
+                    "text": "I need directions.",
+                    "next_node": "directions"
+                },
+                {
+                    "text": "Is there any trouble in the area?",
+                    "next_node": "trouble"
+                },
+                {
+                    "text": "Never mind.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "passing_through": {
+            "speaker": "Guard Captain Marcus",
+            "text": "Very well. Stay out of trouble, and keep to the main roads after dark. Bandits have been spotted in the woods.",
+            "animation": "patrol",
+            "choices": [
+                {
+                    "text": "Thanks for the warning.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                },
+                {
+                    "text": "Tell me more about these bandits.",
+                    "next_node": "trouble"
+                }
+            ]
+        },
+        "directions": {
+            "speaker": "Guard Captain Marcus",
+            "text": "Where are you headed? The market is to the east, the temple to the north, and the training grounds are south of here.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "How do I get to the castle?",
+                    "next_node": "castle_directions"
+                },
+                {
+                    "text": "Thank you, that's all I needed.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "castle_directions": {
+            "speaker": "Guard Captain Marcus",
+            "text": "The castle? You'll need clearance to enter. Head north past the temple, but the guards won't let you in without proper authorization.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "I understand.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "trouble": {
+            "speaker": "Guard Captain Marcus",
+            "text": "Aye, there's been increased monster activity near the forest. We're stretched thin as it is. If you're capable, we could use help clearing them out.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "I can help with that.",
+                    "next_node": "accept_patrol",
+                    "condition": "level:>=3"
+                },
+                {
+                    "text": "That sounds dangerous. I'll leave it to the professionals.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "accept_patrol": {
+            "speaker": "Guard Captain Marcus",
+            "text": "Excellent! Clear out at least 5 monsters from the forest perimeter, and I'll make sure you're compensated. Report back when it's done.",
+            "animation": "celebrate",
+            "choices": [
+                {
+                    "text": "I'll get it done.",
+                    "next_node": "farewell",
+                    "action": "give_quest:forest_patrol"
+                }
+            ]
+        },
+        "farewell": {
+            "speaker": "Guard Captain Marcus",
+            "text": "Stay vigilant, citizen.",
+            "animation": "salute",
+            "choices": []
+        }
+    }
+}

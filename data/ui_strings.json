@@ -1,0 +1,18 @@
+{
+    "main_menu": {
+        "title": "XBOT RPG ULTIMATE",
+        "btn_start": "START JOURNEY",
+        "btn_load": "LOAD PROGRESS",
+        "btn_exit": "QUIT GAME"
+    },
+    "hud": {
+        "health_label": "HEALTH",
+        "mana_label": "MANA",
+        "xp_label": "XP",
+        "active_quests": "ACTIVE QUESTS"
+    },
+    "inventory": {
+        "title": "PERSONAL GEAR",
+        "empty_slot": "EMPTY"
+    }
+}

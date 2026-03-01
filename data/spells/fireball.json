@@ -1,0 +1,38 @@
+{
+    "id": "fireball",
+    "name": "Fireball",
+    "mana_cost": 12,
+    "cooldown": 1.6,
+    "cast_time": 0.22,
+    "damage_type": "fire",
+    "anim_trigger": "cast_spell",
+    "sfx": {
+        "cast": "spell_cast",
+        "impact": "spell_fire"
+    },
+    "vfx": {
+        "particle_tag": "fire_burst"
+    },
+    "damage": 20,
+    "projectile": {
+        "speed": 35.0,
+        "lifetime": 3.0,
+        "radius": 0.8,
+        "color": [
+            1.0,
+            0.4,
+            0.1,
+            1.0
+        ]
+    },
+    "effect": {
+        "type": "explosion",
+        "radius": 2.5,
+        "color": [
+            1.0,
+            0.5,
+            0.2,
+            1.0
+        ]
+    }
+}

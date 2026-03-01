@@ -1,0 +1,113 @@
+{
+    "title": "Lore & Worldbuilding",
+    "sections": [
+        {
+            "name": "The World of Aethermoor",
+            "icon": "🌍",
+            "entries": [
+                {
+                    "heading": "Geography",
+                    "text": "Aethermoor is a mystical realm where magic flows through ancient ley lines, creating zones of wild power. The land is divided into several regions:\n\n• The Crystal Highlands - Mountains rich with magical crystals\n• Verdant Expanse - Lush forests inhabited by druids and spirits\n• Ashen Wastes - Desert corrupted by dark magic\n• Frozen North - Icy tundra home to frost giants\n• The Fallen Kingdom - Ruins of an ancient civilization"
+                }
+            ]
+        },
+        {
+            "name": "The Age of Wizards",
+            "icon": "📜",
+            "entries": [
+                {
+                    "heading": "The First Mages",
+                    "text": "Thousands of years ago, the first mortals learned to harness the raw magical energy that permeated the world. These pioneers became known as the Archmages, and they established the Council of Seven to govern the use of magic."
+                },
+                {
+                    "heading": "The Sundering",
+                    "text": "A cataclysmic war between the Archmages shattered the ancient kingdom. One mage, consumed by ambition, attempted to claim all magic for himself. The resulting battle tore reality itself, creating the Void - a dimension of pure destruction.\n\nThe Archmages sacrificed themselves to seal the Void, but their kingdom fell to ruin. Magic became wild and unpredictable, and the knowledge of the old ways was lost."
+                },
+                {
+                    "heading": "Present Day",
+                    "text": "You are among a new generation of magic users, rediscovering the lost arts. The Void still threatens reality, and whispers speak of a prophecy - a King Wizard who will reunite the fragments of ancient power and restore balance to the world."
+                }
+            ]
+        },
+        {
+            "name": "Magic System",
+            "icon": "✨",
+            "entries": [
+                {
+                    "heading": "Schools of Magic",
+                    "text": "Elemental - Fire, ice, lightning, and earth manipulation\nArcane - Pure magical energy, force fields, teleportation\nNecromancy - Death magic, summoning undead, life drain\nRestoration - Healing, protection, cleansing\nIllusion - Mind tricks, invisibility, confusion"
+                },
+                {
+                    "heading": "Ley Lines",
+                    "text": "Invisible rivers of magical energy crisscross the world. Standing near a ley line nexus greatly enhances spellcasting power but also attracts dangerous magical creatures."
+                },
+                {
+                    "heading": "Spell Crafting",
+                    "text": "Advanced mages can create custom spells by combining elemental essences and arcane formulas. This art was thought lost but is slowly being rediscovered."
+                }
+            ]
+        },
+        {
+            "name": "Factions & Organizations",
+            "icon": "🏛️",
+            "entries": [
+                {
+                    "heading": "The Mage's Guild",
+                    "text": "A collection of scholars and wizards dedicated to preserving magical knowledge. They offer training, quests, and sell rare spells to members."
+                },
+                {
+                    "heading": "The Order of the Silver Shield",
+                    "text": "Warriors sworn to protect the innocent from magical threats. They view magic with suspicion but recognize its necessity. Paladins and Shield Warriors often join their ranks."
+                },
+                {
+                    "heading": "The Shadow Covenant",
+                    "text": "A secretive group of necromancers and dark mages. They seek forbidden knowledge and are rumored to be trying to reopen the Void."
+                },
+                {
+                    "heading": "The Druids of the Old Grove",
+                    "text": "Nature guardians who maintain balance between civilization and the wild. They practice primal magic and commune with spirits."
+                }
+            ]
+        },
+        {
+            "name": "Notable Characters",
+            "icon": "👥",
+            "entries": [
+                {
+                    "heading": "Elder Sophia",
+                    "text": "A wise oracle and quest giver. She claims to have lived through the Sundering and possesses fragments of ancient knowledge. Her prophecies have never been wrong."
+                },
+                {
+                    "heading": "Merchant Aldric",
+                    "text": "A traveling merchant with connections across the realm. Some say he's merely an opportunist, others whisper he's a retired adventurer with a mysterious past."
+                },
+                {
+                    "heading": "Captain Marcus",
+                    "text": "Commander of the city guard. A veteran warrior who has seen countless battles. He trusts actions more than words and respects proven strength."
+                },
+                {
+                    "heading": "The Nameless King",
+                    "text": "An ancient undead ruler who haunts the Fallen Kingdom. Legend says he was the Archmage who caused the Sundering, cursed to wander eternity as punishment."
+                }
+            ]
+        },
+        {
+            "name": "Bestiary",
+            "icon": "🐉",
+            "entries": [
+                {
+                    "heading": "Common Threats",
+                    "text": "Goblins - Weak but numerous, often attack in packs\nBandits - Human outlaws, decent with weapons\nWolves - Fast predators, hunt at night\nSlimes - Resistant to physical damage, weak to fire"
+                },
+                {
+                    "heading": "Magical Creatures",
+                    "text": "Golems - Animated stone constructs, high armor\nWisps - Floating spirits, drain mana\nElementals - Embodiments of fire/ice/lightning\nDragons - Rare but devastating, legendary treasures"
+                },
+                {
+                    "heading": "Undead",
+                    "text": "Skeletons - Basic undead warriors\nZombies - Slow but resilient\nGhosts - Incorporeal, immune to physical damage\nLiches - Powerful undead mages, extremely dangerous"
+                }
+            ]
+        }
+    ]
+}

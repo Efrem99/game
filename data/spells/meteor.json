@@ -1,0 +1,38 @@
+{
+    "id": "meteor",
+    "name": "Meteor",
+    "mana_cost": 28,
+    "cooldown": 3.6,
+    "cast_time": 0.35,
+    "damage_type": "fire",
+    "anim_trigger": "cast_spell",
+    "sfx": {
+        "cast": "spell_cast",
+        "impact": "spell_fire"
+    },
+    "vfx": {
+        "particle_tag": "fire_burst"
+    },
+    "damage": 50,
+    "projectile": {
+        "speed": 25.0,
+        "lifetime": 5.0,
+        "radius": 1.2,
+        "color": [
+            1.0,
+            0.3,
+            0.1,
+            1.0
+        ]
+    },
+    "effect": {
+        "type": "explosion",
+        "radius": 4.0,
+        "color": [
+            1.0,
+            0.4,
+            0.1,
+            1.0
+        ]
+    }
+}

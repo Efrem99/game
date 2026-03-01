@@ -1,0 +1,83 @@
+{
+    "npc_name": "Merchant Aldric",
+    "dialogue_tree": {
+        "start": {
+            "text": "Greetings, traveler. |rate=130| Need supplies? |rate=180| I have the best prices!",
+            "speaker": "Merchant Aldric",
+            "choices": [
+                {
+                    "text": "Show me your wares.",
+                    "action": "open_shop",
+                    "next_node": "shop_end"
+                },
+                {
+                    "text": "Any work available?",
+                    "condition": "quest_active:q_first_blood:false",
+                    "next_node": "quest_offer"
+                },
+                {
+                    "text": "About those goblins...",
+                    "condition": "quest_active:q_first_blood:true",
+                    "next_node": "quest_check"
+                },
+                {
+                    "text": "Goodbye.",
+                    "next_node": "end"
+                }
+            ]
+        },
+        "quest_offer": {
+            "text": "|rate=110| It's terrible! |rate=160| Goblins have overrun the valley. Kill 3 of them for me?",
+            "speaker": "Merchant Aldric",
+            "choices": [
+                {
+                    "text": "I'll handle it.",
+                    "action": "give_quest:q_first_blood",
+                    "next_node": "quest_accepted"
+                },
+                {
+                    "text": "Not interested.",
+                    "next_node": "start"
+                }
+            ]
+        },
+        "quest_accepted": {
+            "text": "Excellent! Return when it is done.",
+            "speaker": "Merchant Aldric",
+            "choices": []
+        },
+        "quest_check": {
+            "text": "Have you defeated them?",
+            "speaker": "Merchant Aldric",
+            "choices": [
+                {
+                    "text": "Yes, they are dead. (Complete Quest)",
+                    "condition": "quest_complete:q_first_blood",
+                    "action": "complete_quest:q_first_blood",
+                    "next_node": "quest_done"
+                },
+                {
+                    "text": "I'm still working on it. (Lie)",
+                    "condition": "quest_complete:q_first_blood:false",
+                    "next_node": "start"
+                }
+            ]
+        },
+        "quest_done": {
+            "text": "|rate=120| You a hero! |rate=170| Here, take this gold as a reward.",
+            "speaker": "Merchant Aldric",
+            "choices": [
+                {
+                    "text": "Thanks.",
+                    "action": "give_gold:50",
+                    "next_node": "end"
+                }
+            ]
+        },
+        "shop_end": {
+            "text": "A pleasure doing business.",
+            "speaker": "Merchant Aldric",
+            "choices": []
+        }
+    }
+}

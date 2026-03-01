@@ -1,0 +1,62 @@
+{
+    "enemy": {
+        "idle": [
+            "enemy",
+            "Aggro_Transition_A"
+        ],
+        "walking": [
+            "enemy",
+            "Attack_A"
+        ],
+        "attacking": [
+            "enemy",
+            "Attack_B"
+        ]
+    },
+    "npc_merchant": {
+        "idle": [
+            "social",
+            "Travel_Idle"
+        ],
+        "greet": [
+            "social",
+            "Emote_Bow"
+        ],
+        "browse": [
+            "social",
+            "Emote_Browsing_M1"
+        ],
+        "celebrate": [
+            "social",
+            "Emote_Bravo"
+        ]
+    },
+    "npc_guard": {
+        "idle": [
+            "social",
+            "Travel_Idle"
+        ],
+        "salute": [
+            "social",
+            "Emote_Salute"
+        ],
+        "patrol": [
+            "combat",
+            "Walking"
+        ]
+    },
+    "npc_quest": {
+        "idle": [
+            "social",
+            "Travel_Idle_AO_LC"
+        ],
+        "greet": [
+            "social",
+            "Emote_Salute"
+        ],
+        "celebrate": [
+            "social",
+            "Emote_BigClap"
+        ]
+    }
+}

@@ -1,0 +1,171 @@
+{
+    "title": "Controls Guide",
+    "sections": [
+        {
+            "name": "Movement",
+            "icon": "🏃",
+            "controls": [
+                {
+                    "key": "W, A, S, D",
+                    "action": "Move forward, left, backward, right"
+                },
+                {
+                    "key": "Shift + Movement",
+                    "action": "Sprint (faster movement)"
+                },
+                {
+                    "key": "Space",
+                    "action": "Jump"
+                },
+                {
+                    "key": "Mouse",
+                    "action": "Look around / Rotate camera"
+                }
+            ]
+        },
+        {
+            "name": "Combat",
+            "icon": "⚔️",
+            "controls": [
+                {
+                    "key": "Left Mouse",
+                    "action": "Attack with weapon"
+                },
+                {
+                    "key": "Right Mouse",
+                    "action": "Block with shield"
+                },
+                {
+                    "key": "Q",
+                    "action": "Dodge roll"
+                },
+                {
+                    "key": "1-5",
+                    "action": "Quick ability slots"
+                },
+                {
+                    "key": "R",
+                    "action": "Lock on to enemy"
+                }
+            ]
+        },
+        {
+            "name": "Parkour",
+            "icon": "🧗",
+            "controls": [
+                {
+                    "key": "Space + Shift + W",
+                    "action": "Vault over obstacles"
+                },
+                {
+                    "key": "Space + W (near wall)",
+                    "action": "Climb ledge"
+                },
+                {
+                    "key": "Shift + A/D (near wall)",
+                    "action": "Wall run"
+                },
+                {
+                    "key": "Space (in air)",
+                    "action": "Double jump (if unlocked)"
+                }
+            ]
+        },
+        {
+            "name": "Magic & Spells",
+            "icon": "✨",
+            "controls": [
+                {
+                    "key": "F",
+                    "action": "Cast equipped spell"
+                },
+                {
+                    "key": "Mouse Wheel",
+                    "action": "Switch spells"
+                },
+                {
+                    "key": "Tab",
+                    "action": "Open spell book"
+                },
+                {
+                    "key": "C",
+                    "action": "Toggle spell targeting mode"
+                }
+            ]
+        },
+        {
+            "name": "User Interface",
+            "icon": "📋",
+            "controls": [
+                {
+                    "key": "I",
+                    "action": "Open/Close Inventory"
+                },
+                {
+                    "key": "J",
+                    "action": "Open/Close Journal (this guide)"
+                },
+                {
+                    "key": "M",
+                    "action": "Open/Close Map"
+                },
+                {
+                    "key": "K",
+                    "action": "Open Skills / Talent Tree"
+                },
+                {
+                    "key": "L",
+                    "action": "Open Quest Log"
+                },
+                {
+                    "key": "Esc",
+                    "action": "Pause Menu"
+                }
+            ]
+        },
+        {
+            "name": "Interaction",
+            "icon": "💬",
+            "controls": [
+                {
+                    "key": "E",
+                    "action": "Interact with NPCs / objects"
+                },
+                {
+                    "key": "E (dialogue)",
+                    "action": "Skip text / Close dialogue"
+                },
+                {
+                    "key": "1-9 (dialogue)",
+                    "action": "Select dialogue choice"
+                },
+                {
+                    "key": "G",
+                    "action": "Pick up loot"
+                },
+                {
+                    "key": "T",
+                    "action": "Toggle auto-loot"
+                }
+            ]
+        },
+        {
+            "name": "Debug Controls",
+            "icon": "🛠️",
+            "controls": [
+                {
+                    "key": "F3",
+                    "action": "Toggle debug info"
+                },
+                {
+                    "key": "F11",
+                    "action": "Toggle fullscreen"
+                },
+                {
+                    "key": "P",
+                    "action": "Pause/Unpause game"
+                }
+            ]
+        }
+    ]
+}

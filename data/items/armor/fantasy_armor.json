@@ -1,0 +1,21 @@
+{
+    "id": "fantasy_armor",
+    "name": "Fantasy Armor",
+    "type": "armor",
+    "armor": 4,
+    "description": "Ornate fantasy armor with magical properties.",
+    "visual": {
+        "style": "heavy",
+        "color": [
+            0.88,
+            0.85,
+            0.95,
+            1.0
+        ],
+        "model": "glb_out/free-man-fantasy-armor-6_source__Armor.glb",
+        "attachment": {
+            "bone": "mixamorig:Spine1",
+            "scale": 1.0
+        }
+    }
+}

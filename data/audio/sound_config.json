@@ -1,0 +1,159 @@
+{
+    "music": {
+        "menu": "data/audio/main_menu.mp3",
+        "overworld": "assets/audio/bgm.wav",
+        "village": "assets/audio/bgm.wav",
+        "combat": "data/audio/battle_music.mp3",
+        "boss": "data/audio/boss_fight_test.mp3"
+    },
+    "ambient": {
+        "plains": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.36
+        },
+        "town": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.27
+        },
+        "docks": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.4
+        },
+        "water": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.45
+        },
+        "wind": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.22
+        }
+    },
+    "location_music": {
+        "sharuan_castle": "overworld",
+        "town_hall": "village",
+        "southern_docks": "overworld"
+    },
+    "location_ambient": {
+        "sharuan_castle": "town",
+        "town_hall": "town",
+        "southern_docks": "docks"
+    },
+    "biome_ambient": {
+        "plains": "plains",
+        "mountain": "wind",
+        "sea": "water"
+    },
+    "sfx": {
+        "footstep_grass": {
+            "path": "assets/audio/step.wav",
+            "volume": 0.75
+        },
+        "footstep_stone": {
+            "path": "assets/audio/step.wav",
+            "volume": 0.72
+        },
+        "footstep_wood": {
+            "path": "assets/audio/step.wav",
+            "volume": 0.74
+        },
+        "footstep_water": {
+            "path": "assets/audio/step.wav",
+            "volume": 0.78
+        },
+        "jump": {
+            "path": "assets/audio/step.wav",
+            "volume": 0.72
+        },
+        "land": {
+            "path": "assets/audio/hit.wav",
+            "volume": 0.7
+        },
+        "weapon_unsheathe": [
+            {
+                "path": "assets/audio/unsheathe.wav",
+                "volume": 0.9
+            },
+            {
+                "path": "assets/audio/unsheathe2.wav",
+                "volume": 0.9
+            }
+        ],
+        "sword_swing": [
+            {
+                "path": "assets/audio/swing1.wav",
+                "volume": 0.88
+            },
+            {
+                "path": "assets/audio/swing2.wav",
+                "volume": 0.9
+            },
+            {
+                "path": "assets/audio/swing3.wav",
+                "volume": 0.9
+            }
+        ],
+        "sword_hit": {
+            "path": "assets/audio/hit.wav",
+            "volume": 0.95
+        },
+        "sword_block": {
+            "path": "assets/audio/hit.wav",
+            "volume": 0.8
+        },
+        "enemy_hit": {
+            "path": "assets/audio/hit.wav",
+            "volume": 0.9
+        },
+        "enemy_death": {
+            "path": "assets/audio/hit.wav",
+            "volume": 1.0
+        },
+        "spell_cast": {
+            "path": "assets/audio/cast.wav",
+            "volume": 0.95
+        },
+        "spell_fire": {
+            "path": "assets/audio/cast.wav",
+            "volume": 0.95
+        },
+        "dragon_fire": {
+            "path": "assets/audio/cast.wav",
+            "volume": 1.0
+        },
+        "spell_ice": {
+            "path": "assets/audio/cast.wav",
+            "volume": 0.95
+        },
+        "spell_lightning": {
+            "path": "assets/audio/cast.wav",
+            "volume": 0.95
+        },
+        "spell_arcane": {
+            "path": "assets/audio/cast.wav",
+            "volume": 0.95
+        },
+        "spell_holy": {
+            "path": "assets/audio/cast.wav",
+            "volume": 0.95
+        },
+        "ui_click": {
+            "path": "assets/audio/pickup.wav",
+            "volume": 0.7
+        },
+        "ui_hover": {
+            "path": "assets/audio/pickup.wav",
+            "volume": 0.35
+        },
+        "item_pickup": {
+            "path": "assets/audio/pickup.wav",
+            "volume": 0.8
+        }
+    },
+    "crossfade_time": 1.4,
+    "music_no_overlap": true,
+    "ambient_no_overlap": true,
+    "combat_hold_time": 5.0,
+    "boss_hold_time": 8.0,
+    "ambient_enabled": true,
+    "sfx_polyphony": 4
+}

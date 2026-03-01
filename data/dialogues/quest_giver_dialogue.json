@@ -1,0 +1,148 @@
+{
+    "npc_id": "quest_giver_main",
+    "npc_name": "Elder Sophia",
+    "portrait": "assets/portraits/elder.png",
+    "dialogue_tree": {
+        "start": {
+            "speaker": "Elder Sophia",
+            "text": "Ah, young adventurer. I sense great potential in you. Perhaps you can help us with a pressing matter?",
+            "animation": "greet",
+            "choices": [
+                {
+                    "text": "What do you need?",
+                    "next_node": "quest_offer",
+                    "condition": "quest_active:tutorial_quest:false"
+                },
+                {
+                    "text": "I completed the task you gave me.",
+                    "next_node": "quest_complete",
+                    "condition": "quest_complete:tutorial_quest"
+                },
+                {
+                    "text": "I'm working on it.",
+                    "next_node": "quest_progress",
+                    "condition": "quest_active:tutorial_quest"
+                },
+                {
+                    "text": "Not right now.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "quest_offer": {
+            "speaker": "Elder Sophia",
+            "text": "Dark creatures have been emerging from the ancient ruins nearby. We need someone brave enough to investigate and eliminate the threat. Will you help us?",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "I'll do it. What exactly do you need?",
+                    "next_node": "quest_details"
+                },
+                {
+                    "text": "This sounds too dangerous for me.",
+                    "next_node": "decline_quest"
+                }
+            ]
+        },
+        "quest_details": {
+            "speaker": "Elder Sophia",
+            "text": "Venture to the ruins and defeat at least 5 of the creatures lurking there. Also, explore the main chamber - there may be clues about why they've awakened. Return to me when the task is complete.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "I accept this quest.",
+                    "next_node": "quest_accepted",
+                    "action": "give_quest:tutorial_quest"
+                },
+                {
+                    "text": "Let me think about it.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "quest_accepted": {
+            "speaker": "Elder Sophia",
+            "text": "Bless you, brave soul! May the light guide your path. Be careful - those ruins are treacherous.",
+            "animation": "celebrate",
+            "choices": [
+                {
+                    "text": "I won't let you down.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "quest_progress": {
+            "speaker": "Elder Sophia",
+            "text": "How goes your mission? Have you cleared the ruins yet?",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "Still working on it.",
+                    "next_node": "encourage"
+                },
+                {
+                    "text": "I need to go.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "encourage": {
+            "speaker": "Elder Sophia",
+            "text": "Take your time, but don't tarry too long. The darkness grows stronger each day.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "I understand.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "quest_complete": {
+            "speaker": "Elder Sophia",
+            "text": "You've done it! The village is safe once more, thanks to your bravery. Please, accept this reward as a token of our gratitude.",
+            "animation": "celebrate",
+            "choices": [
+                {
+                    "text": "Thank you. I'm glad I could help.",
+                    "next_node": "reward",
+                    "action": "complete_quest:tutorial_quest"
+                }
+            ]
+        },
+        "reward": {
+            "speaker": "Elder Sophia",
+            "text": "May your journey be prosperous, hero. If you ever need guidance, you know where to find me.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "Farewell, Elder.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "decline_quest": {
+            "speaker": "Elder Sophia",
+            "text": "I understand. Perhaps when you feel more prepared, you can reconsider. The offer stands.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "I'll think about it.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "farewell": {
+            "speaker": "Elder Sophia",
+            "text": "May the light watch over you, traveler.",
+            "animation": "idle",
+            "choices": []
+        }
+    }
+}

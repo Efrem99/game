@@ -1,0 +1,54 @@
+{
+    "water_level": 0.0,
+    "lakes": [
+        {
+            "name": "Central Lake",
+            "center": [
+                30,
+                -20
+            ],
+            "radius": 20,
+            "depth": 4.0
+        },
+        {
+            "name": "Small Pond",
+            "center": [
+                -35,
+                35
+            ],
+            "radius": 8,
+            "depth": 2.0
+        }
+    ],
+    "rivers": [
+        {
+            "name": "Forest Stream",
+            "points": [
+                [
+                    -50,
+                    40
+                ],
+                [
+                    -30,
+                    30
+                ],
+                [
+                    0,
+                    20
+                ],
+                [
+                    30,
+                    0
+                ]
+            ],
+            "width": 6,
+            "depth": 1.5
+        }
+    ],
+    "surface": {
+        "size": 200,
+        "resolution": 40,
+        "wave_height": 0.15,
+        "wave_speed": 0.5
+    }
+}

@@ -1,0 +1,29 @@
+{
+    "id": "ward",
+    "name": "Magic Ward",
+    "mana_cost": 16,
+    "cooldown": 4.5,
+    "cast_time": 0.3,
+    "damage_type": "holy",
+    "anim_trigger": "cast_spell",
+    "sfx": {
+        "cast": "spell_cast",
+        "impact": "spell_holy"
+    },
+    "vfx": {
+        "particle_tag": "heal_glow"
+    },
+    "buff": {
+        "duration": 6.0,
+        "armor": 8
+    },
+    "effect": {
+        "type": "buff",
+        "color": [
+            0.7,
+            0.8,
+            1.0,
+            0.3
+        ]
+    }
+}

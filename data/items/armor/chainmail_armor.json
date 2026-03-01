@@ -1,0 +1,21 @@
+{
+    "id": "chainmail_armor",
+    "name": "Chainmail Armor",
+    "type": "armor",
+    "armor": 3,
+    "description": "Medium chainmail armor. Balanced protection.",
+    "visual": {
+        "style": "medium",
+        "color": [
+            0.85,
+            0.85,
+            0.90,
+            1.0
+        ],
+        "model": "glb_out/free-male-armour-4-game-ready__ManAr4.glb",
+        "attachment": {
+            "bone": "mixamorig:Spine1",
+            "scale": 1.0
+        }
+    }
+}

@@ -1,0 +1,27 @@
+{
+    "id": "nova",
+    "name": "Arcane Nova",
+    "mana_cost": 20,
+    "cooldown": 2.4,
+    "cast_time": 0.25,
+    "damage_type": "arcane",
+    "anim_trigger": "cast_spell",
+    "sfx": {
+        "cast": "spell_cast",
+        "impact": "spell_arcane"
+    },
+    "vfx": {
+        "particle_tag": "force_push"
+    },
+    "damage": 15,
+    "effect": {
+        "type": "nova",
+        "radius": 6.0,
+        "color": [
+            0.5,
+            0.8,
+            1.0,
+            1.0
+        ]
+    }
+}

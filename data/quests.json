@@ -1,0 +1,51 @@
+[
+    {
+        "id": "q_founder_statue",
+        "title": "Legacy of the Founder",
+        "description": "Visit the Statue of the Founder in the city center.",
+        "objectives": [
+            {
+                "type": "reach_location",
+                "target": [
+                    0,
+                    -10,
+                    0
+                ],
+                "radius": 5.0,
+                "description": "Go to the city square."
+            }
+        ],
+        "rewards": {
+            "xp": 100,
+            "items": [
+                "health_potion"
+            ]
+        }
+    },
+    {
+        "id": "q_mine_report",
+        "title": "Trouble in the Mines",
+        "description": "Investigate the cave entrance south of the castle.",
+        "objectives": [
+            {
+                "type": "reach_location",
+                "target": [
+                    5,
+                    45,
+                    0
+                ],
+                "radius": 8.0,
+                "description": "Reach the mine entrance."
+            },
+            {
+                "type": "interact",
+                "target": "miner0",
+                "description": "Speak with the head miner."
+            }
+        ],
+        "rewards": {
+            "xp": 250,
+            "gold": 50
+        }
+    }
+]

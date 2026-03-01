@@ -1,0 +1,11 @@
+{
+  "id": "iron_sword",
+  "name": "Iron Sword",
+  "type": "weapon",
+  "power": 2,
+  "description": "A standard iron sword. Reliable and balanced.",
+  "visual": {
+    "color": [0.82, 0.84, 0.9, 1.0],
+    "scale_factor": 1.0
+  }
+}

@@ -1,0 +1,64 @@
+{
+    "id": "dragon",
+    "name": "Dragon",
+    "type": "boss",
+    "stats": {
+        "max_hp": 1500,
+        "power": 32,
+        "armor": 14,
+        "walk_speed": 3.6,
+        "run_speed": 6.8,
+        "aggro_range": 32.0,
+        "attack_range": 5.5
+    },
+    "ai": {
+        "behavior": "boss",
+        "abilities": [
+            "fire_breath",
+            "tail_swipe",
+            "roar"
+        ],
+        "fire_range": 20.0,
+        "fire_cone_degrees": 26.0,
+        "fire_duration": 2.2,
+        "fire_cooldown": 5.8,
+        "fire_tick_damage": 12,
+        "phase_transitions": [
+            {
+                "hp_threshold": 0.5,
+                "enrage": true
+            }
+        ]
+    },
+    "visuals": {
+        "model": "assets/models/dragon/elder_dragon.glb",
+        "scale": 0.9,
+        "color": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ]
+    },
+    "spawn_point": [
+        34.0,
+        -6.0,
+        0.0
+    ],
+    "loot": {
+        "items": [
+            {
+                "id": "royal_armor",
+                "chance": 0.8
+            },
+            {
+                "id": "rune_charm",
+                "chance": 0.6
+            }
+        ],
+        "gold": [
+            100,
+            200
+        ]
+    }
+}

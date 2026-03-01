@@ -1,0 +1,125 @@
+{
+    "title": "Game Mechanics",
+    "sections": [
+        {
+            "name": "Character Stats",
+            "icon": "📊",
+            "content": [
+                {
+                    "heading": "Core Attributes",
+                    "text": "Your character has several core stats that determine combat effectiveness and survivability."
+                },
+                {
+                    "stat": "Health Points (HP)",
+                    "description": "Your life force. Reaches 0 = death. Regenerates slowly when out of combat.",
+                    "formula": "Base: 100 + (10 × Level) + Equipment Bonuses"
+                },
+                {
+                    "stat": "Mana Points (MP)",
+                    "description": "Energy for casting spells. Regenerates over time.",
+                    "formula": "Base: 50 + (5 × Level) + Intelligence × 2"
+                },
+                {
+                    "stat": "Stamina",
+                    "description": "Used for sprinting, dodging, and some abilities. Regenerates quickly.",
+                    "formula": "Base: 100 + Endurance × 3"
+                },
+                {
+                    "stat": "Armor",
+                    "description": "Reduces physical damage taken.",
+                    "formula": "Damage Reduction = Armor / (Armor + 100)"
+                }
+            ]
+        },
+        {
+            "name": "Combat System",
+            "icon": "⚔️",
+            "content": [
+                {
+                    "heading": "Damage Types",
+                    "text": "Physical - Weapon attacks, reduced by armor\nMagical - Spell damage, reduced by magic resistance\nTrue - Ignores all defenses"
+                },
+                {
+                    "heading": "Combo System",
+                    "text": "Chain attacks for increased damage. Each consecutive hit within 2 seconds increases damage by 10%, up to 50% bonus."
+                },
+                {
+                    "heading": "Critical Hits",
+                    "text": "Chance to deal 2x damage. Base crit chance: 5% + Agility/20"
+                },
+                {
+                    "heading": "Block & Parry",
+                    "text": "Blocking reduces damage by 50-75% depending on shield.\nPerfect Parry (block at last moment): negates damage and stuns attacker for 1s."
+                }
+            ]
+        },
+        {
+            "name": "Leveling & Experience",
+            "icon": "⭐",
+            "content": [
+                {
+                    "heading": "Experience Gain",
+                    "text": "Defeating Enemies: 10-500 XP depending on level\nQuests: 50-1000 XP\nExploration: 25 XP per location discovered\nCrafting: 5 XP per item created"
+                },
+                {
+                    "heading": "Level Up",
+                    "text": "Required XP = 100 × Level²\nBenefits:\n• +10 HP\n• +5 Mana\n• +1 Skill Point\n• +2 Attribute Points"
+                },
+                {
+                    "heading": "Attribute Points",
+                    "text": "Strength: +2 melee damage, +1 HP\nAgility: +1% crit chance, +0.5% dodge\nIntelligence: +3 mana, +2 spell damage\nEndurance: +5 HP, +3 stamina"
+                }
+            ]
+        },
+        {
+            "name": "Equipment System",
+            "icon": "🎒",
+            "content": [
+                {
+                    "heading": "Equipment Slots",
+                    "text": "Weapon (Main Hand)\nShield/Off-hand\nHelmet\nChest Armor\nGloves\nLegs\nBoots\n2x Ring\n1x Amulet"
+                },
+                {
+                    "heading": "Rarity Tiers",
+                    "text": "Common (Gray): Basic stats\nUncommon (Green): +1 bonus stat\nRare (Blue): +2 bonus stats\nEpic (Purple): +3 bonus stats + special effect\nLegendary (Orange): +5 bonus stats + powerful effect"
+                },
+                {
+                    "heading": "Durability",
+                    "text": "Equipment degrades with use. Repair at blacksmith or use repair kits."
+                }
+            ]
+        },
+        {
+            "name": "Crafting & Gathering",
+            "icon": "🔨",
+            "content": [
+                {
+                    "heading": "Professions",
+                    "text": "Blacksmithing: Craft weapons and armor\nAlchemy: Create potions and elixirs\nEnchanting: Add magical properties to items"
+                },
+                {
+                    "heading": "Gathering Resources",
+                    "text": "Mine ore from rocks\nHarvest herbs from plants\nSkin animals for leather\nSalvage old equipment for materials"
+                },
+                {
+                    "heading": "Crafting Process",
+                    "text": "1. Learn recipe (found or purchased)\n2. Gather required materials\n3. Use crafting station\n4. Success rate based on skill level"
+                }
+            ]
+        },
+        {
+            "name": "Death & Respawn",
+            "icon": "💀",
+            "content": [
+                {
+                    "heading": "Death Penalty",
+                    "text": "On death:\n• Drop 10% of carried gold\n• Lose equipped items durability (-10%)\n• -5% XP for current level (can't de-level)"
+                },
+                {
+                    "heading": "Respawn",
+                    "text": "Respawn at last visited checkpoint or town.\nCorpse remains for 10 minutes to retrieve lost gold."
+                }
+            ]
+        }
+    ]
+}

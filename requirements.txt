@@ -1,0 +1,6 @@
+panda3d
+panda3d-simplepbr
+panda3d-complexpbr
+numpy
+bind11
+numpy

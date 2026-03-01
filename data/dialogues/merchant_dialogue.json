@@ -1,0 +1,100 @@
+{
+    "npc_id": "merchant_general",
+    "npc_name": "Merchant Aldric",
+    "portrait": "assets/portraits/merchant.png",
+    "dialogue_tree": {
+        "start": {
+            "speaker": "Merchant Aldric",
+            "text": "Greetings, traveler! Welcome to my humble shop. What brings you here today?",
+            "animation": "greet",
+            "choices": [
+                {
+                    "text": "I'd like to browse your wares.",
+                    "next_node": "open_shop",
+                    "action": "open_shop"
+                },
+                {
+                    "text": "Do you have any rare items?",
+                    "next_node": "rare_items"
+                },
+                {
+                    "text": "Just looking around.",
+                    "next_node": "browsing"
+                },
+                {
+                    "text": "Goodbye.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "open_shop": {
+            "speaker": "Merchant Aldric",
+            "text": "Excellent! Have a look at my finest goods. Everything is competitively priced!",
+            "animation": "celebrate",
+            "choices": [
+                {
+                    "text": "[Shop opening...]",
+                    "next_node": "post_shop"
+                }
+            ]
+        },
+        "post_shop": {
+            "speaker": "Merchant Aldric",
+            "text": "Find everything you needed? I'm always restocking with new items.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "Yes, thank you.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                },
+                {
+                    "text": "Actually, let me look again.",
+                    "next_node": "open_shop",
+                    "action": "open_shop"
+                }
+            ]
+        },
+        "rare_items": {
+            "speaker": "Merchant Aldric",
+            "text": "Ah, a connoisseur! I do occasionally get rare artifacts... but they come at a premium price. Are you prepared to pay?",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "Show me what you have.",
+                    "next_node": "open_shop",
+                    "action": "open_shop"
+                },
+                {
+                    "text": "Maybe another time.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "browsing": {
+            "speaker": "Merchant Aldric",
+            "text": "Feel free to browse! Let me know if anything catches your eye.",
+            "animation": "idle",
+            "choices": [
+                {
+                    "text": "Actually, I'd like to buy something.",
+                    "next_node": "open_shop",
+                    "action": "open_shop"
+                },
+                {
+                    "text": "Thanks, I'll be going now.",
+                    "next_node": "farewell",
+                    "action": "end_dialogue"
+                }
+            ]
+        },
+        "farewell": {
+            "speaker": "Merchant Aldric",
+            "text": "Safe travels, friend! Come back anytime!",
+            "animation": "idle",
+            "choices": []
+        }
+    }
+}

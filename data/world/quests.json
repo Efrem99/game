@@ -1,0 +1,25 @@
+{
+    "q_awakening": {
+        "title": "The Awakening",
+        "description": "You have awakened in a strange land. Find the Training Ground to learn the basics.",
+        "objectives": [
+            {
+                "id": "reach_training_ground",
+                "desc": "Reach the Training Ground",
+                "count": 1
+            }
+        ],
+        "next_quest": "q_first_blood"
+    },
+    "q_first_blood": {
+        "title": "First Blood",
+        "description": "The local wildlife is hostile. Defeat 3 Goblins.",
+        "objectives": [
+            {
+                "id": "kill_goblin",
+                "desc": "Kill Goblins",
+                "count": 3
+            }
+        ]
+    }
+}

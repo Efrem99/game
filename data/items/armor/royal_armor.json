@@ -1,0 +1,21 @@
+{
+    "id": "royal_armor",
+    "name": "Royal Plate",
+    "type": "armor",
+    "armor": 5,
+    "description": "Heavy plate armor worn by royal guards.",
+    "visual": {
+        "style": "heavy",
+        "color": [
+            0.92,
+            0.92,
+            1.0,
+            1.0
+        ],
+        "model": "glb_out/free-man-armor-full-body__ManArmor.glb",
+        "attachment": {
+            "bone": "mixamorig:Spine1",
+            "scale": 1.0
+        }
+    }
+}

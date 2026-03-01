@@ -1,0 +1,62 @@
+{
+    "_comment": "Dialogue System JSON Schema - Documentation",
+    "_description": "This file describes the structure for NPC dialogue trees",
+    "schema_version": "1.0",
+    "example_structure": {
+        "npc_id": "unique_npc_identifier",
+        "npc_name": "NPC Display Name",
+        "portrait": "optional_path_to_portrait_image",
+        "dialogue_tree": {
+            "start": {
+                "speaker": "NPC Name",
+                "text": "The dialogue text that the NPC says",
+                "animation": "npc_animation_to_play (greet, idle, celebrate, etc.)",
+                "choices": [
+                    {
+                        "text": "Player choice text",
+                        "next_node": "node_id_to_jump_to",
+                        "condition": "optional: quest_active:tutorial_quest",
+                        "action": "optional: give_quest:tutorial_quest"
+                    }
+                ]
+            },
+            "node_id": {
+                "speaker": "NPC Name",
+                "text": "More dialogue text",
+                "animation": "idle",
+                "choices": [
+                    {
+                        "text": "Choice 1",
+                        "next_node": "another_node"
+                    },
+                    {
+                        "text": "Goodbye",
+                        "next_node": "end",
+                        "action": "end_dialogue"
+                    }
+                ]
+            },
+            "end": {
+                "speaker": "NPC Name",
+                "text": "Farewell message",
+                "animation": "idle",
+                "choices": []
+            }
+        }
+    },
+    "condition_types": {
+        "quest_active": "Check if quest is active (quest_active:quest_id)",
+        "quest_complete": "Check if quest is complete (quest_complete:quest_id)",
+        "has_item": "Check if player has item (has_item:item_id)",
+        "gold_amount": "Check player gold (gold_amount:>=100)",
+        "level": "Check player level (level:>=5)"
+    },
+    "action_types": {
+        "give_quest": "Start a quest (give_quest:quest_id)",
+        "complete_quest": "Complete a quest (complete_quest:quest_id)",
+        "open_shop": "Open merchant shop (open_shop)",
+        "give_item": "Give item to player (give_item:item_id:count)",
+        "give_gold": "Give gold to player (give_gold:amount)",
+        "end_dialogue": "End the dialogue conversation"
+    }
+}

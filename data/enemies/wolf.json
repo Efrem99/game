@@ -1,0 +1,41 @@
+{
+    "id": "wolf",
+    "name": "Wolf",
+    "type": "hostile",
+    "stats": {
+        "max_hp": 80,
+        "power": 12,
+        "armor": 2,
+        "walk_speed": 3.5,
+        "run_speed": 6.5,
+        "aggro_range": 15.0,
+        "attack_range": 2.0
+    },
+    "ai": {
+        "behavior": "aggressive",
+        "chase_duration": 8.0,
+        "patrol_radius": 10.0
+    },
+    "visuals": {
+        "model": "models/wolf.glb",
+        "scale": 0.8,
+        "color": [
+            0.3,
+            0.3,
+            0.35,
+            1.0
+        ]
+    },
+    "loot": {
+        "items": [
+            {
+                "id": "herb_bundle",
+                "chance": 0.3
+            }
+        ],
+        "gold": [
+            5,
+            15
+        ]
+    }
+}

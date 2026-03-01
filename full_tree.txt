@@ -1,0 +1,407 @@
+﻿Король Волшебник/
++-- __pycache__/
+|   \-- launch_bootstrap.cpython-314.pyc
++-- assets/
+|   +-- anims/
+|   |   +-- attack_sword_slash.fbx
+|   |   +-- block_guard.fbx
+|   |   +-- cast_spell.fbx
+|   |   +-- climb_up.fbx
+|   |   +-- death_die.fbx
+|   |   +-- dodge_roll.fbx
+|   |   +-- fall_air.fbx
+|   |   +-- flying_loop.fbx
+|   |   +-- jump_takeoff.fbx
+|   |   +-- land_recover.fbx
+|   |   +-- README.md
+|   |   +-- swim_loop.fbx
+|   |   +-- vault_over.fbx
+|   |   \-- wallrun_side.fbx
+|   +-- audio/
+|   |   +-- bgm.wav
+|   |   +-- cast.wav
+|   |   +-- hit.wav
+|   |   +-- pickup.wav
+|   |   +-- step.wav
+|   |   +-- swing1.wav
+|   |   +-- swing2.wav
+|   |   +-- swing3.wav
+|   |   +-- unsheathe.wav
+|   |   \-- unsheathe2.wav
+|   +-- fonts/
+|   |   +-- arial.ttf
+|   |   +-- arialbd.ttf
+|   |   +-- tahoma.ttf
+|   |   \-- tahomabd.ttf
+|   +-- models/
+|   |   +-- xbot/
+|   |   |   +-- idle.glb
+|   |   |   +-- run.glb
+|   |   |   +-- walk.glb
+|   |   |   \-- Xbot.glb
+|   |   \-- character.glb
+|   \-- textures/
+|       +-- skills/
+|       |   +-- arcane.png
+|       |   +-- default.png
+|       |   +-- fire.png
+|       |   +-- fireball.png
+|       |   +-- forcewave.png
+|       |   +-- healing.png
+|       |   +-- healingaura.png
+|       |   +-- holy.png
+|       |   +-- ice.png
+|       |   +-- iceshards.png
+|       |   +-- lightning.png
+|       |   +-- lightningbolt.png
+|       |   +-- meteor.png
+|       |   +-- nova.png
+|       |   +-- phase.png
+|       |   \-- ward.png
+|       +-- antigravity_logo.png
+|       +-- antigravity_logo_1770458268618.png
+|       +-- flare.png
+|       +-- foliage_seamless_texture_5435.jpg
+|       +-- game_cursor.png
+|       +-- heightfield.png
+|       +-- kw_logo.png
+|       +-- sand_seamless_texture_1771.jpg
+|       \-- stone_with_moss_texture.jpg
++-- assets_raw/
+|   \-- textures/
+|       \-- ui/
+|           +-- big_background.png
+|           +-- button_frame.png
+|           +-- button_ready_off.png
+|           \-- button_ready_on.png
++-- build/
+|   +-- .cmake/
+|   |   \-- api/
+|   |       \-- v1/
+|   |           +-- query/
+|   |           |   \-- client-vscode/
+|   |           |       \-- query.json
+|   |           \-- reply/
+|   |               +-- cache-v2-4f7078986011233ede67.json
+|   |               +-- cmakeFiles-v1-c28cd6b125acf74f1f87.json
+|   |               +-- codemodel-v2-1c6c242a8a227759f894.json
+|   |               +-- directory-.-Debug-d0094a50bb2071803777.json
+|   |               +-- directory-.-MinSizeRel-d0094a50bb2071803777.json
+|   |               +-- directory-.-Release-d0094a50bb2071803777.json
+|   |               +-- directory-.-RelWithDebInfo-d0094a50bb2071803777.json
+|   |               +-- index-2026-02-24T19-10-42-0845.json
+|   |               +-- target-ALL_BUILD-Debug-3dcdbd0c799ec5084e23.json
+|   |               +-- target-ALL_BUILD-MinSizeRel-3dcdbd0c799ec5084e23.json
+|   |               +-- target-ALL_BUILD-Release-3dcdbd0c799ec5084e23.json
+|   |               +-- target-ALL_BUILD-RelWithDebInfo-3dcdbd0c799ec5084e23.json
+|   |               +-- target-game_core-Debug-0d9a6eb0e9f8854d4656.json
+|   |               +-- target-game_core-MinSizeRel-2c3134adf468b8910f9a.json
+|   |               +-- target-game_core-Release-6c4b9b2350dc26ba37bc.json
+|   |               +-- target-game_core-RelWithDebInfo-a1832cb6ce193838baf9.json
+|   |               +-- target-ZERO_CHECK-Debug-326b372c114c139946c4.json
+|   |               +-- target-ZERO_CHECK-MinSizeRel-326b372c114c139946c4.json
+|   |               +-- target-ZERO_CHECK-Release-326b372c114c139946c4.json
+|   |               +-- target-ZERO_CHECK-RelWithDebInfo-326b372c114c139946c4.json
+|   |               \-- toolchains-v1-fea6f29a5fbb6be9ba8a.json
+|   +-- CMakeFiles/
+|   |   +-- 4.1.1-msvc1/
+|   |   |   +-- CompilerIdC/
+|   |   |   |   +-- Debug/
+|   |   |   |   |   +-- CompilerIdC.tlog/
+|   |   |   |   |   |   +-- CL.command.1.tlog
+|   |   |   |   |   |   +-- Cl.items.tlog
+|   |   |   |   |   |   +-- CL.read.1.tlog
+|   |   |   |   |   |   +-- CL.write.1.tlog
+|   |   |   |   |   |   +-- CompilerIdC.lastbuildstate
+|   |   |   |   |   |   +-- link.command.1.tlog
+|   |   |   |   |   |   +-- link.read.1.tlog
+|   |   |   |   |   |   +-- link.secondary.1.tlog
+|   |   |   |   |   |   \-- link.write.1.tlog
+|   |   |   |   |   +-- CMakeCCompilerId.obj
+|   |   |   |   |   \-- CompilerIdC.exe.recipe
+|   |   |   |   +-- tmp/
+|   |   |   |   +-- CMakeCCompilerId.c
+|   |   |   |   +-- CompilerIdC.exe
+|   |   |   |   \-- CompilerIdC.vcxproj
+|   |   |   +-- CompilerIdCXX/
+|   |   |   |   +-- Debug/
+|   |   |   |   |   +-- CompilerIdCXX.tlog/
+|   |   |   |   |   |   +-- CL.command.1.tlog
+|   |   |   |   |   |   +-- Cl.items.tlog
+|   |   |   |   |   |   +-- CL.read.1.tlog
+|   |   |   |   |   |   +-- CL.write.1.tlog
+|   |   |   |   |   |   +-- CompilerIdCXX.lastbuildstate
+|   |   |   |   |   |   +-- link.command.1.tlog
+|   |   |   |   |   |   +-- link.read.1.tlog
+|   |   |   |   |   |   +-- link.secondary.1.tlog
+|   |   |   |   |   |   \-- link.write.1.tlog
+|   |   |   |   |   +-- CMakeCXXCompilerId.obj
+|   |   |   |   |   \-- CompilerIdCXX.exe.recipe
+|   |   |   |   +-- tmp/
+|   |   |   |   +-- CMakeCXXCompilerId.cpp
+|   |   |   |   +-- CompilerIdCXX.exe
+|   |   |   |   \-- CompilerIdCXX.vcxproj
+|   |   |   +-- VCTargetsPath/
+|   |   |   |   \-- x64/
+|   |   |   |       \-- Debug/
+|   |   |   |           +-- VCTargetsPath.tlog/
+|   |   |   |           |   \-- VCTargetsPath.lastbuildstate
+|   |   |   |           \-- VCTargetsPath.recipe
+|   |   |   +-- x64/
+|   |   |   |   \-- Debug/
+|   |   |   +-- CMakeCCompiler.cmake
+|   |   |   +-- CMakeCXXCompiler.cmake
+|   |   |   +-- CMakeDetermineCompilerABI_C.bin
+|   |   |   +-- CMakeDetermineCompilerABI_CXX.bin
+|   |   |   +-- CMakeRCCompiler.cmake
+|   |   |   +-- CMakeSystem.cmake
+|   |   |   +-- VCTargetsPath.txt
+|   |   |   \-- VCTargetsPath.vcxproj
+|   |   +-- 69b9377939e0e0d073b3a01df1258a04/
+|   |   |   \-- generate.stamp.rule
+|   |   +-- CMakeScratch/
+|   |   +-- pkgRedirects/
+|   |   +-- cmake.check_cache
+|   |   +-- CMakeConfigureLog.yaml
+|   |   +-- generate.stamp
+|   |   +-- generate.stamp.depend
+|   |   +-- generate.stamp.list
+|   |   +-- InstallScripts.json
+|   |   \-- TargetDirectories.txt
+|   +-- ALL_BUILD.vcxproj
+|   +-- ALL_BUILD.vcxproj.filters
+|   +-- cmake_install.cmake
+|   +-- CMakeCache.txt
+|   +-- game_core.vcxproj
+|   +-- game_core.vcxproj.filters
+|   +-- xbot_rpg_ultimate.sln
+|   +-- ZERO_CHECK.vcxproj
+|   \-- ZERO_CHECK.vcxproj.filters
++-- cpp/
+|   +-- include/
+|   |   +-- AnimationBlender.h
+|   |   +-- CombatSystem.h
+|   |   +-- MagicSystem.h
+|   |   +-- ParkourSystem.h
+|   |   +-- ParticleSystem.h
+|   |   +-- PhysicsEngine.h
+|   |   \-- WaterSimulation.h
+|   \-- src/
+|       +-- AnimationBlender.cpp
+|       +-- CombatSystem.cpp
+|       +-- MagicSystem.cpp
+|       +-- ParkourSystem.cpp
+|       +-- ParticleSystem.cpp
+|       +-- PhysicsEngine.cpp
+|       +-- PyBindings.cpp
+|       \-- WaterSimulation.cpp
++-- data/
+|   +-- actors/
+|   |   +-- npc_animations.json
+|   |   +-- player.json
+|   |   \-- player_animations.json
+|   +-- audio/
+|   |   +-- ambient.mp3
+|   |   +-- battle_music.mp3
+|   |   +-- boss_fight_test.mp3
+|   |   +-- main_menu.mp3
+|   |   \-- sound_config.json
+|   +-- dialogues/
+|   |   +-- dialogue_schema.json
+|   |   +-- guard_dialogue.json
+|   |   +-- merchant.json
+|   |   +-- merchant_dialogue.json
+|   |   \-- quest_giver_dialogue.json
+|   +-- enemies/
+|   |   +-- dragon.json
+|   |   \-- wolf.json
+|   +-- items/
+|   |   +-- armor/
+|   |   |   +-- chainmail_armor.json
+|   |   |   +-- fantasy_armor.json
+|   |   |   +-- leather_armor.json
+|   |   |   \-- royal_armor.json
+|   |   +-- artifacts/
+|   |   |   \-- rune_charm.json
+|   |   +-- consumables/
+|   |   |   \-- herb_bundle.json
+|   |   \-- weapons/
+|   |       +-- hunter_blade.json
+|   |       \-- iron_sword.json
+|   +-- journal/
+|   |   +-- controls_guide.json
+|   |   +-- lore_entries.json
+|   |   \-- mechanics_guide.json
+|   +-- locales/
+|   |   +-- en.json
+|   |   \-- ru.json
+|   +-- quests/
+|   |   \-- tutorial_quest.json
+|   +-- scenes/
+|   |   +-- forest.json
+|   |   \-- training_ground.json
+|   +-- spells/
+|   |   +-- fireball.json
+|   |   +-- lightning.json
+|   |   +-- meteor.json
+|   |   +-- nova.json
+|   |   \-- ward.json
+|   +-- states/
+|   |   +-- ANIMATION_COVERAGE.md
+|   |   +-- EXTENDED_STATES.md
+|   |   +-- parkour_transitions.json
+|   |   \-- player_states.json
+|   +-- tasks/
+|   +-- world/
+|   |   +-- scenes/
+|   |   +-- biomes.json
+|   |   +-- interiors.json
+|   |   +-- locations.json
+|   |   \-- quests.json
+|   +-- ANIMATIONS_AVAILABLE.md
+|   +-- controls.json
+|   +-- graphics_settings.json
+|   +-- items.json
+|   +-- npcs.json
+|   +-- quests.json
+|   +-- sky_config.json
+|   +-- spells.json
+|   +-- ui_strings.json
+|   +-- water_bodies.json
+|   +-- water_config.json
+|   +-- world_config.json
+|   \-- XBOT_SKELETON.md
++-- logs/
+|   +-- game.log
+|   \-- game_20260219_134459.log
++-- models/
+|   +-- __pycache__/
+|   |   +-- check_state.cpython-314.pyc
+|   |   \-- generate_character.cpython-314.pyc
+|   +-- animations/
+|   |   +-- FreeMotionPack/
+|   |   +-- Celebrate1.fbx
+|   |   +-- Celebrate2.fbx
+|   |   +-- Celebrate3.fbx
+|   |   +-- ComeHere1.fbx
+|   |   +-- ComeHere2.fbx
+|   |   +-- ComeHere3.fbx
+|   |   +-- GoAwayAngry.fbx
+|   |   +-- GoAwayAnnoyed.fbx
+|   |   +-- GoAwayQuickly.fbx
+|   |   +-- HandsOnHead.fbx
+|   |   +-- idle.glb
+|   |   +-- NodYes1.fbx
+|   |   +-- run.glb
+|   |   +-- ShakeHeadNo1.fbx
+|   |   +-- StopOneHand1.fbx
+|   |   +-- StopOneHand2.fbx
+|   |   +-- StopTwoHand1.fbx
+|   |   +-- StopTwoHand2.fbx
+|   |   +-- ThumbsDown1.fbx
+|   |   +-- ThumbsDown2.fbx
+|   |   +-- ThumbsUp1.fbx
+|   |   \-- walk.glb
+|   +-- blender.crash.txt
+|   +-- blender_log.txt
+|   +-- character.blend
+|   +-- check_state.py
+|   +-- generate_character.py
+|   +-- run_batch.ps1
+|   +-- test_log.txt
+|   +-- test_xbot_out.blend
+|   +-- xbot_customized.blend
+|   +-- xbot_customized_slim.blend
+|   +-- xbot_customized_slim.fbx
+|   \-- xbot_customized_slim.glb
++-- saves/
+|   +-- autosave.json
+|   \-- latest.json
++-- shaders/
+|   +-- ibl_f.frag
+|   +-- ibl_v.vert
+|   +-- min_f.frag
+|   +-- min_v.vert
+|   +-- simple_pbr.frag
+|   \-- simple_pbr.vert
++-- src/
+|   +-- __pycache__/
+|   |   \-- app.cpython-314.pyc
+|   +-- entities/
+|   |   +-- __pycache__/
+|   |   |   +-- __init__.cpython-314.pyc
+|   |   |   +-- mannequin.cpython-314.pyc
+|   |   |   +-- player.cpython-314.pyc
+|   |   |   +-- player_audio_mixin.cpython-314.pyc
+|   |   |   +-- player_combat_mixin.cpython-314.pyc
+|   |   |   \-- player_input_mixin.cpython-314.pyc
+|   |   +-- __init__.py
+|   |   +-- mannequin.py
+|   |   +-- npc_generator.py
+|   |   +-- player.py
+|   |   +-- player_audio_mixin.py
+|   |   +-- player_combat_mixin.py
+|   |   \-- player_input_mixin.py
+|   +-- managers/
+|   |   +-- __pycache__/
+|   |   |   +-- audio_director.cpython-314.pyc
+|   |   |   +-- data_manager.cpython-314.pyc
+|   |   |   +-- preload_manager.cpython-314.pyc
+|   |   |   +-- quest_manager.cpython-314.pyc
+|   |   |   +-- save_manager.cpython-314.pyc
+|   |   |   +-- state_manager.cpython-314.pyc
+|   |   |   \-- vehicle_manager.cpython-314.pyc
+|   |   +-- audio_director.py
+|   |   +-- data_manager.py
+|   |   +-- preload_manager.py
+|   |   +-- quest_manager.py
+|   |   +-- save_manager.py
+|   |   +-- state_manager.py
+|   |   \-- vehicle_manager.py
+|   +-- ui/
+|   |   +-- __pycache__/
+|   |   |   +-- design_system.cpython-314.pyc
+|   |   |   +-- hud_overlay.cpython-314.pyc
+|   |   |   +-- loading_screen.cpython-314.pyc
+|   |   |   +-- menu_inventory.cpython-314.pyc
+|   |   |   +-- menu_main.cpython-314.pyc
+|   |   |   +-- menu_pause.cpython-314.pyc
+|   |   |   \-- ui_intro.cpython-314.pyc
+|   |   +-- design_system.py
+|   |   +-- hud_overlay.py
+|   |   +-- loading_screen.py
+|   |   +-- menu_inventory.py
+|   |   +-- menu_main.py
+|   |   +-- menu_pause.py
+|   |   \-- ui_intro.py
+|   +-- utils/
+|   |   +-- __pycache__/
+|   |   |   +-- assets_util.cpython-314.pyc
+|   |   |   \-- logger.cpython-314.pyc
+|   |   +-- assets_util.py
+|   |   \-- logger.py
+|   +-- world/
+|   |   +-- __pycache__/
+|   |   |   +-- __init__.cpython-314.pyc
+|   |   |   \-- sharuan_world.cpython-314.pyc
+|   |   +-- __init__.py
+|   |   \-- sharuan_world.py
+|   +-- app.py
+|   \-- main.py
++-- world/
+|   +-- __pycache__/
+|   |   +-- __init__.cpython-314.pyc
+|   |   \-- sharuan_world.cpython-314.pyc
+|   +-- __init__.py
+|   \-- sharuan_world.py
++-- build.bat
++-- build.sh
++-- CMakeLists.txt
++-- launch_bootstrap.py
++-- launcher.py
++-- launcher.pyw
++-- main.py
++-- requirements.txt
++-- run_game.pyw
++-- start_game.bat
+\-- TODO.md

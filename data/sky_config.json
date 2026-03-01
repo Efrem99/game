@@ -1,0 +1,70 @@
+{
+    "default_time": "noon",
+    "default_weather": "clear",
+    "auto_cycle": false,
+    "cycle_duration": 600,
+    "time_presets": {
+        "midnight": {
+            "description": "Deep night, stars visible",
+            "time": 0.0
+        },
+        "dawn": {
+            "description": "Sunrise, orange horizon",
+            "time": 0.2
+        },
+        "morning": {
+            "description": "Early morning, soft light",
+            "time": 0.3
+        },
+        "noon": {
+            "description": "Midday, bright sun",
+            "time": 0.5
+        },
+        "afternoon": {
+            "description": "Late afternoon, warm light",
+            "time": 0.65
+        },
+        "dusk": {
+            "description": "Sunset, red sky",
+            "time": 0.8
+        },
+        "night": {
+            "description": "Night, moon visible",
+            "time": 0.9
+        }
+    },
+    "weather_presets": {
+        "clear": {
+            "description": "Clear sky, few clouds",
+            "cloud_coverage": 0.2,
+            "visibility": 1.0
+        },
+        "partly_cloudy": {
+            "description": "Some clouds, good visibility",
+            "cloud_coverage": 0.5,
+            "visibility": 0.9
+        },
+        "overcast": {
+            "description": "Cloudy sky, reduced light",
+            "cloud_coverage": 0.9,
+            "visibility": 0.7
+        },
+        "rainy": {
+            "description": "Rain, poor visibility",
+            "cloud_coverage": 1.0,
+            "visibility": 0.5,
+            "rain": true
+        },
+        "stormy": {
+            "description": "Thunderstorm, very poor visibility",
+            "cloud_coverage": 1.0,
+            "visibility": 0.3,
+            "rain": true,
+            "lightning": true
+        }
+    },
+    "transitions": {
+        "time_transition_speed": 0.1,
+        "weather_transition_speed": 2.0
+    }
+}

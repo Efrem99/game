@@ -1,0 +1,36 @@
+{
+    "Fireball": {
+        "mana_cost": 20,
+        "damage": 25,
+        "speed": 40,
+        "cooldown": 1.5,
+        "particle_tag": "fire_burst"
+    },
+    "LightningBolt": {
+        "mana_cost": 30,
+        "damage": 40,
+        "speed": 100,
+        "cooldown": 3.0,
+        "particle_tag": "lightning_arc"
+    },
+    "IceShards": {
+        "mana_cost": 15,
+        "damage": 10,
+        "speed": 35,
+        "cooldown": 0.5,
+        "particle_tag": "ice_spike"
+    },
+    "ForceWave": {
+        "mana_cost": 25,
+        "damage": 5,
+        "speed": 20,
+        "cooldown": 5.0,
+        "particle_tag": "force_push"
+    },
+    "HealingAura": {
+        "mana_cost": 40,
+        "heal_value": 50,
+        "cooldown": 10.0,
+        "particle_tag": "heal_glow"
+    }
+}

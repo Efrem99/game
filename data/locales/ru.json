@@ -1,0 +1,72 @@
+﻿{
+  "ui": {
+    "main_menu": "Главное меню",
+    "continue": "Продолжить",
+    "new_game": "Новая игра",
+    "load_game": "Загрузить",
+    "settings": "Настройки",
+    "quit": "Выход",
+    "paused": "Пауза",
+    "resume": "Продолжить",
+    "game_title_alt": "KING WIZARD RPG",
+    "subtitle": "Средневековое фэнтези-приключение",
+    "music_volume": "Громкость музыки",
+    "sfx_volume": "Громкость эффектов",
+    "language": "Язык",
+    "back": "Назад",
+    "loading": "Загрузка",
+    "saved": "Игра сохранена",
+    "autosaving": "Автосохранение...",
+    "autosaved": "Автосохранено",
+    "map": "Карта",
+    "combo": "КОМБО",
+    "press_space_skip": "Нажмите Space, чтобы пропустить",
+    "intro_tagline": "Королевство ждёт героя",
+    "loading_default_recap": "Королевство Этельгард огромно и полно тайн. Тени в Шепчущем лесу с каждым днем становятся всё длиннее, и многие взирают на тебя с надеждой. Твоё путешествие только начинается...",
+    "recap_objective_header": "Текущие задачи:\n"
+  },
+  "stats": {
+    "health": "Здоровье",
+    "stamina": "Выносливость",
+    "mana": "Мана",
+    "level": "Уровень",
+    "experience": "Опыт"
+  },
+  "inventory": {
+    "inventory": "Инвентарь",
+    "equipment": "Снаряжение",
+    "weapon": "Оружие",
+    "armor": "Броня",
+    "artifact": "Артефакт",
+    "consumable": "Расходник"
+  },
+  "items": {
+    "iron_sword": "Железный меч",
+    "hunter_blade": "Клинок охотника",
+    "leather_armor": "Кожаная броня",
+    "royal_armor": "Королевские латы",
+    "rune_charm": "Рунный амулет",
+    "herb_bundle": "Связка трав"
+  },
+  "spells": {
+    "fireball": "Огненный шар",
+    "lightning": "Удар молнии",
+    "meteor": "Метеор",
+    "nova": "Магическая волна",
+    "ward": "Магический щит"
+  },
+  "messages": {
+    "item_picked_up": "Поднято: {item}",
+    "inventory_full": "Инвентарь полон",
+    "not_enough_mana": "Недостаточно маны",
+    "cannot_equip": "Невозможно экипировать",
+    "equipped": "Экипировано: {item}",
+    "unequipped": "Снято: {item}"
+  },
+  "combat": {
+    "damage_dealt": "Урон: {amount}",
+    "damage_taken": "Удар!",
+    "enemy_defeated": "Враг повержен",
+    "critical_hit": "Критический удар!"
+  }
+}

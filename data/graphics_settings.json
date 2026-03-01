@@ -1,0 +1,93 @@
+{
+    "pbr": {
+        "enabled": true,
+        "msaa_samples": 4,
+        "max_lights": 8,
+        "shadow_map_size": 2048,
+        "exposure": 1.2,
+        "enable_shadows": true,
+        "use_normal_maps": true,
+        "use_emission_maps": true
+    },
+    "post_processing": {
+        "bloom": {
+            "enabled": true,
+            "intensity": 1.5,
+            "size": "large",
+            "threshold": 0.6,
+            "desat": 0.5
+        },
+        "ssao": {
+            "enabled": true,
+            "radius": 0.08,
+            "amount": 2.0,
+            "strength": 0.5
+        },
+        "dof": {
+            "enabled": false,
+            "focus_distance": 10.0,
+            "blur_amount": 0.5
+        }
+    },
+    "shadows": {
+        "enabled": true,
+        "quality": "high",
+        "pssm_splits": 3,
+        "distance": 100.0
+    },
+    "lighting": {
+        "sun": {
+            "enabled": true,
+            "color": [
+                1.0,
+                0.95,
+                0.9
+            ],
+            "intensity": 1.2,
+            "direction": [
+                1,
+                -2,
+                -2
+            ]
+        },
+        "ambient": {
+            "color": [
+                0.3,
+                0.3,
+                0.35
+            ],
+            "intensity": 0.5
+        }
+    },
+    "quality_presets": {
+        "low": {
+            "pbr": false,
+            "msaa_samples": 0,
+            "shadow_map_size": 512,
+            "bloom": false,
+            "ssao": false
+        },
+        "medium": {
+            "pbr": true,
+            "msaa_samples": 2,
+            "shadow_map_size": 1024,
+            "bloom": true,
+            "ssao": false
+        },
+        "high": {
+            "pbr": true,
+            "msaa_samples": 4,
+            "shadow_map_size": 2048,
+            "bloom": true,
+            "ssao": true
+        },
+        "ultra": {
+            "pbr": true,
+            "msaa_samples": 8,
+            "shadow_map_size": 4096,
+            "bloom": true,
+            "ssao": true,
+            "dof": true
+        }
+    }
+}

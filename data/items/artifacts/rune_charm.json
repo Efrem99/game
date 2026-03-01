@@ -1,0 +1,15 @@
+{
+    "id": "rune_charm",
+    "name": "Rune Charm",
+    "type": "artifact",
+    "spell": 2,
+    "description": "A mystical charm that enhances magical abilities.",
+    "visual": {
+        "color": [
+            0.9,
+            0.9,
+            0.95,
+            1.0
+        ]
+    }
+}

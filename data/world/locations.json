@@ -1,0 +1,229 @@
+{
+    "palace_courtyard": {
+        "position": [
+            0,
+            0
+        ],
+        "biome_override": "mountain",
+        "chunks": [
+            {
+                "offset": [
+                    0,
+                    0
+                ],
+                "props": [
+                    {
+                        "type": "castle_wall",
+                        "pos": [
+                            50,
+                            0,
+                            0
+                        ],
+                        "model": "models/walls/castle_wall.glb"
+                    },
+                    {
+                        "type": "castle_wall",
+                        "pos": [
+                            -50,
+                            0,
+                            0
+                        ],
+                        "model": "models/walls/castle_wall.glb"
+                    },
+                    {
+                        "type": "training_dummy",
+                        "pos": [
+                            10,
+                            10,
+                            0
+                        ],
+                        "model": "models/props/dummy.glb"
+                    },
+                    {
+                        "type": "apple_tree",
+                        "pos": [
+                            20,
+                            -10,
+                            0
+                        ],
+                        "model": "models/nature/tree_apple.glb"
+                    },
+                    {
+                        "type": "stable",
+                        "pos": [
+                            -20,
+                            20,
+                            0
+                        ],
+                        "model": "models/buildings/stable.glb"
+                    }
+                ],
+                "npcs": [
+                    {
+                        "type": "guard_captain",
+                        "pos": [
+                            5,
+                            5,
+                            0
+                        ],
+                        "dialogue": "captain_dialogue"
+                    }
+                ]
+            }
+        ]
+    },
+    "city_waterfront": {
+        "position": [
+            0,
+            -500
+        ],
+        "biome_override": "grassland",
+        "chunks": [
+            {
+                "offset": [
+                    0,
+                    0
+                ],
+                "props": [
+                    {
+                        "type": "pier",
+                        "pos": [
+                            0,
+                            -40,
+                            0
+                        ],
+                        "model": "models/buildings/pier.glb"
+                    },
+                    {
+                        "type": "shop_stall",
+                        "pos": [
+                            10,
+                            0,
+                            0
+                        ],
+                        "model": "models/buildings/stall.glb"
+                    },
+                    {
+                        "type": "house_small",
+                        "pos": [
+                            -15,
+                            10,
+                            0
+                        ],
+                        "model": "models/buildings/house_wattle.glb"
+                    }
+                ],
+                "npcs": [
+                    {
+                        "type": "merchant",
+                        "pos": [
+                            10,
+                            -2,
+                            0
+                        ],
+                        "dialogue": "merchant_waterfront"
+                    },
+                    {
+                        "type": "fisherman",
+                        "pos": [
+                            0,
+                            -45,
+                            0
+                        ],
+                        "dialogue": "fisherman_talk"
+                    }
+                ]
+            }
+        ]
+    },
+    "sharuan_mines": {
+        "position": [
+            400,
+            0
+        ],
+        "biome_override": "volcanic",
+        "chunks": [
+            {
+                "offset": [
+                    0,
+                    0
+                ],
+                "props": [
+                    {
+                        "type": "mine_entrance",
+                        "pos": [
+                            400,
+                            0,
+                            0
+                        ],
+                        "model": "models/buildings/mine_entry.glb"
+                    },
+                    {
+                        "type": "ore_pile",
+                        "pos": [
+                            410,
+                            5,
+                            0
+                        ],
+                        "model": "models/props/ore_pile.glb"
+                    }
+                ],
+                "triggers": [
+                    {
+                        "pos": [
+                            400,
+                            2,
+                            0
+                        ],
+                        "radius": 3.0,
+                        "target": "dwarven_caves"
+                    }
+                ]
+            }
+        ]
+    },
+    "royal_farms": {
+        "position": [
+            -400,
+            0
+        ],
+        "biome_override": "grassland",
+        "chunks": [
+            {
+                "offset": [
+                    0,
+                    0
+                ],
+                "props": [
+                    {
+                        "type": "windmill",
+                        "pos": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "model": "models/buildings/windmill.glb"
+                    },
+                    {
+                        "type": "field_wheat",
+                        "pos": [
+                            20,
+                            0,
+                            0
+                        ],
+                        "model": "models/props/wheat_field.glb"
+                    },
+                    {
+                        "type": "kitchen_house",
+                        "pos": [
+                            -20,
+                            10,
+                            0
+                        ],
+                        "model": "models/buildings/kitchen.glb"
+                    }
+                ]
+            }
+        ]
+    }
+}

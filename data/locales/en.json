@@ -1,0 +1,72 @@
+{
+    "ui": {
+        "main_menu": "Main Menu",
+        "continue": "Continue",
+        "new_game": "New Game",
+        "load_game": "Load Game",
+        "settings": "Settings",
+        "quit": "Quit",
+        "paused": "Paused",
+        "resume": "Resume",
+        "game_title_alt": "KING WIZARD RPG",
+        "subtitle": "A Medieval Fantasy Adventure",
+        "music_volume": "Music Volume",
+        "sfx_volume": "SFX Volume",
+        "language": "Language",
+        "back": "Back",
+        "loading": "Loading",
+        "saved": "Game Saved",
+        "autosaving": "Autosaving...",
+        "autosaved": "Autosaved",
+        "map": "Map",
+        "combo": "COMBO",
+        "press_space_skip": "Press Space to skip",
+        "intro_tagline": "The Kingdom is Waiting",
+        "loading_default_recap": "The kingdom of Aethelgard is vast and full of secrets. Shadows grow long in the Whispering Woods, and many look to you for hope. Your journey has only just begun...",
+        "recap_objective_header": "Currently:\n"
+    },
+    "stats": {
+        "health": "Health",
+        "stamina": "Stamina",
+        "mana": "Mana",
+        "level": "Level",
+        "experience": "Experience"
+    },
+    "inventory": {
+        "inventory": "Inventory",
+        "equipment": "Equipment",
+        "weapon": "Weapon",
+        "armor": "Armor",
+        "artifact": "Artifact",
+        "consumable": "Consumable"
+    },
+    "items": {
+        "iron_sword": "Iron Sword",
+        "hunter_blade": "Hunter Blade",
+        "leather_armor": "Leather Armor",
+        "royal_armor": "Royal Plate",
+        "rune_charm": "Rune Charm",
+        "herb_bundle": "Herb Bundle"
+    },
+    "spells": {
+        "fireball": "Fireball",
+        "lightning": "Lightning Strike",
+        "meteor": "Meteor",
+        "nova": "Arcane Nova",
+        "ward": "Magic Ward"
+    },
+    "messages": {
+        "item_picked_up": "Picked up {item}",
+        "inventory_full": "Inventory is full",
+        "not_enough_mana": "Not enough mana",
+        "cannot_equip": "Cannot equip this item",
+        "equipped": "Equipped {item}",
+        "unequipped": "Unequipped {item}"
+    },
+    "combat": {
+        "damage_dealt": "Damage: {amount}",
+        "damage_taken": "Hit!",
+        "enemy_defeated": "Enemy defeated",
+        "critical_hit": "Critical Hit!"
+    }
+}

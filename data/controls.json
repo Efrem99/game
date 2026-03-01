@@ -1,0 +1,65 @@
+{
+    "movement": {
+        "walk_speed": 5.0,
+        "run_speed": 9.0,
+        "jump_force": 9.5,
+        "flight_speed": 15.0,
+        "flight_shift_mult": 2.0
+    },
+    "animation": {
+        "blend_time": 0.18
+    },
+    "vehicles": {
+        "default": {
+            "speed": 6.0,
+            "run_speed": 10.0,
+            "accel": 8.0,
+            "decel": 10.0
+        },
+        "horse": {
+            "speed": 8.5,
+            "run_speed": 13.5,
+            "accel": 12.0,
+            "decel": 15.0
+        },
+        "carriage": {
+            "speed": 6.2,
+            "run_speed": 9.8,
+            "accel": 7.0,
+            "decel": 9.0
+        },
+        "boat": {
+            "speed": 7.2,
+            "run_speed": 11.0,
+            "accel": 5.5,
+            "decel": 4.5
+        }
+    },
+    "bindings": {
+        "forward": "w",
+        "backward": "s",
+        "left": "a",
+        "right": "d",
+        "jump": "space",
+        "run": "shift",
+        "flight_toggle": "v",
+        "flight_up": "space",
+        "flight_down": "lcontrol",
+        "interact": "x",
+        "inventory": "i",
+        "attack_light": "mouse1",
+        "attack_heavy": "e",
+        "attack_thrust": "q",
+        "skill_wheel": "tab",
+        "block": "f",
+        "roll": "r",
+        "dash": "z",
+        "spell_1": "1",
+        "spell_2": "2",
+        "spell_3": "3",
+        "spell_4": "4",
+        "spell_5": "5",
+        "spell_6": "6",
+        "spell_7": "7"
+    }
+}

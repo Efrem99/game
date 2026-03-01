@@ -1,0 +1,274 @@
+{
+    "manifest": {
+        "strict_runtime_sources": true,
+        "sources": [
+            {
+                "key": "jumping",
+                "path": "assets/anims/jump_takeoff.fbx",
+                "loop": false
+            },
+            {
+                "key": "falling",
+                "path": "assets/anims/fall_air.fbx",
+                "loop": true
+            },
+            {
+                "key": "landing",
+                "path": "assets/anims/land_recover.fbx",
+                "loop": false
+            },
+            {
+                "key": "attacking",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "dodging",
+                "path": "assets/anims/dodge_roll.fbx",
+                "loop": false
+            },
+            {
+                "key": "blocking",
+                "path": "assets/anims/block_guard.fbx",
+                "loop": true
+            },
+            {
+                "key": "casting",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "vaulting",
+                "path": "assets/anims/vault_over.fbx",
+                "loop": false
+            },
+            {
+                "key": "climbing",
+                "path": "assets/anims/climb_up.fbx",
+                "loop": false
+            },
+            {
+                "key": "wallrun",
+                "path": "assets/anims/wallrun_side.fbx",
+                "loop": false
+            },
+            {
+                "key": "swim",
+                "path": "assets/anims/swim_loop.fbx",
+                "loop": true
+            },
+            {
+                "key": "flying",
+                "path": "assets/anims/flying_loop.fbx",
+                "loop": true
+            },
+            {
+                "key": "dead",
+                "path": "assets/anims/death_die.fbx",
+                "loop": false
+            },
+            {
+                "key": "mounting",
+                "path": "assets/anims/climb_up.fbx",
+                "loop": false
+            },
+            {
+                "key": "mounting_horse",
+                "path": "assets/anims/mounting_horse.fbx",
+                "loop": false
+            },
+            {
+                "key": "mounting_carriage",
+                "path": "assets/anims/mounting_carriage.fbx",
+                "loop": false
+            },
+            {
+                "key": "mounting_boat",
+                "path": "assets/anims/mounting_boat.fbx",
+                "loop": false
+            },
+            {
+                "key": "mounted_idle",
+                "path": "assets/models/xbot/idle.glb",
+                "loop": true
+            },
+            {
+                "key": "mounted_idle_horse",
+                "path": "assets/anims/mounted_idle_horse.fbx",
+                "loop": true
+            },
+            {
+                "key": "mounted_idle_carriage",
+                "path": "assets/anims/mounted_idle_carriage.fbx",
+                "loop": true
+            },
+            {
+                "key": "mounted_idle_boat",
+                "path": "assets/anims/mounted_idle_boat.fbx",
+                "loop": true
+            },
+            {
+                "key": "mounted_move",
+                "path": "assets/models/xbot/walk.glb",
+                "loop": true
+            },
+            {
+                "key": "mounted_move_horse",
+                "path": "assets/anims/mounted_move_horse.fbx",
+                "loop": true
+            },
+            {
+                "key": "mounted_move_carriage",
+                "path": "assets/anims/mounted_move_carriage.fbx",
+                "loop": true
+            },
+            {
+                "key": "mounted_move_boat",
+                "path": "assets/anims/mounted_move_boat.fbx",
+                "loop": true
+            },
+            {
+                "key": "dismounting",
+                "path": "assets/anims/land_recover.fbx",
+                "loop": false
+            },
+            {
+                "key": "dismounting_horse",
+                "path": "assets/anims/dismounting_horse.fbx",
+                "loop": false
+            },
+            {
+                "key": "dismounting_carriage",
+                "path": "assets/anims/dismounting_carriage.fbx",
+                "loop": false
+            },
+            {
+                "key": "dismounting_boat",
+                "path": "assets/anims/dismounting_boat.fbx",
+                "loop": false
+            }
+        ]
+    },
+    "player": {
+        "idle": [
+            "idle"
+        ],
+        "walking": [
+            "walk"
+        ],
+        "running": [
+            "run"
+        ],
+        "jumping": [
+            "jumping"
+        ],
+        "falling": [
+            "falling"
+        ],
+        "landing": [
+            "landing"
+        ],
+        "attacking": [
+            "attacking"
+        ],
+        "blocking": [
+            "blocking"
+        ],
+        "casting": [
+            "casting"
+        ],
+        "dodging": [
+            "dodging"
+        ],
+        "vaulting": [
+            "vaulting"
+        ],
+        "climbing": [
+            "climbing"
+        ],
+        "wallrun": [
+            "wallrun"
+        ],
+        "swim": [
+            "swim"
+        ],
+        "flying": [
+            "flying"
+        ],
+        "mounting": [
+            "mounting"
+        ],
+        "mounted_idle": [
+            "mounted_idle"
+        ],
+        "mounted_move": [
+            "mounted_move"
+        ],
+        "dismounting": [
+            "dismounting"
+        ],
+        "dead": [
+            "dead"
+        ]
+    },
+    "enemy": {
+        "idle": [
+            "enemy",
+            "Aggro_Transition_A"
+        ],
+        "walking": [
+            "enemy",
+            "Attack_A"
+        ],
+        "attacking": [
+            "enemy",
+            "Attack_B"
+        ]
+    },
+    "npc_merchant": {
+        "idle": [
+            "social",
+            "Travel_Idle"
+        ],
+        "greet": [
+            "social",
+            "Emote_Bow"
+        ],
+        "browse": [
+            "social",
+            "Emote_Browsing_M1"
+        ],
+        "celebrate": [
+            "social",
+            "Emote_Bravo"
+        ]
+    },
+    "npc_guard": {
+        "idle": [
+            "social",
+            "Travel_Idle"
+        ],
+        "salute": [
+            "social",
+            "Emote_Salute"
+        ],
+        "patrol": [
+            "combat",
+            "Walking"
+        ]
+    },
+    "npc_quest": {
+        "idle": [
+            "social",
+            "Travel_Idle_AO_LC"
+        ],
+        "greet": [
+            "social",
+            "Emote_Salute"
+        ],
+        "celebrate": [
+            "social",
+            "Emote_BigClap"
+        ]
+    }
+}

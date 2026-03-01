@@ -1,0 +1,38 @@
+{
+    "id": "lightning",
+    "name": "Lightning Strike",
+    "mana_cost": 18,
+    "cooldown": 2.2,
+    "cast_time": 0.24,
+    "damage_type": "lightning",
+    "anim_trigger": "cast_spell",
+    "sfx": {
+        "cast": "spell_cast",
+        "impact": "spell_lightning"
+    },
+    "vfx": {
+        "particle_tag": "lightning_arc"
+    },
+    "damage": 30,
+    "projectile": {
+        "speed": 50.0,
+        "lifetime": 2.0,
+        "radius": 0.6,
+        "color": [
+            0.7,
+            0.8,
+            1.0,
+            1.0
+        ]
+    },
+    "effect": {
+        "type": "lightning",
+        "radius": 1.5,
+        "color": [
+            0.8,
+            0.9,
+            1.0,
+            1.0
+        ]
+    }
+}

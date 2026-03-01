@@ -1,0 +1,43 @@
+[
+    {
+        "from": "running",
+        "to": "vaulting",
+        "trigger": "vault_trigger",
+        "condition": "on_ground && shift_pressed"
+    },
+    {
+        "from": [
+            "running",
+            "walking"
+        ],
+        "to": "climbing",
+        "trigger": "climb_trigger",
+        "condition": "near_wall"
+    },
+    {
+        "from": "running",
+        "to": "wallrun",
+        "trigger": "wallrun_trigger",
+        "condition": "near_wall && shift_pressed"
+    },
+    {
+        "from": "vaulting",
+        "to": "idle",
+        "condition": "animation_finished"
+    },
+    {
+        "from": "climbing",
+        "to": "idle",
+        "condition": "animation_finished"
+    },
+    {
+        "from": "wallrun",
+        "to": "falling",
+        "trigger": "exit_wallrun"
+    },
+    {
+        "from": "wallrun",
+        "to": "falling",
+        "condition": "animation_finished"
+    }
+]

@@ -1,0 +1,36 @@
+{
+    "model": "assets/models/dragon/elder_dragon.glb",
+    "scale": 0.9,
+    "animations": {
+        "idle": "assets/anims/dragon/dragon_idle.fbx",
+        "patrol": "assets/anims/dragon/dragon_fly_loop.fbx",
+        "fire_breath": "assets/anims/dragon/dragon_fire_breath.fbx",
+        "roar": "assets/anims/dragon/dragon_roar.fbx",
+        "death": "assets/anims/dragon/dragon_death.fbx"
+    },
+    "state_map": {
+        "idle": [
+            "idle",
+            "hover",
+            "idle_loop"
+        ],
+        "patrol": [
+            "patrol",
+            "fly",
+            "fly_loop"
+        ],
+        "fire_breath": [
+            "fire_breath",
+            "attack_fire",
+            "breath"
+        ],
+        "roar": [
+            "roar",
+            "taunt"
+        ],
+        "death": [
+            "death",
+            "die"
+        ]
+    }
+}

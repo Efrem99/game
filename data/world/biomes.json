@@ -1,0 +1,379 @@
+{
+    "grassland": {
+        "terrain": {
+            "base_height": 0,
+            "variation": 2,
+            "texture": "grass",
+            "noise_scale": 0.05
+        },
+        "props": {
+            "density": 0.3,
+            "types": [
+                {
+                    "name": "tree",
+                    "weight": 0.5,
+                    "model": "models/nature/tree_oak.glb"
+                },
+                {
+                    "name": "rock",
+                    "weight": 0.3,
+                    "model": "models/nature/rock_medium.glb"
+                },
+                {
+                    "name": "bush",
+                    "weight": 0.2,
+                    "model": "models/nature/bush_green.glb"
+                }
+            ]
+        },
+        "foliage_density": 0.8,
+        "enemy_spawn_rate": 0.1,
+        "placement_rules": {
+            "tree": {
+                "min_spacing": 3.0,
+                "avoid": [
+                    "water",
+                    "lava",
+                    "cliff"
+                ],
+                "forbidden_inside": [],
+                "max_slope": 30,
+                "radius": 1.5
+            },
+            "rock": {
+                "min_spacing": 2.0,
+                "avoid": [],
+                "forbidden_inside": [
+                    "tree"
+                ],
+                "max_slope": 60,
+                "radius": 1.0
+            },
+            "bush": {
+                "min_spacing": 1.5,
+                "avoid": [
+                    "water",
+                    "lava"
+                ],
+                "forbidden_inside": [
+                    "tree",
+                    "rock"
+                ],
+                "max_slope": 45,
+                "radius": 0.8
+            }
+        }
+    },
+    "forest": {
+        "terrain": {
+            "base_height": 1,
+            "variation": 3,
+            "texture": "forest_floor",
+            "noise_scale": 0.04
+        },
+        "props": {
+            "density": 0.7,
+            "types": [
+                {
+                    "name": "tree",
+                    "weight": 0.8,
+                    "model": "models/nature/tree_pine.glb"
+                },
+                {
+                    "name": "tree_big",
+                    "weight": 0.1,
+                    "model": "models/nature/tree_oak_big.glb"
+                },
+                {
+                    "name": "mushroom",
+                    "weight": 0.1,
+                    "model": "models/nature/mushroom.glb"
+                }
+            ]
+        },
+        "foliage_density": 0.9,
+        "enemy_spawn_rate": 0.15,
+        "placement_rules": {
+            "tree": {
+                "min_spacing": 2.5,
+                "avoid": [
+                    "water"
+                ],
+                "clusters": true,
+                "cluster_size": 5,
+                "max_slope": 35,
+                "radius": 1.5
+            },
+            "tree_big": {
+                "min_spacing": 8.0,
+                "avoid": [
+                    "water"
+                ],
+                "max_slope": 30,
+                "radius": 3.0
+            },
+            "mushroom": {
+                "min_spacing": 0.5,
+                "avoid": [
+                    "lava"
+                ],
+                "forbidden_inside": [
+                    "tree",
+                    "tree_big"
+                ],
+                "prefers": [
+                    "tree_shadow",
+                    "near_water"
+                ],
+                "max_slope": 40,
+                "radius": 0.3
+            }
+        }
+    },
+    "desert": {
+        "terrain": {
+            "base_height": -1,
+            "variation": 5,
+            "texture": "sand",
+            "noise_scale": 0.03
+        },
+        "props": {
+            "density": 0.1,
+            "types": [
+                {
+                    "name": "cactus",
+                    "weight": 0.6,
+                    "model": "models/nature/cactus.glb"
+                },
+                {
+                    "name": "rock_desert",
+                    "weight": 0.3,
+                    "model": "models/nature/rock_desert.glb"
+                },
+                {
+                    "name": "dead_bush",
+                    "weight": 0.1,
+                    "model": "models/nature/bush_dead.glb"
+                }
+            ]
+        },
+        "foliage_density": 0.1,
+        "enemy_spawn_rate": 0.08,
+        "placement_rules": {
+            "cactus": {
+                "min_spacing": 2.0,
+                "avoid": [
+                    "water",
+                    "snow"
+                ],
+                "only_in_biome": [
+                    "desert"
+                ],
+                "max_slope": 40,
+                "radius": 0.6
+            },
+            "rock_desert": {
+                "min_spacing": 3.0,
+                "max_slope": 70,
+                "radius": 1.2
+            },
+            "dead_bush": {
+                "min_spacing": 2.0,
+                "avoid": [
+                    "water"
+                ],
+                "max_slope": 35,
+                "radius": 0.5
+            }
+        }
+    },
+    "mountain": {
+        "terrain": {
+            "base_height": 10,
+            "variation": 20,
+            "texture": "rock",
+            "noise_scale": 0.02
+        },
+        "props": {
+            "density": 0.2,
+            "types": [
+                {
+                    "name": "rock_large",
+                    "weight": 0.7,
+                    "model": "models/nature/rock_large.glb"
+                },
+                {
+                    "name": "pine_small",
+                    "weight": 0.2,
+                    "model": "models/nature/pine_small.glb"
+                },
+                {
+                    "name": "crystal",
+                    "weight": 0.1,
+                    "model": "models/nature/crystal.glb"
+                }
+            ]
+        },
+        "foliage_density": 0.2,
+        "enemy_spawn_rate": 0.2,
+        "placement_rules": {
+            "rock_large": {
+                "min_spacing": 4.0,
+                "max_slope": 80,
+                "radius": 2.0
+            },
+            "pine_small": {
+                "min_spacing": 3.0,
+                "avoid": [
+                    "cliff"
+                ],
+                "max_slope": 50,
+                "radius": 1.0
+            },
+            "crystal": {
+                "min_spacing": 10.0,
+                "near": [
+                    "rock_large"
+                ],
+                "max_slope": 45,
+                "radius": 0.8
+            }
+        }
+    },
+    "volcanic": {
+        "terrain": {
+            "base_height": 2,
+            "variation": 8,
+            "texture": "volcanic_rock",
+            "noise_scale": 0.06
+        },
+        "props": {
+            "density": 0.15,
+            "types": [
+                {
+                    "name": "lava_pool",
+                    "weight": 0.3,
+                    "model": "models/nature/lava_pool.glb"
+                },
+                {
+                    "name": "obsidian_rock",
+                    "weight": 0.5,
+                    "model": "models/nature/obsidian.glb"
+                },
+                {
+                    "name": "dead_tree",
+                    "weight": 0.2,
+                    "model": "models/nature/tree_dead.glb"
+                }
+            ]
+        },
+        "foliage_density": 0.0,
+        "enemy_spawn_rate": 0.25,
+        "placement_rules": {
+            "lava_pool": {
+                "min_spacing": 15.0,
+                "blocks_placement": [
+                    "tree",
+                    "bush",
+                    "grass",
+                    "water"
+                ],
+                "max_slope": 20,
+                "radius": 5.0
+            },
+            "obsidian_rock": {
+                "min_spacing": 2.0,
+                "avoid": [
+                    "tree"
+                ],
+                "near": [
+                    "lava_pool"
+                ],
+                "max_slope": 70,
+                "radius": 1.5
+            },
+            "dead_tree": {
+                "min_spacing": 5.0,
+                "avoid": [
+                    "lava_pool"
+                ],
+                "max_slope": 40,
+                "radius": 1.2
+            }
+        }
+    },
+    "winter": {
+        "terrain": {
+            "base_height": 0,
+            "variation": 4,
+            "texture": "snow",
+            "noise_scale": 0.04
+        },
+        "props": {
+            "density": 0.25,
+            "types": [
+                {
+                    "name": "frozen_tree",
+                    "weight": 0.5,
+                    "model": "models/nature/tree_frozen.glb"
+                },
+                {
+                    "name": "ice_crystal",
+                    "weight": 0.2,
+                    "model": "models/nature/ice_crystal.glb"
+                },
+                {
+                    "name": "snowdrift",
+                    "weight": 0.2,
+                    "model": "models/nature/snowdrift.glb"
+                },
+                {
+                    "name": "frozen_rock",
+                    "weight": 0.1,
+                    "model": "models/nature/rock_frozen.glb"
+                }
+            ]
+        },
+        "foliage_density": 0.3,
+        "enemy_spawn_rate": 0.12,
+        "placement_rules": {
+            "frozen_tree": {
+                "min_spacing": 3.5,
+                "avoid": [
+                    "lava",
+                    "fire"
+                ],
+                "max_slope": 35,
+                "radius": 1.8,
+                "clusters": true,
+                "cluster_size": 4
+            },
+            "ice_crystal": {
+                "min_spacing": 5.0,
+                "avoid": [
+                    "lava",
+                    "fire"
+                ],
+                "near": [
+                    "frozen_tree"
+                ],
+                "max_slope": 30,
+                "radius": 0.6
+            },
+            "snowdrift": {
+                "min_spacing": 2.0,
+                "avoid": [
+                    "tree",
+                    "rock"
+                ],
+                "max_slope": 25,
+                "radius": 1.5
+            },
+            "frozen_rock": {
+                "min_spacing": 4.0,
+                "max_slope": 65,
+                "radius": 1.3
+            }
+        }
+    }
+}

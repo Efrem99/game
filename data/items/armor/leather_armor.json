@@ -1,0 +1,21 @@
+{
+    "id": "leather_armor",
+    "name": "Leather Armor",
+    "type": "armor",
+    "armor": 2,
+    "description": "Light leather armor. Good mobility.",
+    "visual": {
+        "style": "light",
+        "color": [
+            0.95,
+            0.88,
+            0.78,
+            1.0
+        ],
+        "model": "glb_out/free-male-armour-3-game-ready__ManArmor.glb",
+        "attachment": {
+            "bone": "mixamorig:Spine1",
+            "scale": 1.0
+        }
+    }
+}

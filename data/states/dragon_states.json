@@ -1,0 +1,70 @@
+{
+    "states": [
+        {
+            "name": "idle",
+            "animation": "idle",
+            "loop": true
+        },
+        {
+            "name": "patrol",
+            "animation": "patrol",
+            "loop": true
+        },
+        {
+            "name": "roar",
+            "animation": "roar",
+            "duration": 1.15,
+            "loop": false
+        },
+        {
+            "name": "fire_breath",
+            "animation": "fire_breath",
+            "duration": 2.2,
+            "loop": false
+        },
+        {
+            "name": "death",
+            "animation": "death",
+            "duration": 2.5,
+            "loop": false
+        }
+    ],
+    "transitions": [
+        {
+            "from": [
+                "idle"
+            ],
+            "to": "patrol",
+            "condition": "engaged"
+        },
+        {
+            "from": [
+                "patrol"
+            ],
+            "to": "fire_breath",
+            "condition": "engaged && can_fire"
+        },
+        {
+            "from": [
+                "patrol"
+            ],
+            "to": "roar",
+            "condition": "engaged && should_roar"
+        },
+        {
+            "from": [
+                "fire_breath",
+                "roar"
+            ],
+            "to": "patrol",
+            "trigger": "animation_finished"
+        },
+        {
+            "from": [
+                "*"
+            ],
+            "to": "idle",
+            "condition": "!engaged"
+        }
+    ]
+}

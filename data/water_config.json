@@ -1,0 +1,14 @@
+{
+  "water_level": -0.5,
+  "size": 200,
+  "resolution": 40,
+  "wave_height": 0.15,
+  "wave_speed": 0.5,
+  "buoyancy_force": 15.0,
+  "water_drag": 0.85,
+  "swim_speed_multiplier": 0.6,
+  "color": {
+    "shallow": [0.2, 0.5, 0.8, 0.6],
+    "deep": [0.1, 0.3, 0.6, 0.7]
+  }
+}

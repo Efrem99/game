@@ -1,0 +1,25 @@
+{
+  "player": {
+    "base_stats": {
+      "hp": 100,
+      "mana": 100,
+      "stamina": 100,
+      "power": 10,
+      "spell_power": 10,
+      "speed": 5.0
+    },
+    "level_scaling": {
+      "hp_per_level": 12,
+      "mana_per_level": 10,
+      "stamina_per_level": 8,
+      "power_per_level": 2,
+      "spell_power_per_level": 2
+    },
+    "starting_items": [
+      "iron_sword",
+      "leather_armor"
+    ],
+    "model": "models/Xbot.glb",
+    "scale": 1.8
+  }
+}

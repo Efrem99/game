@@ -1,0 +1,27 @@
+{
+    "id": "tutorial_quest",
+    "title": "First Steps",
+    "description": "Learn the basics of combat and exploration.",
+    "objectives": [
+        {
+            "type": "kill",
+            "target": "enemy",
+            "count": 3,
+            "description": "Defeat 3 enemies"
+        },
+        {
+            "type": "explore",
+            "target": "area",
+            "count": 1,
+            "description": "Explore the training ground"
+        }
+    ],
+    "rewards": {
+        "gold": 50,
+        "experience": 100,
+        "items": [
+            "herb_bundle"
+        ]
+    },
+    "prerequisites": []
+}

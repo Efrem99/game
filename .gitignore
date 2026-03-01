@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual env
+.venv/
+venv/
+
+# Build/cache
+build/
+build-cpp/
+cmake-build*/
+*.obj
+*.ilk
+*.pdb
+*.dll
+*.so
+*.dylib
+
+# Runtime generated
+logs/
+saves/
+
+# Blender autosaves / temp
+*.blend1
+*.blend2
+*.tmp
+
+# IDE
+.vscode/
+.idea/

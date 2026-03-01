@@ -1,0 +1,245 @@
+{
+    "sharuan_palace": {
+        "name": "Sharuan Palace",
+        "type": "complex",
+        "lighting": "indoor_warm",
+        "rooms": [
+            {
+                "id": "prince_chambers",
+                "name": "Prince's Chambers",
+                "pos": [
+                    0,
+                    0,
+                    0
+                ],
+                "size": [
+                    12,
+                    12,
+                    6
+                ],
+                "color": [
+                    0.45,
+                    0.4,
+                    0.35,
+                    1
+                ],
+                "props": [
+                    {
+                        "model": "models/bed_royal.glb",
+                        "pos": [
+                            0,
+                            4,
+                            0
+                        ],
+                        "hpr": [
+                            180,
+                            0,
+                            0
+                        ],
+                        "scale": 1.3
+                    },
+                    {
+                        "model": "models/window_frame.glb",
+                        "pos": [
+                            0,
+                            -6,
+                            2
+                        ],
+                        "hpr": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "scale": 1.5
+                    },
+                    {
+                        "model": "models/desk.glb",
+                        "pos": [
+                            4,
+                            2,
+                            0
+                        ],
+                        "hpr": [
+                            -90,
+                            0,
+                            0
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "corridor_upper",
+                "name": "Royal Wing Corridor",
+                "pos": [
+                    0,
+                    20,
+                    0
+                ],
+                "size": [
+                    5,
+                    28,
+                    6
+                ],
+                "color": [
+                    0.5,
+                    0.5,
+                    0.6,
+                    1
+                ]
+            },
+            {
+                "id": "great_hall",
+                "name": "Great Throne Hall",
+                "pos": [
+                    0,
+                    50,
+                    -2
+                ],
+                "size": [
+                    30,
+                    40,
+                    15
+                ],
+                "color": [
+                    0.6,
+                    0.55,
+                    0.5,
+                    1
+                ],
+                "props": [
+                    {
+                        "model": "models/throne.glb",
+                        "pos": [
+                            0,
+                            -15,
+                            0
+                        ],
+                        "hpr": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "scale": 1.5
+                    }
+                ]
+            },
+            {
+                "id": "entrance_hall",
+                "name": "Palace Entrance",
+                "pos": [
+                    0,
+                    80,
+                    -2
+                ],
+                "size": [
+                    20,
+                    20,
+                    10
+                ],
+                "color": [
+                    0.65,
+                    0.65,
+                    0.7,
+                    1
+                ],
+                "exits": [
+                    {
+                        "pos": [
+                            0,
+                            9,
+                            0
+                        ],
+                        "radius": 4.0,
+                        "target_type": "location",
+                        "target": "palace_courtyard",
+                        "target_pos": [
+                            0,
+                            0,
+                            0
+                        ]
+                    }
+                ]
+            }
+        ],
+        "connections": [
+            {
+                "from": "prince_chambers",
+                "to": "corridor_upper",
+                "pos": [
+                    0,
+                    6,
+                    0
+                ]
+            },
+            {
+                "from": "corridor_upper",
+                "to": "great_hall",
+                "pos": [
+                    0,
+                    14,
+                    0
+                ]
+            },
+            {
+                "from": "great_hall",
+                "to": "entrance_hall",
+                "pos": [
+                    0,
+                    20,
+                    0
+                ]
+            }
+        ]
+    },
+    "dwarven_caves": {
+        "name": "Dwarven Excavation",
+        "type": "complex",
+        "lighting": "cave_dim",
+        "rooms": [
+            {
+                "id": "entry_tunnel",
+                "name": "Mine Entrance Tunnel",
+                "pos": [0, 0, 0],
+                "size": [8, 40, 6],
+                "color": [0.2, 0.2, 0.25, 1],
+                "exits": [
+                    {
+                        "pos": [0, -18, 0],
+                        "radius": 3.0,
+                        "target_type": "location",
+                        "target": "sharuan_mines",
+                        "target_pos": [0, 0, 0]
+                    }
+                ],
+                "props": [
+                    { "model": "models/props/rail_tracks.glb", "pos": [0, 0, 0], "scale": 1.0 },
+                    { "model": "models/props/rail_tracks.glb", "pos": [0, 10, 0], "scale": 1.0 },
+                    { "model": "models/props/rail_tracks.glb", "pos": [0, -10, 0], "scale": 1.0 }
+                ]
+            },
+            {
+                "id": "central_hub",
+                "name": "Central Hub",
+                "pos": [0, 40, -5],
+                "size": [30, 30, 15],
+                "color": [0.15, 0.15, 0.2, 1],
+                "props": [
+                    { "model": "models/props/cart.glb", "pos": [5, 5, 0], "hpr": [30,0,0] },
+                    { "model": "models/props/crystals_blue.glb", "pos": [-10, 10, 0], "scale": 2.0 },
+                    { "model": "models/props/crystals_blue.glb", "pos": [12, -8, 0], "scale": 1.5 }
+                ]
+            },
+            {
+                "id": "lower_shaft",
+                "name": "Lower Shaft",
+                "pos": [20, 60, -15],
+                "size": [10, 20, 8],
+                "color": [0.1, 0.1, 0.15, 1]
+            }
+        ],
+        "connections": [
+            { "from": "entry_tunnel", "to": "central_hub", "pos": [0, 20, 0] },
+            { "from": "central_hub", "to": "lower_shaft", "pos": [15, 15, -5] }
+        ]
+    }
+}

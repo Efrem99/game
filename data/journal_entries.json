@@ -1,0 +1,45 @@
+{
+    "sections": [
+        {
+            "title": "World Briefing",
+            "entries": [
+                "Sharuan is divided into Castle heights, Town center, and Southern Docks.",
+                "Weathered ruins and old roads often hide side objectives and rare loot.",
+                "Fast travel is not active yet, so route planning matters."
+            ]
+        },
+        {
+            "title": "Combat Notes",
+            "entries": [
+                "Light attacks keep pressure, heavy attacks break guards.",
+                "Parry windows are short; block first, then counter.",
+                "Magic can finish enemies outside melee range."
+            ]
+        },
+        {
+            "title": "Enemy Intel",
+            "entries": [
+                "Goblins are fast but fragile; punish their approach.",
+                "Shadows attack from mid-range with dark projectiles.",
+                "Fire elementals control area with sustained burn damage.",
+                "Golems are armored and serve as boss-tier threats."
+            ]
+        },
+        {
+            "title": "Boss Protocol",
+            "entries": [
+                "Warden Golem uses heavy single hits and brief guard windows.",
+                "Titan Golem is slower but has higher armor and damage.",
+                "Keep stamina for evade timing during their attack wind-up."
+            ]
+        },
+        {
+            "title": "Controls Reminder",
+            "entries": [
+                "I opens inventory and journal tabs.",
+                "F5/F6/F7 save to slots, Shift+F5/F6/F7 load slots.",
+                "F9 cycles test locations in development builds."
+            ]
+        }
+    ]
+}

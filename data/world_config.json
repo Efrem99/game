@@ -1,0 +1,114 @@
+{
+    "biomes": {
+        "plains": {
+            "grass_color": [
+                0.22,
+                0.45,
+                0.12
+            ],
+            "fog_color": [
+                0.45,
+                0.62,
+                0.85
+            ],
+            "tree_density": 0.05
+        },
+        "mountain": {
+            "stone_color": [
+                0.5,
+                0.48,
+                0.45
+            ],
+            "fog_color": [
+                0.6,
+                0.72,
+                0.82
+            ],
+            "height_multiplier": 2.0
+        },
+        "sea": {
+            "water_color": [
+                0.12,
+                0.3,
+                0.55
+            ],
+            "fog_exp_density": 0.002
+        }
+    },
+    "locations": [
+        {
+            "name": "Sharuan Castle",
+            "pos": [
+                0,
+                65,
+                23
+            ],
+            "radius": 20
+        },
+        {
+            "name": "Town Hall",
+            "pos": [
+                0,
+                0,
+                5
+            ],
+            "radius": 15
+        },
+        {
+            "name": "Southern Docks",
+            "pos": [
+                0,
+                -60,
+                0
+            ],
+            "radius": 30
+        }
+    ],
+    "vehicles": [
+        {
+            "id": "horse_stable_1",
+            "kind": "horse",
+            "pos": [
+                9,
+                6
+            ],
+            "heading": 25
+        },
+        {
+            "id": "horse_stable_2",
+            "kind": "horse",
+            "pos": [
+                13,
+                9
+            ],
+            "heading": 205
+        },
+        {
+            "id": "carriage_market_1",
+            "kind": "carriage",
+            "pos": [
+                -11,
+                4
+            ],
+            "heading": 90
+        },
+        {
+            "id": "boat_docks_1",
+            "kind": "boat",
+            "pos": [
+                0,
+                -77
+            ],
+            "heading": 180
+        },
+        {
+            "id": "boat_river_1",
+            "kind": "boat",
+            "pos": [
+                -8,
+                -26
+            ],
+            "heading": 168
+        }
+    ]
+}
