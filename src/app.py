@@ -4,10 +4,11 @@ from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpColorScaleI
 from panda3d.core import (
     WindowProperties, AmbientLight, DirectionalLight,
     Vec3, Vec4, LPoint3, LColor, Fog, AntialiasAttrib,
-    Texture, TransparencyAttrib, PNMImage,
+    Texture, TransparencyAttrib, PNMImage, MouseButton,
     loadPrcFileData
 )
 import complexpbr
+import math
 import os
 from utils.logger import logger
 
@@ -85,6 +86,9 @@ class XBotApp(ShowBase):
         self._cam_yaw = 0.0
         self._cam_pitch = -20.0
         self._cam_dist = 22.0
+        self._cam_angles_cache = (self._cam_yaw, self._cam_pitch)
+        self._cam_yaw_rad = math.radians(self._cam_yaw)
+        self._cam_pitch_rad = math.radians(self._cam_pitch)
         self._gfx_quality = "Medium"
 
         # Advanced complexpbr Rendering
@@ -202,8 +206,12 @@ class XBotApp(ShowBase):
         # -- Core Engine Systems (C++) --
         self._init_core_systems()
         self._last_particle_count = 0
+        self._particle_upload_interval = 1.0 / 30.0
+        self._particle_upload_accum = 0.0
         self._diag_log_interval_sec = 5.0
         self._last_diag_log_time = -999.0
+        self._boss_update_fail_count = 0
+        self._boss_update_last_log_time = -999.0
 
         # -- World & Player (Deferred) --
         self.world = None
@@ -291,8 +299,6 @@ class XBotApp(ShowBase):
             direction = sun.get("direction", [1, -2, -2])
             if isinstance(direction, (list, tuple)) and len(direction) >= 3 and hasattr(self, "_dlnp"):
                 try:
-                    import math
-
                     dx, dy, dz = float(direction[0]), float(direction[1]), float(direction[2])
                     heading = math.degrees(math.atan2(dx, dy))
                     pitch = math.degrees(math.atan2(dz, max(0.001, math.sqrt((dx * dx) + (dy * dy)))))
@@ -950,14 +956,28 @@ class XBotApp(ShowBase):
             except Exception as exc:
                 logger.warning(f"[NPCManager] Spawn failed, fallback to static NPCs: {exc}")
 
+        model_path = "assets/models/xbot/Xbot.glb"
+        template = getattr(self, "_npc_static_template", None)
+        if not template or template.isEmpty():
+            try:
+                template = self.loader.loadModel(model_path)
+            except Exception as exc:
+                logger.warning(f"[XBotApp] Failed to load static NPC template '{model_path}': {exc}")
+                return
+            if not template or template.isEmpty():
+                logger.warning(f"[XBotApp] Static NPC template is empty: '{model_path}'")
+                return
+            template.reparentTo(self.hidden)
+            self._npc_static_template = template
+
         for npc_id, data in self.data_mgr.npcs.items():
             if not isinstance(data, dict):
                 continue
             pos = data.get("pos", [0, 0, 0])
             if not (isinstance(pos, list) and len(pos) >= 3):
                 pos = [0, 0, 0]
-            np = self.loader.loadModel("assets/models/xbot/Xbot.glb")
-            np.reparentTo(self.render)
+            np = template.instanceTo(self.render)
+            np.setName(f"npc_static_{npc_id}")
             np.setPos(float(pos[0]), float(pos[1]), float(pos[2]))
             np.setScale(float(data.get("appearance", {}).get("scale", 1.0)))
             np.setTag("npc_id", str(npc_id))
@@ -1002,8 +1022,12 @@ class XBotApp(ShowBase):
 
         if HAS_CORE:
             self.particles.update(dt)
-            self._upload_particles()
-            self.water_sim.update(task.time)
+            self._particle_upload_accum += dt
+            if self._particle_upload_accum >= self._particle_upload_interval:
+                self._upload_particles()
+                self._particle_upload_accum = 0.0
+            if self.water_sim:
+                self.water_sim.update(task.time)
 
         self.player.update(dt, self._cam_yaw)
         if getattr(self, "npc_mgr", None):
@@ -1015,9 +1039,15 @@ class XBotApp(ShowBase):
         if self.boss_manager and self.player:
             try:
                 self.boss_manager.update(dt, self.player.actor.getPos(self.render))
+                self._boss_update_fail_count = 0
             except Exception as exc:
-                logger.warning(f"[EnemyRoster] Update failed: {exc}")
-                self.boss_manager = None
+                self._boss_update_fail_count += 1
+                now = globalClock.getFrameTime()
+                if (now - self._boss_update_last_log_time) >= 2.0:
+                    self._boss_update_last_log_time = now
+                    logger.warning(
+                        f"[EnemyRoster] Update failed ({self._boss_update_fail_count}x): {exc}"
+                    )
         self.quest_mgr.update(self.player.actor.getPos())
         self.world.update(self.player.actor.getPos())
         mount_hint = ""
@@ -1070,9 +1100,6 @@ class XBotApp(ShowBase):
                 cp = ap # Use actor pos as center
                 base_z = ap.z
 
-            import math
-            from panda3d.core import MouseButton
-
             # --- Handle Mouse Look ---
             if self.mouseWatcherNode.hasMouse():
                 mouse_x = self.mouseWatcherNode.getMouseX()
@@ -1093,8 +1120,14 @@ class XBotApp(ShowBase):
                 self._last_mouse_x = mouse_x
                 self._last_mouse_y = mouse_y
 
-            yr = math.radians(self._cam_yaw)
-            pr = math.radians(self._cam_pitch)
+            angles = (self._cam_yaw, self._cam_pitch)
+            if angles != self._cam_angles_cache:
+                self._cam_angles_cache = angles
+                self._cam_yaw_rad = math.radians(self._cam_yaw)
+                self._cam_pitch_rad = math.radians(self._cam_pitch)
+
+            yr = self._cam_yaw_rad
+            pr = self._cam_pitch_rad
             cx = cp.x + self._cam_dist * math.sin(yr) * math.cos(pr)
             cy = cp.y - self._cam_dist * math.cos(yr) * math.cos(pr)
             cz = base_z + 1.8 + self._cam_dist * math.sin(-pr)
