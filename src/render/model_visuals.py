@@ -51,6 +51,37 @@ def _default_material():
     return _DEFAULT_MATERIAL
 
 
+def _is_texture_valid(tex):
+    if tex is None:
+        return False
+
+    is_empty = getattr(tex, "isEmpty", None)
+    if callable(is_empty):
+        try:
+            return not bool(is_empty())
+        except Exception:
+            pass
+
+    is_empty_snake = getattr(tex, "is_empty", None)
+    if callable(is_empty_snake):
+        try:
+            return not bool(is_empty_snake())
+        except Exception:
+            pass
+
+    get_x = getattr(tex, "get_x_size", None) or getattr(tex, "getXSize", None)
+    get_y = getattr(tex, "get_y_size", None) or getattr(tex, "getYSize", None)
+    if callable(get_x) and callable(get_y):
+        try:
+            return int(get_x()) > 0 and int(get_y()) > 0
+        except Exception:
+            pass
+
+    # If Panda does not expose empty/size checks on this build,
+    # assume texture is valid rather than replacing it aggressively.
+    return True
+
+
 def _apply_common_shader_inputs(node):
     defaults = {
         "displacement_scale": 0.0,
@@ -91,6 +122,16 @@ def _fix_dark_color_scale(target):
 
 
 def _fix_dark_vertex_color(target):
+    has_color = getattr(target, "has_color", None)
+    if not callable(has_color):
+        has_color = getattr(target, "hasColor", None)
+    if callable(has_color):
+        try:
+            if not bool(has_color()):
+                return False
+        except Exception:
+            pass
+
     try:
         color = _call(target, "get_color", "getColor")
     except Exception:
@@ -136,7 +177,7 @@ def _ensure_geom_visibility(node):
             default_tex = geom_np.getTexture(default_stage)
         except Exception:
             default_tex = None
-        has_default_tex = bool(default_tex and not default_tex.isEmpty())
+        has_default_tex = _is_texture_valid(default_tex)
 
         if not has_tex or not has_default_tex:
             try:
@@ -172,6 +213,22 @@ def _ensure_geom_visibility(node):
                 except Exception:
                     pass
 
+    return patched
+
+
+def _fix_dark_hierarchy(node):
+    patched = 0
+    all_nodes = [node]
+    try:
+        all_nodes.extend(list(node.find_all_matches("**")))
+    except Exception:
+        pass
+
+    for np in all_nodes:
+        if _fix_dark_color_scale(np):
+            patched += 1
+        if _fix_dark_vertex_color(np):
+            patched += 1
     return patched
 
 
@@ -213,7 +270,12 @@ def ensure_model_visual_defaults(
     if apply_skin:
         _apply_hardware_skinning(node, debug_label)
 
-    patched = _ensure_geom_visibility(node)
+    patched = 0
+    patched += _fix_dark_hierarchy(node)
+    try:
+        patched += _ensure_geom_visibility(node)
+    except Exception as exc:
+        logger.warning(f"[Visuals] Failed to enforce geom visibility for {debug_label}: {exc}")
     if patched > 0:
         logger.debug(f"[Visuals] Applied {patched} fallback visual patches to {debug_label}.")
     return patched
