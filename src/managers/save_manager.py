@@ -136,6 +136,15 @@ class SaveManager:
         char_state = self._capture_char_state()
         profile = dict(getattr(self.app, "profile", {}))
         active_location = getattr(getattr(self.app, "world", None), "active_location", None)
+        language = "en"
+        data_mgr = getattr(self.app, "data_mgr", None)
+        if data_mgr and hasattr(data_mgr, "get_language"):
+            try:
+                value = data_mgr.get_language()
+                if isinstance(value, str) and value.strip():
+                    language = value
+            except Exception as exc:
+                logger.warning(f"[SaveManager] Failed to read language from data manager: {exc}")
         combat_state = {}
         player = getattr(self.app, "player", None)
         if player and hasattr(player, "export_combat_runtime_state"):
@@ -178,7 +187,7 @@ class SaveManager:
                 "profile": profile,
                 "active_quests": dict(getattr(self.app.quest_mgr, "active_quests", {})),
                 "completed_quests": sorted(list(getattr(self.app.quest_mgr, "completed_quests", set()))),
-                "language": self.app.data_mgr.get_language() if hasattr(self.app, "data_mgr") else "en",
+                "language": language,
             },
             "world": {
                 "active_location": active_location,
@@ -245,8 +254,12 @@ class SaveManager:
             self.app.profile = base
 
         lang = progression.get("language")
-        if isinstance(lang, str) and hasattr(self.app, "data_mgr"):
-            self.app.data_mgr.set_language(lang)
+        data_mgr = getattr(self.app, "data_mgr", None)
+        if isinstance(lang, str) and data_mgr and hasattr(data_mgr, "set_language"):
+            try:
+                data_mgr.set_language(lang)
+            except Exception as exc:
+                logger.warning(f"[SaveManager] Failed to apply language '{lang}': {exc}")
 
         active_quests = progression.get("active_quests")
         if isinstance(active_quests, dict):
@@ -286,8 +299,8 @@ class SaveManager:
             if isinstance(vehicles_state, dict) and vehicle_mgr and hasattr(vehicle_mgr, "import_state"):
                 try:
                     vehicle_mgr.import_state(vehicles_state, player=getattr(self.app, "player", None))
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning(f"[SaveManager] Vehicle state import failed: {exc}")
 
     def _apply_position(self, position):
         x, y, z = float(position[0]), float(position[1]), float(position[2])
