@@ -90,6 +90,22 @@ def _fix_dark_color_scale(target):
     return False
 
 
+def _fix_dark_vertex_color(target):
+    try:
+        color = _call(target, "get_color", "getColor")
+    except Exception:
+        return False
+
+    dark_rgb = min(float(color[0]), float(color[1]), float(color[2]))
+    if dark_rgb < 0.04:
+        try:
+            _call(target, "set_color", "setColor", 1.0, 1.0, 1.0, float(color[3]))
+            return True
+        except Exception:
+            return False
+    return False
+
+
 def _ensure_geom_visibility(node):
     white_tex = _white_texture()
     fallback_mat = _default_material()
@@ -103,7 +119,11 @@ def _ensure_geom_visibility(node):
         pass
 
     for geom_np in geom_nodes:
+        _apply_common_shader_inputs(geom_np)
+
         if _fix_dark_color_scale(geom_np):
+            patched += 1
+        if _fix_dark_vertex_color(geom_np):
             patched += 1
 
         try:
@@ -111,7 +131,14 @@ def _ensure_geom_visibility(node):
         except Exception:
             has_tex = False
 
-        if not has_tex:
+        default_tex = None
+        try:
+            default_tex = geom_np.getTexture(default_stage)
+        except Exception:
+            default_tex = None
+        has_default_tex = bool(default_tex and not default_tex.isEmpty())
+
+        if not has_tex or not has_default_tex:
             try:
                 geom_np.setTexture(default_stage, white_tex, 1)
                 patched += 1
@@ -139,7 +166,7 @@ def _ensure_geom_visibility(node):
                     bc = _call(mat, "get_base_color", "getBaseColor")
                     dark = max(0.0, min(float(bc[0]), float(bc[1]), float(bc[2])))
                     if dark < 0.06:
-                        _call(mat, "set_base_color", "setBaseColor", LColor(0.42, 0.40, 0.38, float(bc[3])))
+                        _call(mat, "set_base_color", "setBaseColor", LColor(0.62, 0.60, 0.58, float(bc[3])))
                         geom_np.set_material(mat, 1)
                         patched += 1
                 except Exception:

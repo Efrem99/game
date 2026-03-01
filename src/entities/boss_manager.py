@@ -75,6 +75,7 @@ class EnemyUnit:
         self.hp = self.max_hp
         self._last_hp_seen = self.hp
         self.armor = max(0.0, self._stat("armor", 2.0))
+        self._telegraph_fx = self._parse_telegraph_fx()
 
         self.spawn()
 
@@ -361,8 +362,9 @@ class EnemyUnit:
         ring.setTransparency(TransparencyAttrib.MAlpha)
         ring.setLightOff(1)
         ring.setTwoSided(True)
-        ring.setColorScale(1.0, 0.25, 0.15, 0.0)
-        ring.setScale(max(1.2, self._stat("attack_range", 2.4)))
+        ring.setColorScale(*self._fx_color("idle_color", (1.0, 0.25, 0.15, 0.0)))
+        min_scale = self._fx_float("min_scale", 1.2, 0.2, 50.0)
+        ring.setScale(max(min_scale, self._stat("attack_range", 2.4)))
         ensure_model_visual_defaults(
             ring,
             apply_skin=False,
@@ -387,27 +389,37 @@ class EnemyUnit:
         if self.state == "telegraph":
             windup = max(0.08, float(self._attack_windup or 0.22))
             t = max(0.0, min(1.0, self.state_time / windup))
-            alpha = 0.16 + (0.28 * t)
-            ring.setColorScale(1.0, 0.78, 0.26, alpha)
-            scale = max(1.2, self._stat("attack_range", 2.4))
-            ring.setScale(scale * (0.86 + (0.16 * t)))
+            a0 = self._fx_float("telegraph_alpha_start", 0.16, 0.0, 1.0)
+            a1 = self._fx_float("telegraph_alpha_end", 0.44, 0.0, 1.0)
+            alpha = a0 + ((a1 - a0) * t)
+            color = self._fx_color("telegraph_color", (1.0, 0.78, 0.26, alpha))
+            ring.setColorScale(color[0], color[1], color[2], alpha)
+            scale = max(self._fx_float("min_scale", 1.2, 0.2, 50.0), self._stat("attack_range", 2.4))
+            s0 = self._fx_float("telegraph_scale_start", 0.86, 0.1, 3.0)
+            s1 = self._fx_float("telegraph_scale_end", 1.02, 0.1, 3.0)
+            ring.setScale(scale * (s0 + ((s1 - s0) * t)))
         elif self.state == "attack":
-            pulse = 0.5 + (0.5 * math.sin(globalClock.getFrameTime() * 16.0))
-            alpha = 0.36 + (0.24 * pulse)
-            ring.setColorScale(1.0, 0.22, 0.15, alpha)
-            scale = max(1.2, self._stat("attack_range", 2.4))
-            ring.setScale(scale * (1.0 + (0.08 * math.sin(globalClock.getFrameTime() * 9.0))))
+            pulse_speed = self._fx_float("attack_pulse_speed", 16.0, 0.1, 64.0)
+            pulse = 0.5 + (0.5 * math.sin(globalClock.getFrameTime() * pulse_speed))
+            a_base = self._fx_float("attack_alpha_base", 0.36, 0.0, 1.0)
+            a_pulse = self._fx_float("attack_alpha_pulse", 0.24, 0.0, 1.0)
+            alpha = a_base + (a_pulse * pulse)
+            color = self._fx_color("attack_color", (1.0, 0.22, 0.15, alpha))
+            ring.setColorScale(color[0], color[1], color[2], alpha)
+            scale = max(self._fx_float("min_scale", 1.2, 0.2, 50.0), self._stat("attack_range", 2.4))
+            s_mul = self._fx_float("attack_scale_pulse", 0.08, 0.0, 1.0)
+            ring.setScale(scale * (1.0 + (s_mul * math.sin(globalClock.getFrameTime() * 9.0))))
         elif self.state == "recover":
-            ring.setColorScale(1.0, 0.55, 0.18, 0.16)
-            ring.setScale(max(1.2, self._stat("attack_range", 2.4)) * 0.92)
+            ring.setColorScale(*self._fx_color("recover_color", (1.0, 0.55, 0.18, 0.16)))
+            ring.setScale(max(self._fx_float("min_scale", 1.2, 0.2, 50.0), self._stat("attack_range", 2.4)) * 0.92)
         elif self.state == "hit":
-            ring.setColorScale(0.82, 0.92, 1.0, 0.24)
-            ring.setScale(max(1.2, self._stat("attack_range", 2.4)) * 0.88)
+            ring.setColorScale(*self._fx_color("hit_color", (0.82, 0.92, 1.0, 0.24)))
+            ring.setScale(max(self._fx_float("min_scale", 1.2, 0.2, 50.0), self._stat("attack_range", 2.4)) * 0.88)
         elif self._is_engaged:
-            ring.setColorScale(0.22, 0.72, 1.0, 0.14)
-            ring.setScale(max(1.2, self._stat("attack_range", 2.4)) * 0.9)
+            ring.setColorScale(*self._fx_color("engaged_color", (0.22, 0.72, 1.0, 0.14)))
+            ring.setScale(max(self._fx_float("min_scale", 1.2, 0.2, 50.0), self._stat("attack_range", 2.4)) * 0.9)
         else:
-            ring.setColorScale(1.0, 0.2, 0.15, 0.0)
+            ring.setColorScale(*self._fx_color("idle_color", (1.0, 0.2, 0.15, 0.0)))
 
     def _ensure_proxy(self):
         if not HAS_CORE or self.proxy is not None:
@@ -541,6 +553,37 @@ class EnemyUnit:
     def _phase_time(self, key, default):
         return _clamp(self._ai(key, default), 0.02, 8.0)
 
+    def _parse_telegraph_fx(self):
+        fx = self.cfg.get("telegraph_fx", {})
+        if not isinstance(fx, dict):
+            return {}
+        return dict(fx)
+
+    def _fx_float(self, key, default, lo=0.0, hi=10.0):
+        try:
+            value = float(self._telegraph_fx.get(key, default))
+        except Exception:
+            value = float(default)
+        return _clamp(value, lo, hi)
+
+    def _fx_color(self, key, default):
+        raw = self._telegraph_fx.get(key, default)
+        if not isinstance(raw, (list, tuple)) or len(raw) < 3:
+            raw = default
+        alpha = default[3] if len(default) >= 4 else 1.0
+        if len(raw) >= 4:
+            try:
+                alpha = float(raw[3])
+            except Exception:
+                alpha = default[3] if len(default) >= 4 else 1.0
+        try:
+            r = float(raw[0])
+            g = float(raw[1])
+            b = float(raw[2])
+        except Exception:
+            r, g, b = default[0], default[1], default[2]
+        return (r, g, b, alpha)
+
     def _change_state(self, state_name, lock_duration=0.0, reset_time=True):
         target = str(state_name or "idle").strip().lower() or "idle"
         if target != self.state:
@@ -669,22 +712,59 @@ class EnemyUnit:
 
 
 class BossManager:
-    def __init__(self, app, cfg_path="data/enemies/boss_roster.json"):
+    def __init__(
+        self,
+        app,
+        cfg_path="data/enemies/boss_roster.json",
+        state_map_path="data/enemies/state_maps.json",
+    ):
         self.app = app
         self.cfg_path = str(cfg_path)
+        self.state_map_path = str(state_map_path)
         self.units = []
         self._load()
 
+    def _merge_enemy_cfg(self, base_entry, *overrides):
+        merged = dict(base_entry)
+        for override in overrides:
+            if not isinstance(override, dict):
+                continue
+            for key, value in override.items():
+                if key in {"animations", "animation_rates", "ai", "stats", "telegraph_fx"}:
+                    prev = merged.get(key, {})
+                    if not isinstance(prev, dict):
+                        prev = {}
+                    if isinstance(value, dict):
+                        nxt = dict(prev)
+                        nxt.update(value)
+                        merged[key] = nxt
+                else:
+                    merged[key] = value
+        return merged
+
     def _load(self):
         payload = _safe_read_json(self.cfg_path)
+        state_payload = _safe_read_json(self.state_map_path)
+        default_maps = state_payload.get("defaults", {}) if isinstance(state_payload, dict) else {}
+        unit_maps = state_payload.get("units", {}) if isinstance(state_payload, dict) else {}
+        if not isinstance(default_maps, dict):
+            default_maps = {}
+        if not isinstance(unit_maps, dict):
+            unit_maps = {}
+
         entries = payload.get("enemies", []) if isinstance(payload, dict) else []
         if not isinstance(entries, list):
             entries = []
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
+            unit_id = str(entry.get("id") or "").strip().lower()
+            kind = str(entry.get("kind") or "").strip().lower()
+            kind_defaults = default_maps.get(kind, {}) if kind else {}
+            unit_override = unit_maps.get(unit_id, {}) if unit_id else {}
+            final_entry = self._merge_enemy_cfg(entry, kind_defaults, unit_override)
             try:
-                self.units.append(EnemyUnit(self.app, entry))
+                self.units.append(EnemyUnit(self.app, final_entry))
             except Exception as exc:
                 logger.warning(f"[EnemyRoster] Init failed for '{entry.get('id', '?')}': {exc}")
         logger.info(f"[EnemyRoster] Spawned units: {len(self.units)}")

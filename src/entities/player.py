@@ -27,6 +27,10 @@ except ImportError:
     HAS_CORE = False
 
 from entities.mannequin import create_procedural_actor
+from entities.animation_manifest import (
+    alias_animation_key as manifest_alias_animation_key,
+    load_player_manifest_sources,
+)
 from entities.player_animation_config import (
     ANIM_TOKEN_ALIASES,
     STATE_ANIM_FALLBACK,
@@ -145,47 +149,7 @@ class Player(
         self._refresh_spell_cache()
 
     def _alias_animation_key(self, stem):
-        token = self._normalize_anim_key(stem)
-        if not token:
-            return None
-        if "idle" in token:
-            return "idle"
-        if "sprint" in token or "run" in token or "jog" in token:
-            return "run"
-        if "walk" in token:
-            return "walk"
-        if "jump" in token or "takeoff" in token or "hop" in token:
-            return "jump"
-        if "fall" in token or "air" in token:
-            return "falling"
-        if "land" in token:
-            return "landing"
-        if "attack" in token or "slash" in token or "swing" in token or "strike" in token:
-            return "attacking"
-        if "dodge" in token or "roll" in token:
-            return "dodging"
-        if "block" in token or "guard" in token:
-            return "blocking"
-        if "cast" in token or "spell" in token:
-            return "casting"
-        if "vault" in token:
-            return "vaulting"
-        if "climb" in token:
-            return "climbing"
-        if "wallrun" in token or ("wall" in token and "run" in token):
-            return "wallrun"
-        if "swim" in token:
-            return "swim"
-        if (
-            "fly" in token
-            or "flight" in token
-            or "hover" in token
-            or "glide" in token
-        ):
-            return "flying"
-        if "death" in token or token == "die":
-            return "dead"
-        return token
+        return manifest_alias_animation_key(stem)
 
     def _collect_optional_animation_sources(self):
         manifest_sources, strict_manifest = self._load_manifest_animation_sources()
@@ -217,47 +181,12 @@ class Player(
         return candidates
 
     def _load_manifest_animation_sources(self):
-        path = Path("data/actors/player_animations.json")
-        if not path.exists():
-            return {}, False
-
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8-sig"))
-        except Exception as exc:
-            logger.warning(f"[Anim] Failed to read animation manifest: {exc}")
-            return {}, False
-
-        manifest = payload.get("manifest", {}) if isinstance(payload, dict) else {}
-        if not isinstance(manifest, dict):
-            return {}, False
-
-        strict_mode = bool(manifest.get("strict_runtime_sources", False))
-        sources = manifest.get("sources", [])
-        if not isinstance(sources, list):
-            return {}, strict_mode
-
-        mapping = {}
-        for entry in sources:
-            key = ""
-            clip_path = ""
-            if isinstance(entry, str):
-                clip_path = entry.strip().replace("\\", "/")
-                key = self._alias_animation_key(Path(clip_path).stem) or ""
-            elif isinstance(entry, dict):
-                key = str(entry.get("key") or entry.get("state") or entry.get("id") or "").strip().lower()
-                key = key.replace("-", "_").replace(" ", "_")
-                clip_path = str(entry.get("path") or entry.get("file") or entry.get("src") or "").strip().replace("\\", "/")
-                if not key and clip_path:
-                    key = self._alias_animation_key(Path(clip_path).stem) or ""
-            if not key or not clip_path:
-                continue
-            if key in {"idle", "walk", "run"}:
-                continue
-            if not Path(clip_path).exists():
-                logger.warning(f"[Anim] Manifest entry missing file: {clip_path}")
-                continue
-            mapping.setdefault(key, clip_path)
-
+        mapping, strict_mode, diagnostics = load_player_manifest_sources(
+            "data/actors/player_animations.json",
+            require_existing_files=True,
+        )
+        for message in diagnostics:
+            logger.warning(f"[Anim] {message}")
         return mapping, strict_mode
 
     def _build_character(self):
