@@ -20,6 +20,10 @@
         "autosaved": "Autosaved",
         "map": "Map",
         "combo": "COMBO",
+        "active_quests_header": "Active Quests:",
+        "completed_quests_header": "Completed Quests:",
+        "no_active_quests": "No active quests.",
+        "no_completed_quests": "No completed quests yet.",
         "press_space_skip": "Press Space to skip",
         "intro_tagline": "The Kingdom is Waiting",
         "loading_default_recap": "The kingdom of Aethelgard is vast and full of secrets. Shadows grow long in the Whispering Woods, and many look to you for hope. Your journey has only just begun...",
@@ -68,5 +72,10 @@
         "damage_taken": "Hit!",
         "enemy_defeated": "Enemy defeated",
         "critical_hit": "Critical Hit!"
+    },
+    "hud": {
+        "checkpoint": "Checkpoint",
+        "reach": "Reach",
+        "interact": "Interact"
     }
 }

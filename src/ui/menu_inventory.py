@@ -72,10 +72,12 @@ class InventoryUI:
 
         self.journal_text = OnscreenText(
             text="Journal empty",
-            pos=(0, 0),
-            scale=0.06,
+            pos=(-0.66, 0.35),
+            scale=0.042,
             font=body_font(self.app),
             fg=THEME["text_muted"],
+            align=TextNode.ALeft,
+            wordwrap=34,
             parent=self.content_frame
         )
 
@@ -197,56 +199,77 @@ class InventoryUI:
     def _refresh_journal(self):
         quest_mgr = getattr(self.app, "quest_mgr", None)
         active = getattr(quest_mgr, "active_quests", {}) if quest_mgr else {}
+        completed = sorted(
+            list(getattr(quest_mgr, "completed_quests", set()) or set())
+        ) if quest_mgr else []
         codex = self._format_journal_codex()
+        lines = []
+
+        lines.append(self.app.data_mgr.t("ui.active_quests_header", "Active Quests:"))
         if not active:
-            base = self.app.data_mgr.t("ui.no_active_quests", "No active quests.")
-            if codex:
-                self.journal_text["text"] = f"{base}\n\n{codex}"
-            else:
-                self.journal_text["text"] = base
-            return
-
-        txt = self.app.data_mgr.t("ui.active_quests_header", "Active Quests:") + "\n\n"
-        for q_id, objective_idx in active.items():
-            quest = None
-            if quest_mgr and hasattr(quest_mgr, "_find_quest"):
-                try:
-                    quest = quest_mgr._find_quest(q_id)
-                except Exception:
-                    quest = None
-            if not isinstance(quest, dict):
-                quest = self.app.data_mgr.quests.get(q_id, {}) if isinstance(self.app.data_mgr.quests, dict) else {}
-
-            title = (
-                (quest.get("title") if isinstance(quest, dict) else None)
-                or (quest.get("name") if isinstance(quest, dict) else None)
-                or str(q_id)
-            )
-            txt += f"- {title}"
-
-            objective_text = ""
-            if isinstance(quest, dict):
-                objectives = quest.get("objectives")
-                if isinstance(objectives, list):
+            lines.append("- " + self.app.data_mgr.t("ui.no_active_quests", "No active quests."))
+        else:
+            for q_id, objective_idx in active.items():
+                quest = None
+                if quest_mgr and hasattr(quest_mgr, "_find_quest"):
                     try:
-                        idx = int(objective_idx)
+                        quest = quest_mgr._find_quest(q_id)
                     except Exception:
-                        idx = -1
-                    if 0 <= idx < len(objectives):
-                        objective = objectives[idx]
-                        if isinstance(objective, dict):
-                            objective_text = (
-                                objective.get("description")
-                                or objective.get("desc")
-                                or objective.get("id")
-                                or ""
-                            )
-            if objective_text:
-                txt += f"\n    {objective_text}"
-            txt += "\n"
+                        quest = None
+                if not isinstance(quest, dict):
+                    quest = self.app.data_mgr.quests.get(q_id, {}) if isinstance(self.app.data_mgr.quests, dict) else {}
+
+                title = (
+                    (quest.get("title") if isinstance(quest, dict) else None)
+                    or (quest.get("name") if isinstance(quest, dict) else None)
+                    or str(q_id)
+                )
+                objectives = quest.get("objectives", []) if isinstance(quest, dict) else []
+                obj_total = len(objectives) if isinstance(objectives, list) else 0
+                try:
+                    idx = int(objective_idx)
+                except Exception:
+                    idx = -1
+                objective_text = ""
+                if isinstance(objectives, list) and 0 <= idx < len(objectives):
+                    objective = objectives[idx]
+                    if isinstance(objective, dict):
+                        objective_text = (
+                            objective.get("description")
+                            or objective.get("desc")
+                            or objective.get("id")
+                            or ""
+                        )
+                progress = f"[{max(1, idx + 1)}/{max(1, obj_total)}]" if obj_total else ""
+                lines.append(f"- {title} {progress}".strip())
+                if objective_text:
+                    lines.append(f"  {objective_text}")
+
+        lines.append("")
+        lines.append(self.app.data_mgr.t("ui.completed_quests_header", "Completed Quests:"))
+        if completed:
+            shown = completed[-8:]
+            for q_id in shown:
+                quest = None
+                if quest_mgr and hasattr(quest_mgr, "_find_quest"):
+                    try:
+                        quest = quest_mgr._find_quest(q_id)
+                    except Exception:
+                        quest = None
+                title = (
+                    (quest.get("title") if isinstance(quest, dict) else None)
+                    or (self.app.data_mgr.quests.get(q_id, {}).get("title") if isinstance(self.app.data_mgr.quests, dict) else None)
+                    or str(q_id)
+                )
+                lines.append(f"- {title}")
+        else:
+            lines.append("- " + self.app.data_mgr.t("ui.no_completed_quests", "No completed quests yet."))
+
         if codex:
-            txt += "\n" + codex
-        self.journal_text["text"] = txt
+            lines.append("")
+            lines.append(codex)
+
+        self.journal_text["text"] = "\n".join(lines)
 
     def _format_journal_codex(self):
         payload = {}

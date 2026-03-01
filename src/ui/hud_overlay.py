@@ -2,7 +2,7 @@
 import os
 
 from direct.gui.DirectGui import DirectFrame, OnscreenImage, OnscreenText
-from panda3d.core import TextNode, TransparencyAttrib
+from panda3d.core import CardMaker, TextNode, TransparencyAttrib
 
 from ui.design_system import THEME, body_font, title_font, place_ui_on_top
 
@@ -27,6 +27,7 @@ class HUDOverlay:
         self._skill_wheel_hint_key = str(wheel_key).upper()
         self._xp = 0
         self._gold = 0
+        self._checkpoint_pulse = 0.0
         self._xp_label_text = self.app.data_mgr.t("stats.xp", "XP")
         self._gold_label_text = self.app.data_mgr.t("stats.gold", "Gold")
 
@@ -40,6 +41,7 @@ class HUDOverlay:
         self._create_vignette()
         self._create_bars()
         self._create_combo()
+        self._create_checkpoint_tracker()
         self._create_damage_feed()
         self._create_profile_block()
         self._create_mount_hint()
@@ -163,7 +165,7 @@ class HUDOverlay:
         self.quest_text = OnscreenText(
             text="",
             pos=(1.18, 0.64),
-            scale=0.03,
+            scale=0.028,
             fg=THEME["text_main"],
             shadow=(0, 0, 0, 0.75),
             align=TextNode.ARight,
@@ -172,6 +174,52 @@ class HUDOverlay:
             font=body_font(self.app),
         )
         place_ui_on_top(self.quest_text, 84)
+
+    def _create_checkpoint_tracker(self):
+        self.checkpoint_text = OnscreenText(
+            text="",
+            pos=(1.18, 0.47),
+            scale=0.028,
+            fg=THEME["gold_soft"],
+            shadow=(0, 0, 0, 0.82),
+            align=TextNode.ARight,
+            parent=self.root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        place_ui_on_top(self.checkpoint_text, 84)
+
+        self.checkpoint_hint_text = OnscreenText(
+            text="",
+            pos=(1.18, 0.42),
+            scale=0.023,
+            fg=THEME["text_muted"],
+            shadow=(0, 0, 0, 0.78),
+            align=TextNode.ARight,
+            parent=self.root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        place_ui_on_top(self.checkpoint_hint_text, 84)
+
+        self._checkpoint_marker_root = self.app.render.attachNewNode("hud_checkpoint_marker")
+        cm = CardMaker("hud_checkpoint_marker_card")
+        cm.setFrame(-0.38, 0.38, -0.10, 0.10)
+        marker = self._checkpoint_marker_root.attachNewNode(cm.generate())
+        marker.setBillboardPointEye()
+        marker.setTransparency(TransparencyAttrib.MAlpha)
+        marker.setLightOff(1)
+        marker.setColorScale(1.0, 0.86, 0.24, 0.85)
+        flare_path = "assets/textures/flare.png"
+        if os.path.exists(flare_path):
+            try:
+                tex = self.app.loader.loadTexture(flare_path)
+                if tex:
+                    marker.setTexture(tex, 1)
+            except Exception:
+                pass
+        self._checkpoint_marker = marker
+        self._checkpoint_marker_root.hide()
 
     def _create_damage_feed(self):
         self.damage_text = OnscreenText(
@@ -676,6 +724,7 @@ class HUDOverlay:
 
     def hide(self):
         self.root.hide()
+        self._checkpoint_marker_root.hide()
 
     def refresh_locale(self):
         self.hp_label.setText(self.app.data_mgr.t("stats.health", "Health"))
@@ -706,6 +755,64 @@ class HUDOverlay:
     def _refresh_profile_text(self):
         self.xp_text.setText(f"{self._xp_label_text}: {self._xp}")
         self.gold_text.setText(f"{self._gold_label_text}: {self._gold}")
+
+    def _format_dist(self, value):
+        if value is None:
+            return "--"
+        try:
+            meters = max(0.0, float(value))
+        except Exception:
+            return "--"
+        if meters >= 1000.0:
+            return f"{meters / 1000.0:.1f} km"
+        return f"{int(round(meters))} m"
+
+    def _update_checkpoint_tracker(self, dt, quest_data):
+        tracked = None
+        if isinstance(quest_data, list):
+            for item in quest_data:
+                if not isinstance(item, dict):
+                    continue
+                target = item.get("target")
+                if isinstance(target, (list, tuple)) and len(target) >= 3:
+                    tracked = item
+                    break
+
+        if not tracked:
+            self.checkpoint_text.setText("")
+            self.checkpoint_hint_text.setText("")
+            self._checkpoint_marker_root.hide()
+            return
+
+        objective = str(tracked.get("objective", "") or "Objective").strip()
+        status = str(tracked.get("status", "Reach") or "Reach").strip()
+        if status.lower() == "reach":
+            status = self.app.data_mgr.t("hud.reach", "Reach")
+        elif status.lower() == "interact":
+            status = self.app.data_mgr.t("hud.interact", "Interact")
+        dist_txt = self._format_dist(tracked.get("distance"))
+        cp_title = self.app.data_mgr.t("hud.checkpoint", "Checkpoint")
+        self.checkpoint_text.setText(f"{cp_title}: {dist_txt}")
+        self.checkpoint_hint_text.setText(f"{status}: {objective}")
+
+        target = tracked.get("target")
+        if not (isinstance(target, (list, tuple)) and len(target) >= 3):
+            self._checkpoint_marker_root.hide()
+            return
+
+        try:
+            tx = float(target[0])
+            ty = float(target[1])
+            tz = float(target[2])
+        except Exception:
+            self._checkpoint_marker_root.hide()
+            return
+
+        self._checkpoint_pulse += max(0.0, float(dt)) * 5.0
+        pulse = 1.0 + (0.12 * math.sin(self._checkpoint_pulse))
+        self._checkpoint_marker_root.show()
+        self._checkpoint_marker_root.setPos(tx, ty, tz + 2.2 + (0.12 * pulse))
+        self._checkpoint_marker_root.setScale(0.95 * pulse)
 
     def update(
         self,
@@ -742,6 +849,9 @@ class HUDOverlay:
                 self._logo_spin = (self._logo_spin + dt * 100.0) % 360.0
                 self.autosave_logo.setR(self._logo_spin)
             self.damage_text.setText("")
+            self.checkpoint_text.setText("")
+            self.checkpoint_hint_text.setText("")
+            self._checkpoint_marker_root.hide()
             return
         self._set_fill(self.hp_fill, char_state.health / max(1.0, char_state.maxHealth))
         self._set_fill(self.sp_fill, char_state.stamina / max(1.0, char_state.maxStamina))
@@ -755,17 +865,24 @@ class HUDOverlay:
             self.combo_text.setText("")
 
         if quest_data:
-            first = quest_data[0]
-            title = str(first.get("title", "")).strip()
-            objective = str(first.get("objective", "")).strip()
-            if title and objective:
-                self.quest_text.setText(f"{title}\n- {objective}")
-            elif title:
-                self.quest_text.setText(title)
-            else:
-                self.quest_text.setText("")
+            lines = []
+            for idx, entry in enumerate(quest_data[:3]):
+                if not isinstance(entry, dict):
+                    continue
+                title = str(entry.get("title", "")).strip()
+                objective = str(entry.get("objective", "")).strip()
+                status = str(entry.get("status", "")).strip() or "Objective"
+                dist_txt = self._format_dist(entry.get("distance"))
+                if title and objective:
+                    prefix = "●" if idx == 0 else "•"
+                    lines.append(f"{prefix} {title}")
+                    lines.append(f"  {status}: {objective} ({dist_txt})")
+                elif title:
+                    lines.append(title)
+            self.quest_text.setText("\n".join(lines))
         else:
             self.quest_text.setText("")
+        self._update_checkpoint_tracker(dt, quest_data or [])
 
         if isinstance(mount_hint, str):
             self.mount_hint_text.setText(mount_hint)
