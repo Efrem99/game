@@ -15,6 +15,9 @@ class InventoryUI:
         self.app = app
         self._rows = []
         self._current_tab = "inventory"  # "inventory", "map", "journal"
+        self._map_range = 180.0
+        self._map_pin_markers = []
+        self._map_pin_labels = []
 
         asp = self.app.getAspectRatio()
         self.frame = DirectFrame(
@@ -62,20 +65,25 @@ class InventoryUI:
         )
 
         self.map_text = OnscreenText(
-            text="Map coming soon",
-            pos=(0, 0),
-            scale=0.06,
+            text="",
+            pos=(-0.66, -0.36),
+            scale=0.03,
             font=body_font(self.app),
             fg=THEME["text_muted"],
+            align=TextNode.ALeft,
+            mayChange=True,
             parent=self.content_frame
         )
+        self._build_map_panel()
 
         self.journal_text = OnscreenText(
             text="Journal empty",
-            pos=(0, 0),
-            scale=0.06,
+            pos=(-0.66, 0.35),
+            scale=0.042,
             font=body_font(self.app),
             fg=THEME["text_muted"],
+            align=TextNode.ALeft,
+            wordwrap=34,
             parent=self.content_frame
         )
 
@@ -94,6 +102,58 @@ class InventoryUI:
         )
 
         self.hide()
+
+    def _build_map_panel(self):
+        self.map_panel = DirectFrame(
+            frameColor=(0.10, 0.09, 0.08, 0.68),
+            frameSize=(-0.66, 0.66, -0.32, 0.32),
+            pos=(0.0, 0, 0.02),
+            parent=self.content_frame,
+        )
+        self.map_grid_h = DirectFrame(
+            frameColor=(0.68, 0.62, 0.50, 0.22),
+            frameSize=(-0.62, 0.62, -0.0015, 0.0015),
+            parent=self.map_panel,
+        )
+        self.map_grid_v = DirectFrame(
+            frameColor=(0.68, 0.62, 0.50, 0.22),
+            frameSize=(-0.0015, 0.0015, -0.28, 0.28),
+            parent=self.map_panel,
+        )
+        self.map_player_marker = DirectFrame(
+            frameColor=(0.26, 0.76, 0.95, 0.98),
+            frameSize=(-0.012, 0.012, -0.012, 0.012),
+            parent=self.map_panel,
+        )
+        for _ in range(3):
+            marker = DirectFrame(
+                frameColor=(0.95, 0.78, 0.28, 0.95),
+                frameSize=(-0.010, 0.010, -0.010, 0.010),
+                parent=self.map_panel,
+            )
+            marker.hide()
+            self._map_pin_markers.append(marker)
+
+        self.map_title = OnscreenText(
+            text=self.app.data_mgr.t("ui.map", "Map"),
+            pos=(0, 0.36),
+            scale=0.05,
+            font=title_font(self.app),
+            fg=THEME["gold_soft"],
+            align=TextNode.ACenter,
+            mayChange=True,
+            parent=self.content_frame,
+        )
+        self.map_pin_text = OnscreenText(
+            text="",
+            pos=(-0.66, 0.38),
+            scale=0.028,
+            font=body_font(self.app),
+            fg=THEME["text_main"],
+            align=TextNode.ALeft,
+            mayChange=True,
+            parent=self.content_frame,
+        )
 
     def _build_tabs(self):
         self.tabs_frame = DirectFrame(
@@ -156,17 +216,29 @@ class InventoryUI:
         if tab_id == "inventory":
             self.btn_inv["frameColor"] = active_color
             self.item_list.show()
+            self._clear_map_labels()
+            self.map_panel.hide()
+            self.map_title.hide()
+            self.map_pin_text.hide()
             self.map_text.hide()
             self.journal_text.hide()
             self._refresh_inventory()
         elif tab_id == "map":
             self.btn_map["frameColor"] = active_color
             self.item_list.hide()
+            self.map_panel.show()
+            self.map_title.show()
+            self.map_pin_text.show()
             self.map_text.show()
             self.journal_text.hide()
+            self._refresh_map()
         elif tab_id == "journal":
             self.btn_journal["frameColor"] = active_color
             self.item_list.hide()
+            self._clear_map_labels()
+            self.map_panel.hide()
+            self.map_title.hide()
+            self.map_pin_text.hide()
             self.map_text.hide()
             self.journal_text.show()
             self._refresh_journal()
@@ -197,56 +269,77 @@ class InventoryUI:
     def _refresh_journal(self):
         quest_mgr = getattr(self.app, "quest_mgr", None)
         active = getattr(quest_mgr, "active_quests", {}) if quest_mgr else {}
+        completed = sorted(
+            list(getattr(quest_mgr, "completed_quests", set()) or set())
+        ) if quest_mgr else []
         codex = self._format_journal_codex()
+        lines = []
+
+        lines.append(self.app.data_mgr.t("ui.active_quests_header", "Active Quests:"))
         if not active:
-            base = self.app.data_mgr.t("ui.no_active_quests", "No active quests.")
-            if codex:
-                self.journal_text["text"] = f"{base}\n\n{codex}"
-            else:
-                self.journal_text["text"] = base
-            return
-
-        txt = self.app.data_mgr.t("ui.active_quests_header", "Active Quests:") + "\n\n"
-        for q_id, objective_idx in active.items():
-            quest = None
-            if quest_mgr and hasattr(quest_mgr, "_find_quest"):
-                try:
-                    quest = quest_mgr._find_quest(q_id)
-                except Exception:
-                    quest = None
-            if not isinstance(quest, dict):
-                quest = self.app.data_mgr.quests.get(q_id, {}) if isinstance(self.app.data_mgr.quests, dict) else {}
-
-            title = (
-                (quest.get("title") if isinstance(quest, dict) else None)
-                or (quest.get("name") if isinstance(quest, dict) else None)
-                or str(q_id)
-            )
-            txt += f"- {title}"
-
-            objective_text = ""
-            if isinstance(quest, dict):
-                objectives = quest.get("objectives")
-                if isinstance(objectives, list):
+            lines.append("- " + self.app.data_mgr.t("ui.no_active_quests", "No active quests."))
+        else:
+            for q_id, objective_idx in active.items():
+                quest = None
+                if quest_mgr and hasattr(quest_mgr, "_find_quest"):
                     try:
-                        idx = int(objective_idx)
+                        quest = quest_mgr._find_quest(q_id)
                     except Exception:
-                        idx = -1
-                    if 0 <= idx < len(objectives):
-                        objective = objectives[idx]
-                        if isinstance(objective, dict):
-                            objective_text = (
-                                objective.get("description")
-                                or objective.get("desc")
-                                or objective.get("id")
-                                or ""
-                            )
-            if objective_text:
-                txt += f"\n    {objective_text}"
-            txt += "\n"
+                        quest = None
+                if not isinstance(quest, dict):
+                    quest = self.app.data_mgr.quests.get(q_id, {}) if isinstance(self.app.data_mgr.quests, dict) else {}
+
+                title = (
+                    (quest.get("title") if isinstance(quest, dict) else None)
+                    or (quest.get("name") if isinstance(quest, dict) else None)
+                    or str(q_id)
+                )
+                objectives = quest.get("objectives", []) if isinstance(quest, dict) else []
+                obj_total = len(objectives) if isinstance(objectives, list) else 0
+                try:
+                    idx = int(objective_idx)
+                except Exception:
+                    idx = -1
+                objective_text = ""
+                if isinstance(objectives, list) and 0 <= idx < len(objectives):
+                    objective = objectives[idx]
+                    if isinstance(objective, dict):
+                        objective_text = (
+                            objective.get("description")
+                            or objective.get("desc")
+                            or objective.get("id")
+                            or ""
+                        )
+                progress = f"[{max(1, idx + 1)}/{max(1, obj_total)}]" if obj_total else ""
+                lines.append(f"- {title} {progress}".strip())
+                if objective_text:
+                    lines.append(f"  {objective_text}")
+
+        lines.append("")
+        lines.append(self.app.data_mgr.t("ui.completed_quests_header", "Completed Quests:"))
+        if completed:
+            shown = completed[-8:]
+            for q_id in shown:
+                quest = None
+                if quest_mgr and hasattr(quest_mgr, "_find_quest"):
+                    try:
+                        quest = quest_mgr._find_quest(q_id)
+                    except Exception:
+                        quest = None
+                title = (
+                    (quest.get("title") if isinstance(quest, dict) else None)
+                    or (self.app.data_mgr.quests.get(q_id, {}).get("title") if isinstance(self.app.data_mgr.quests, dict) else None)
+                    or str(q_id)
+                )
+                lines.append(f"- {title}")
+        else:
+            lines.append("- " + self.app.data_mgr.t("ui.no_completed_quests", "No completed quests yet."))
+
         if codex:
-            txt += "\n" + codex
-        self.journal_text["text"] = txt
+            lines.append("")
+            lines.append(codex)
+
+        self.journal_text["text"] = "\n".join(lines)
 
     def _format_journal_codex(self):
         payload = {}
@@ -277,6 +370,115 @@ class InventoryUI:
                     lines.append(f"- {text}")
             lines.append("")
         return "\n".join(lines).strip()
+
+    def _coerce_vec3(self, value):
+        if value is None:
+            return None
+        if isinstance(value, (list, tuple)) and len(value) >= 3:
+            try:
+                return (float(value[0]), float(value[1]), float(value[2]))
+            except Exception:
+                return None
+        try:
+            return (float(value.x), float(value.y), float(value.z))
+        except Exception:
+            return None
+
+    def _player_world_pos(self):
+        player = getattr(self.app, "player", None)
+        actor = getattr(player, "actor", None) if player else None
+        if not actor:
+            return None
+        try:
+            return self._coerce_vec3(actor.getPos(self.app.render))
+        except Exception:
+            return self._coerce_vec3(actor.getPos())
+
+    def _refresh_map(self):
+        for marker in self._map_pin_markers:
+            marker.hide()
+        self._clear_map_labels()
+
+        self.map_title["text"] = self.app.data_mgr.t("ui.map", "Map")
+        self.map_text["text"] = self.app.data_mgr.t(
+            "ui.map_hint",
+            "Blue dot is player, gold markers are tracked objectives.",
+        )
+        player_pos = self._player_world_pos()
+        quest_mgr = getattr(self.app, "quest_mgr", None)
+        quest_data = []
+        if quest_mgr and player_pos and hasattr(quest_mgr, "get_hud_data"):
+            try:
+                quest_data = quest_mgr.get_hud_data(player_pos=player_pos) or []
+            except Exception:
+                quest_data = []
+
+        if not player_pos:
+            self.map_pin_text["text"] = self.app.data_mgr.t("ui.map_no_target", "No active target.")
+            return
+
+        px, py, _ = player_pos
+        self.map_pin_text["text"] = ""
+        map_half_x = 0.60
+        map_half_z = 0.26
+        map_range = max(1.0, float(self._map_range))
+        summary_lines = []
+
+        for idx, entry in enumerate(quest_data[: len(self._map_pin_markers)]):
+            target = self._coerce_vec3(entry.get("target")) if isinstance(entry, dict) else None
+            if not target:
+                continue
+            tx, ty, _ = target
+            dx = tx - px
+            dy = ty - py
+            nx = max(-1.0, min(1.0, dx / map_range))
+            ny = max(-1.0, min(1.0, dy / map_range))
+
+            marker = self._map_pin_markers[idx]
+            if idx == 0:
+                marker["frameColor"] = (0.95, 0.84, 0.34, 0.98)
+            else:
+                marker["frameColor"] = (0.82, 0.70, 0.40, 0.84)
+            marker.setPos(nx * map_half_x, 0, ny * map_half_z)
+            marker.show()
+
+            title = str(entry.get("title", "")).strip()
+            objective = str(entry.get("objective", "")).strip()
+            dist = entry.get("distance")
+            dist_txt = "--"
+            try:
+                if dist is not None:
+                    dist_val = max(0.0, float(dist))
+                    dist_txt = f"{int(round(dist_val))} m"
+            except Exception:
+                dist_txt = "--"
+            if title:
+                summary_lines.append(f"{idx + 1}. {title} ({dist_txt})")
+                if objective:
+                    label = OnscreenText(
+                        text=objective[:46],
+                        pos=(-0.62, 0.31 - (idx * 0.06)),
+                        scale=0.022,
+                        font=body_font(self.app),
+                        fg=THEME["text_muted"],
+                        align=TextNode.ALeft,
+                        mayChange=False,
+                        parent=self.content_frame,
+                    )
+                    self._map_pin_labels.append(label)
+
+        if summary_lines:
+            self.map_pin_text["text"] = "\n".join(summary_lines)
+        else:
+            self.map_pin_text["text"] = self.app.data_mgr.t("ui.map_no_target", "No active target.")
+
+    def _clear_map_labels(self):
+        for label in self._map_pin_labels:
+            try:
+                label.destroy()
+            except Exception:
+                pass
+        self._map_pin_labels = []
 
     def _refresh_inventory(self):
         canvas = self.item_list.getCanvas()

@@ -38,7 +38,32 @@
             "entries": [
                 "I opens inventory and journal tabs.",
                 "F5/F6/F7 save to slots, Shift+F5/F6/F7 load slots.",
-                "F9 cycles test locations in development builds."
+                "F9 cycles test locations in development builds.",
+                "Hold TAB (or your bound key) to open the skill wheel, hover with mouse, release to equip."
+            ]
+        },
+        {
+            "title": "Checkpoint & Quest Flow",
+            "entries": [
+                "Tracked objectives show distance in HUD and a world checkpoint marker.",
+                "Reach objectives complete automatically when you enter their radius.",
+                "Interact objectives require pressing your interaction key near the target NPC/anchor."
+            ]
+        },
+        {
+            "title": "Mounts & Travel",
+            "entries": [
+                "Mount hints appear near valid vehicles and mounts.",
+                "Different mount types can use dedicated mount/dismount animations.",
+                "Use test profiles (mounts/music/dragon/journal/skills) to verify isolated systems quickly."
+            ]
+        },
+        {
+            "title": "Biomes & Audio Routing",
+            "entries": [
+                "Music routes by state: menu -> exploration -> combat -> boss.",
+                "Ambient routes by location and biome, then reacts to water/flying states.",
+                "Crossfades prevent layer overlap; short SFX cooldowns reduce spam in heavy combat."
             ]
         }
     ]

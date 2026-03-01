@@ -1030,6 +1030,7 @@ class XBotApp(ShowBase):
                 self.water_sim.update(task.time)
 
         self.player.update(dt, self._cam_yaw)
+        player_pos = self.player.actor.getPos()
         if getattr(self, "npc_mgr", None):
             try:
                 self.npc_mgr.update(dt)
@@ -1048,8 +1049,8 @@ class XBotApp(ShowBase):
                     logger.warning(
                         f"[EnemyRoster] Update failed ({self._boss_update_fail_count}x): {exc}"
                     )
-        self.quest_mgr.update(self.player.actor.getPos())
-        self.world.update(self.player.actor.getPos())
+        self.quest_mgr.update(player_pos)
+        self.world.update(player_pos)
         mount_hint = ""
         if hasattr(self, "vehicle_mgr") and self.vehicle_mgr:
             try:
@@ -1073,13 +1074,14 @@ class XBotApp(ShowBase):
         self.hud.update(
             dt,
             self.char_state,
-            self.quest_mgr.get_hud_data(),
+            self.quest_mgr.get_hud_data(player_pos=player_pos),
             self.profile,
             mount_hint,
             combat_event,
             spell_labels,
             active_skill_idx,
             ultimate_skill_idx,
+            player_pos,
         )
 
         self._follow_camera(dt)
