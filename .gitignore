@@ -1,9 +1,15 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
+*.whl
+*.egg-info/
+.eggs/
+*.eggs-info/
 .pytest_cache/
+*.coverage
+.hypothesis/
 
 # Virtual env
 .venv/
@@ -13,12 +19,21 @@ venv/
 build/
 build-cpp/
 cmake-build*/
+dist/
 *.obj
 *.ilk
 *.pdb
 *.dll
 *.so
 *.dylib
+
+# Panda3D specific
+*.p3d
+*.egg
+*.log
+*.p3d.ini
+*.p3d.pyo
+temp/
 
 # Runtime generated
 logs/
