@@ -90,8 +90,10 @@ class Player(
         self._state_anim_overrides = {}
         self._state_defs = {}
         self._state_transitions = []
+        self._state_rules = []
         self._queued_state_triggers = []
         self._state_lock_until = 0.0
+        self._last_landing_impact_speed = 0.0
         self._block_pressed = False
         self._was_wallrun = False
         self._state_anim_fallback = {
@@ -251,6 +253,7 @@ class Player(
         if not path.exists():
             self._state_defs = {}
             self._state_transitions = []
+            self._state_rules = []
             return {}
         try:
             payload = json.loads(path.read_text(encoding="utf-8-sig"))
@@ -258,6 +261,7 @@ class Player(
             logger.warning(f"[Anim] Failed to load player_states.json: {exc}")
             self._state_defs = {}
             self._state_transitions = []
+            self._state_rules = []
             return {}
 
         mapping = {}
@@ -296,7 +300,47 @@ class Player(
                 rule["trigger"] = trigger.strip().lower()
             if isinstance(condition, str) and condition.strip():
                 rule["condition"] = condition.strip()
+            try:
+                rule["priority"] = int(item.get("priority", 100))
+            except Exception:
+                rule["priority"] = 100
+            if bool(item.get("force", False)):
+                rule["force"] = True
             self._state_transitions.append(rule)
+
+        rules = payload.get("rules", []) if isinstance(payload, dict) else []
+        self._state_rules = []
+        for item in rules:
+            if not isinstance(item, dict):
+                continue
+            to_state = str(item.get("to", "")).strip().lower()
+            if not to_state:
+                continue
+            from_states = item.get("from", ["*"])
+            if isinstance(from_states, str):
+                from_list = [from_states.strip().lower()]
+            elif isinstance(from_states, list):
+                from_list = [str(v).strip().lower() for v in from_states if str(v).strip()]
+            else:
+                from_list = ["*"]
+
+            trigger = item.get("trigger")
+            condition = item.get("condition")
+            rule = {"from": from_list, "to": to_state}
+            if isinstance(trigger, str) and trigger.strip():
+                rule["trigger"] = trigger.strip().lower()
+            if isinstance(condition, str) and condition.strip():
+                rule["condition"] = condition.strip()
+            try:
+                rule["priority"] = int(item.get("priority", 100))
+            except Exception:
+                rule["priority"] = 100
+            if bool(item.get("force", False)):
+                rule["force"] = True
+            name = item.get("name")
+            if isinstance(name, str) and name.strip():
+                rule["name"] = name.strip()
+            self._state_rules.append(rule)
         return mapping
 
     def _load_actor_animation_overrides(self):
@@ -1177,11 +1221,13 @@ class Player(
             if not self._cast_spell_by_index(self._active_spell_idx):
                 self._play_sfx("sword_swing", volume=0.88, rate=1.04)
                 self._on_hit(self.combat.startAttack(self.cs, gc.AttackType.Light, self.enemies))
+                self._queue_state_trigger("attack_light")
                 self._queue_state_trigger("attack")
             action_used = True
         if self._once_action("attack_heavy"):
             self._play_sfx("sword_swing", volume=0.96, rate=0.92)
             self._on_hit(self.combat.startAttack(self.cs, gc.AttackType.Heavy, self.enemies))
+            self._queue_state_trigger("attack_heavy")
             self._queue_state_trigger("attack")
             action_used = True
 

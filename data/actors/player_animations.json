@@ -189,6 +189,22 @@
         "wallrun": [
             "wallrun"
         ],
+        "sliding": [
+            "dodging",
+            "landing"
+        ],
+        "staggered": [
+            "landing",
+            "idle"
+        ],
+        "falling_hard": [
+            "falling",
+            "jumping"
+        ],
+        "recovering": [
+            "landing",
+            "idle"
+        ],
         "swim": [
             "swim"
         ],

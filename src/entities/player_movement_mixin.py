@@ -69,6 +69,7 @@ class PlayerMovementMixin:
             self._queue_state_trigger("vault")
         if self._once_action("dash") and move.len() > 0.01:
             self.parkour.tryAirDash(self.cs, self.ps, move)
+            self._queue_state_trigger("dash")
             self._queue_state_trigger("dodge")
 
         if move.len() > 0.01 and not self.cs.grounded:
@@ -116,10 +117,20 @@ class PlayerMovementMixin:
         self._footstep_timer = 0.0
 
     def _final_step(self, dt):
+        prev_grounded = bool(getattr(self.cs, "grounded", False))
+        prev_vz = float(getattr(self.cs.velocity, "z", 0.0) or 0.0)
         self.phys.step(self.cs, dt)
         grounded = bool(getattr(self.cs, "grounded", False))
-        if grounded and not self._was_grounded:
+        if grounded and not prev_grounded:
+            impact = abs(prev_vz)
+            self._last_landing_impact_speed = impact
+            if impact >= 10.0:
+                self._queue_state_trigger("hard_landing")
+            elif impact >= 3.0:
+                self._queue_state_trigger("soft_landing")
             self._play_sfx("land", volume=0.72)
+        elif grounded:
+            self._last_landing_impact_speed = 0.0
         self._was_grounded = grounded
         pos = self.cs.position
         self.actor.setPos(pos.x, pos.y, pos.z)
@@ -275,4 +286,3 @@ class PlayerMovementMixin:
             except Exception:
                 return 0.0
         return 0.0
-
