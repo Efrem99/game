@@ -29,7 +29,16 @@
         "loading_default_recap": "The kingdom of Aethelgard is vast and full of secrets. Shadows grow long in the Whispering Woods, and many look to you for hope. Your journey has only just begun...",
         "recap_objective_header": "Currently:\n",
         "map_hint": "Blue dot is player, gold markers are tracked objectives.",
-        "map_no_target": "No active target."
+        "map_no_target": "No active target.",
+        "tutorial_header": "Movement Tutorial",
+        "tutorial_complete": "Tutorial complete",
+        "tutorial_move": "Move with W/A/S/D",
+        "tutorial_sprint": "Sprint with Shift + movement",
+        "tutorial_jump": "Jump with Space",
+        "tutorial_dodge": "Dodge with Z",
+        "tutorial_parkour": "Use parkour: vault, climb or wallrun",
+        "tutorial_swim": "Enter water to test swimming",
+        "tutorial_fly": "Toggle flight and move in air"
     },
     "stats": {
         "health": "Health",

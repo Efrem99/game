@@ -62,6 +62,15 @@
                 0
             ],
             "radius": 30
+        },
+        {
+            "name": "Training Grounds",
+            "pos": [
+                18,
+                24,
+                0
+            ],
+            "radius": 28
         }
     ],
     "vehicles": [

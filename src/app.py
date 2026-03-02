@@ -43,6 +43,7 @@ from managers.quest_manager import QuestManager
 from managers.save_manager import SaveManager
 from managers.vehicle_manager import VehicleManager
 from managers.npc_manager import NPCManager
+from managers.movement_tutorial_manager import MovementTutorialManager
 from render.model_visuals import ensure_model_visual_defaults
 from ui.menu_main import MainMenu
 from ui.menu_pause import PauseMenu
@@ -187,6 +188,7 @@ class XBotApp(ShowBase):
         self.save_mgr = SaveManager(self)
         self.vehicle_mgr = VehicleManager(self)
         self.npc_mgr = NPCManager(self)
+        self.movement_tutorial = MovementTutorialManager(self)
         self._autosave_interval = 45.0
         self._last_autosave_time = 0.0
         self._autosave_flash_until = 0.0
@@ -609,6 +611,8 @@ class XBotApp(ShowBase):
             "docks": Vec3(0.0, -60.0, 0.0),
             "dragon_arena": Vec3(34.0, -6.0, 0.0),
             "boats": Vec3(0.0, -77.0, 0.0),
+            "training": Vec3(18.0, 24.0, 0.0),
+            "training_grounds": Vec3(18.0, 24.0, 0.0),
         }
         if raw in presets:
             pos = Vec3(presets[raw])
@@ -669,11 +673,15 @@ class XBotApp(ShowBase):
             "journal": "town",
             "mounts": "9,6,0",
             "skills": "0,0,0",
+            "movement": "training",
         }.get(profile, "")
 
         desired = self._resolve_test_location(self._test_location_raw or default_location)
         if desired is not None:
             self._teleport_player_to(desired)
+
+        if self.movement_tutorial:
+            self.movement_tutorial.disable()
 
         if profile == "dragon":
             primary = None
@@ -696,6 +704,11 @@ class XBotApp(ShowBase):
             self.inventory_ui.show()
             self.inventory_ui._switch_tab("journal")
             self.state_mgr.set_state(self.GameState.INVENTORY)
+        elif profile == "movement":
+            if self.world:
+                self.world.active_location = "Training Grounds"
+            if self.movement_tutorial:
+                self.movement_tutorial.enable(reset=True)
 
         logger.info(
             f"[TestProfile] Applied profile='{profile or 'custom'}' "
@@ -1058,6 +1071,7 @@ class XBotApp(ShowBase):
             except Exception:
                 mount_hint = ""
         combat_event = None
+        tutorial_message = ""
         spell_labels = []
         active_skill_idx = 0
         ultimate_skill_idx = 0
@@ -1071,6 +1085,13 @@ class XBotApp(ShowBase):
                 spell_labels, active_skill_idx, ultimate_skill_idx = self.player.get_skill_wheel_state()
             except Exception:
                 spell_labels, active_skill_idx, ultimate_skill_idx = [], 0, 0
+        if self.movement_tutorial:
+            try:
+                self.movement_tutorial.update(dt)
+                tutorial_message = self.movement_tutorial.get_hud_message()
+            except Exception as exc:
+                logger.debug(f"[MovementTutorial] Update failed: {exc}")
+                tutorial_message = ""
         self.hud.update(
             dt,
             self.char_state,
@@ -1082,6 +1103,7 @@ class XBotApp(ShowBase):
             active_skill_idx,
             ultimate_skill_idx,
             player_pos,
+            tutorial_message,
         )
 
         self._follow_camera(dt)
