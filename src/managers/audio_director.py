@@ -47,6 +47,13 @@ class _LoopChannel:
         self._fading_in = False
         self._fade_out_from = 1.0
         self._fade_t = 0.0
+        self._master_gain = 1.0
+
+    def set_master_gain(self, gain):
+        self._master_gain = _clamp01(gain)
+
+    def _effective(self, value):
+        return _clamp01(float(value) * float(self._master_gain))
 
     def set_fade_time(self, seconds):
         self.fade_time = max(0.01, float(seconds or 0.01))
@@ -98,7 +105,7 @@ class _LoopChannel:
             self._current_key = track_key
             self._current_target = target
             try:
-                self._current.setVolume(target)
+                self._current.setVolume(self._effective(target))
             except Exception:
                 pass
             return True
@@ -151,7 +158,7 @@ class _LoopChannel:
 
         try:
             snd.setLoop(True)
-            snd.setVolume(target if self._current is None else 0.0)
+            snd.setVolume(self._effective(target) if self._current is None else 0.0)
             snd.play()
         except Exception as exc:
             logger.warning(f"[Audio] Failed to play {self.label} track '{path}': {exc}")
@@ -187,7 +194,7 @@ class _LoopChannel:
                 self._fade_t += max(0.0, float(dt))
                 t = min(1.0, self._fade_t / self.fade_time)
                 try:
-                    self._current.setVolume(max(0.0, (1.0 - t) * self._fade_out_from))
+                    self._current.setVolume(self._effective(max(0.0, (1.0 - t) * self._fade_out_from)))
                 except Exception:
                     pass
                 if t >= 1.0:
@@ -225,7 +232,7 @@ class _LoopChannel:
                 self._fade_t += max(0.0, float(dt))
                 t = min(1.0, self._fade_t / self.fade_time)
                 try:
-                    self._current.setVolume(max(0.0, t * self._current_target))
+                    self._current.setVolume(self._effective(max(0.0, t * self._current_target)))
                 except Exception:
                     pass
                 if t >= 1.0:
@@ -235,7 +242,7 @@ class _LoopChannel:
 
             if self._current and not self._fading_out:
                 try:
-                    self._current.setVolume(self._current_target)
+                    self._current.setVolume(self._effective(self._current_target))
                 except Exception:
                     pass
             return
@@ -255,8 +262,8 @@ class _LoopChannel:
             self._fade_t += max(0.0, float(dt))
             t = min(1.0, self._fade_t / self.fade_time)
             try:
-                self._current.setVolume(max(0.0, (1.0 - t) * self._current_target))
-                self._next.setVolume(max(0.0, t * self._next_target))
+                self._current.setVolume(self._effective(max(0.0, (1.0 - t) * self._current_target)))
+                self._next.setVolume(self._effective(max(0.0, t * self._next_target)))
             except Exception:
                 pass
 
@@ -312,6 +319,13 @@ class AudioDirector:
         self._ambient_no_overlap = bool(cfg.get("ambient_no_overlap", True))
         self._ambient_enabled = bool(cfg.get("ambient_enabled", True))
         self._sfx_polyphony = max(1, int(cfg.get("sfx_polyphony", 4) or 4))
+        self._sfx_global_limit = max(1, int(cfg.get("sfx_global_limit", 24) or 24))
+        mixer_cfg = cfg.get("mixer", {}) if isinstance(cfg.get("mixer"), dict) else {}
+        self._mix_dialog_music_duck = _clamp01(mixer_cfg.get("dialog_music_duck", 0.55))
+        self._mix_dialog_ambient_duck = _clamp01(mixer_cfg.get("dialog_ambient_duck", 0.45))
+        self._mix_boss_ambient_duck = _clamp01(mixer_cfg.get("boss_ambient_duck", 0.62))
+        self._mix_combat_ambient_duck = _clamp01(mixer_cfg.get("combat_ambient_duck", 0.80))
+        self._mix_ui_music_duck = _clamp01(mixer_cfg.get("ui_music_duck", 0.72))
         raw_cooldowns = cfg.get("sfx_cooldowns", {})
         self._sfx_cooldowns = {}
         if isinstance(raw_cooldowns, dict):
@@ -338,6 +352,19 @@ class AudioDirector:
             fade_time=max(0.05, self._crossfade_time * 0.8),
             use_music=False,
         )
+
+    def _active_sfx_count(self):
+        total = 0
+        for pool in self._sfx_pool.values():
+            if not isinstance(pool, list):
+                continue
+            for snd in pool:
+                try:
+                    if snd.status() == AudioSound.PLAYING:
+                        total += 1
+                except Exception:
+                    continue
+        return total
 
     def _resolve_path(self, path):
         if not isinstance(path, str) or not path.strip():
@@ -424,6 +451,9 @@ class AudioDirector:
         path, base_vol = self._resolve_spec(spec)
         if not path:
             self._warn_missing_once(f"sfx:{key}")
+            return False
+
+        if self._active_sfx_count() >= self._sfx_global_limit:
             return False
 
         snd = self._acquire_sfx_instance(path)
@@ -624,11 +654,36 @@ class AudioDirector:
             f"[Audio] Route -> music='{music_key}' ambient='{ambient_key}' reason='{reason}'"
         )
 
+    def _compute_mix_gains(self):
+        music_gain = 1.0
+        ambient_gain = 1.0
+
+        state_mgr = getattr(self.app, "state_mgr", None)
+        state = getattr(state_mgr, "current_state", None)
+        gs = getattr(self.app, "GameState", None)
+        if gs and state in {gs.PAUSED, gs.INVENTORY}:
+            music_gain *= self._mix_ui_music_duck
+
+        if gs and state == gs.DIALOG:
+            music_gain *= self._mix_dialog_music_duck
+            ambient_gain *= self._mix_dialog_ambient_duck
+
+        location_key = self._location_key()
+        if self._is_boss_context(location_key):
+            ambient_gain *= self._mix_boss_ambient_duck
+        elif self._is_combat_active():
+            ambient_gain *= self._mix_combat_ambient_duck
+
+        return _clamp01(music_gain), _clamp01(ambient_gain)
+
     def update(self, dt):
         self._music_channel.set_fade_time(self._crossfade_time)
         self._ambient_channel.set_fade_time(max(0.05, self._crossfade_time * 0.8))
         self._music_channel.set_allow_overlap(not self._music_no_overlap)
         self._ambient_channel.set_allow_overlap(not self._ambient_no_overlap)
+        music_gain, ambient_gain = self._compute_mix_gains()
+        self._music_channel.set_master_gain(music_gain)
+        self._ambient_channel.set_master_gain(ambient_gain)
 
         music_key, ambient_key, reason = self._choose_targets()
         self._log_audio_route(music_key, ambient_key, reason)

@@ -1,5 +1,9 @@
 """Helpers to stabilize model appearance under PBR shaders."""
 
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
 from panda3d.core import LColor, Material, PNMImage, Texture, TextureStage
 
 from utils.logger import logger
@@ -279,3 +283,87 @@ def ensure_model_visual_defaults(
     if patched > 0:
         logger.debug(f"[Visuals] Applied {patched} fallback visual patches to {debug_label}.")
     return patched
+
+
+def audit_node_visual_health(node, *, max_nodes=2500, report_path="logs/scene_visual_audit.json", debug_label="scene"):
+    """Collect lightweight visual diagnostics for black/unlit model hunting."""
+    if node is None:
+        return {"ok": False, "reason": "node_none"}
+    issues = {
+        "dark_color_scale": [],
+        "missing_texture": [],
+        "missing_material": [],
+    }
+    scanned = 0
+
+    try:
+        matches = list(node.find_all_matches("**/+GeomNode"))
+    except Exception:
+        matches = []
+
+    for geom_np in matches:
+        scanned += 1
+        if scanned > int(max_nodes):
+            break
+        node_name = ""
+        try:
+            node_name = geom_np.get_name()
+        except Exception:
+            node_name = f"geom_{scanned}"
+
+        try:
+            color_scale = _call(geom_np, "get_color_scale", "getColorScale")
+            dark_rgb = min(float(color_scale[0]), float(color_scale[1]), float(color_scale[2]))
+            if dark_rgb < 0.05:
+                issues["dark_color_scale"].append(node_name)
+        except Exception:
+            pass
+
+        has_texture = False
+        try:
+            has_texture = bool(_call(geom_np, "has_texture", "hasTexture"))
+        except Exception:
+            has_texture = False
+        if not has_texture:
+            issues["missing_texture"].append(node_name)
+
+        has_material = False
+        try:
+            has_material = bool(_call(geom_np, "has_material", "hasMaterial"))
+        except Exception:
+            has_material = False
+        if not has_material:
+            issues["missing_material"].append(node_name)
+
+    summary = {
+        "label": str(debug_label),
+        "scanned_geom_nodes": int(scanned),
+        "issues": {
+            "dark_color_scale": len(issues["dark_color_scale"]),
+            "missing_texture": len(issues["missing_texture"]),
+            "missing_material": len(issues["missing_material"]),
+        },
+        "samples": {
+            "dark_color_scale": issues["dark_color_scale"][:60],
+            "missing_texture": issues["missing_texture"][:60],
+            "missing_material": issues["missing_material"][:60],
+        },
+        "created_at_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+
+    try:
+        path = Path(report_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as exc:
+        logger.debug(f"[Visuals] Failed to write audit report '{report_path}': {exc}")
+
+    logger.info(
+        "[Visuals] Audit '%s': scanned=%d dark=%d missing_tex=%d missing_mat=%d",
+        debug_label,
+        summary["scanned_geom_nodes"],
+        summary["issues"]["dark_color_scale"],
+        summary["issues"]["missing_texture"],
+        summary["issues"]["missing_material"],
+    )
+    return summary

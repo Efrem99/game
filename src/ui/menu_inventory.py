@@ -268,6 +268,7 @@ class InventoryUI:
 
     def _refresh_journal(self):
         quest_mgr = getattr(self.app, "quest_mgr", None)
+        tutorial_mgr = getattr(self.app, "movement_tutorial", None)
         active = getattr(quest_mgr, "active_quests", {}) if quest_mgr else {}
         completed = sorted(
             list(getattr(quest_mgr, "completed_quests", set()) or set())
@@ -314,6 +315,18 @@ class InventoryUI:
                 lines.append(f"- {title} {progress}".strip())
                 if objective_text:
                     lines.append(f"  {objective_text}")
+
+        if tutorial_mgr and hasattr(tutorial_mgr, "get_journal_lines"):
+            try:
+                tutorial_lines = tutorial_mgr.get_journal_lines() or []
+            except Exception:
+                tutorial_lines = []
+            if tutorial_lines:
+                lines.append("")
+                for row in tutorial_lines:
+                    row_text = str(row or "").strip()
+                    if row_text:
+                        lines.append(row_text)
 
         lines.append("")
         lines.append(self.app.data_mgr.t("ui.completed_quests_header", "Completed Quests:"))

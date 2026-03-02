@@ -19,7 +19,12 @@
       "iron_sword",
       "leather_armor"
     ],
-    "model": "models/Xbot.glb",
-    "scale": 1.8
+    "model": "assets/models/xbot/Xbot.glb",
+    "scale": 1.0,
+    "base_anims": {
+      "idle": "assets/models/xbot/idle.glb",
+      "walk": "assets/models/xbot/walk.glb",
+      "run": "assets/models/xbot/run.glb"
+    }
   }
 }

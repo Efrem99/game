@@ -191,20 +191,112 @@ class Player(
             logger.warning(f"[Anim] {message}")
         return mapping, strict_mode
 
-    def _build_character(self):
-        base_anims = {
+    def _player_model_config(self):
+        cfg = {}
+        getter = getattr(self.data_mgr, "get_player_config", None)
+        if callable(getter):
+            try:
+                value = getter()
+                if isinstance(value, dict):
+                    cfg = value
+            except Exception as exc:
+                logger.warning(f"[Player] Failed to read player config from DataManager: {exc}")
+        if not cfg:
+            path = Path("data/actors/player.json")
+            try:
+                if path.exists():
+                    payload = json.loads(path.read_text(encoding="utf-8-sig"))
+                    if isinstance(payload, dict):
+                        nested = payload.get("player", payload)
+                        if isinstance(nested, dict):
+                            cfg = nested
+            except Exception as exc:
+                logger.warning(f"[Player] Failed to read {path.as_posix()}: {exc}")
+        return cfg if isinstance(cfg, dict) else {}
+
+    def _resolve_player_model_candidates(self):
+        cfg = self._player_model_config()
+        raw_model = str(cfg.get("model", "") or "").strip()
+        candidates = []
+
+        def _add(path_token):
+            token = str(path_token or "").strip().replace("\\", "/")
+            if not token:
+                return
+            if token not in candidates:
+                candidates.append(token)
+
+        if raw_model:
+            _add(raw_model)
+            if raw_model.startswith("./"):
+                _add(raw_model[2:])
+            if raw_model.startswith("models/"):
+                _add(f"assets/{raw_model}")
+            if not raw_model.startswith("assets/"):
+                _add(f"assets/{raw_model}")
+
+            if Path(raw_model).name.lower() == "xbot.glb":
+                _add("assets/models/xbot/Xbot.glb")
+
+        _add("assets/models/xbot/Xbot.glb")
+
+        existing = [path for path in candidates if Path(path).exists()]
+        if existing:
+            return existing
+        return candidates
+
+    def _resolve_player_scale(self):
+        cfg = self._player_model_config()
+        try:
+            return max(0.05, min(10.0, float(cfg.get("scale", 1.0) or 1.0)))
+        except Exception:
+            return 1.0
+
+    def _resolve_base_anims(self):
+        defaults = {
             "idle": "assets/models/xbot/idle.glb",
             "walk": "assets/models/xbot/walk.glb",
             "run": "assets/models/xbot/run.glb",
         }
+        cfg = self._player_model_config()
+        raw = cfg.get("base_anims")
+        if not isinstance(raw, dict):
+            return defaults
+
+        resolved = {}
+        for key, value in raw.items():
+            clip_key = str(key or "").strip().lower()
+            clip_path = str(value or "").strip().replace("\\", "/")
+            if not clip_key or not clip_path:
+                continue
+            resolved[clip_key] = clip_path
+        if not resolved:
+            return defaults
+        return resolved
+
+    def _build_character(self):
+        base_anims = self._resolve_base_anims()
+        model_candidates = self._resolve_player_model_candidates()
+        player_scale = self._resolve_player_scale()
         try:
-            logger.info("Loading XBot model from assets/models/xbot/Xbot.glb")
-            self.actor = Actor(
-                "assets/models/xbot/Xbot.glb",
-                base_anims,
-            )
-            self.actor.setScale(1.0)
-            logger.info("Successfully loaded XBot model and animations.")
+            self.actor = None
+            load_errors = []
+            loaded_model_path = ""
+            for model_path in model_candidates:
+                try:
+                    logger.info(f"[Player] Loading actor model: {model_path}")
+                    self.actor = Actor(model_path, base_anims)
+                    loaded_model_path = model_path
+                    break
+                except Exception as exc:
+                    load_errors.append(f"{model_path}: {exc}")
+                    continue
+
+            if self.actor is None:
+                raise RuntimeError("; ".join(load_errors) if load_errors else "No model candidates available")
+
+            self.actor.setScale(player_scale)
+            logger.info(f"[Player] Actor loaded: model={loaded_model_path}, scale={player_scale:.3f}")
             optional_anims = self._collect_optional_animation_sources()
             if optional_anims:
                 loaded = 0
@@ -221,7 +313,7 @@ class Player(
                 if loaded:
                     logger.info(f"[Anim] Loaded optional external animations: {loaded}")
         except Exception as e:
-            logger.error(f"Failed to load XBot model: {e}. Using procedural mannequin.")
+            logger.error(f"Failed to load player actor model: {e}. Using procedural mannequin.")
             (
                 self.actor,
                 self._r_leg,

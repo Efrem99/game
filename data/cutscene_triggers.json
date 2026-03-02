@@ -1,0 +1,96 @@
+{
+    "settings": {
+        "default_cooldown": 8.0
+    },
+    "event_triggers": [
+        {
+            "id": "location_training_enter",
+            "event": "location_enter",
+            "location": "Training Grounds",
+            "once": true,
+            "shot": {
+                "name": "training_arrival",
+                "duration": 1.2,
+                "profile": "tutorial",
+                "side": 1.8,
+                "yaw_bias_deg": 10.0
+            }
+        },
+        {
+            "id": "movement_quest_started",
+            "event": "quest_started",
+            "quest_id": "movement_tutorial",
+            "once": true,
+            "shot": {
+                "name": "movement_quest_start",
+                "duration": 1.0,
+                "profile": "tutorial",
+                "side": 1.2,
+                "yaw_bias_deg": 6.0
+            }
+        },
+        {
+            "id": "tutorial_flow_started",
+            "event": "tutorial_started",
+            "mode": "main",
+            "once": false,
+            "cooldown": 12.0,
+            "shot": {
+                "name": "tutorial_start",
+                "duration": 0.95,
+                "profile": "tutorial",
+                "side": 0.8,
+                "yaw_bias_deg": 5.0
+            }
+        },
+        {
+            "id": "tutorial_core_completed",
+            "event": "tutorial_completed",
+            "phase": "core",
+            "once": true,
+            "shot": {
+                "name": "tutorial_core_complete",
+                "duration": 1.25,
+                "profile": "combat",
+                "side": -1.1,
+                "yaw_bias_deg": -8.0
+            }
+        },
+        {
+            "id": "movement_quest_completed",
+            "event": "quest_completed",
+            "quest_id": "movement_tutorial",
+            "once": true,
+            "shot": {
+                "name": "movement_quest_complete",
+                "duration": 1.35,
+                "profile": "exploration",
+                "side": -1.8,
+                "yaw_bias_deg": -12.0
+            }
+        }
+    ],
+    "zone_triggers": [
+        {
+            "id": "dragon_arena_zone_intro",
+            "location": "Sharuan Castle",
+            "center": [
+                34.0,
+                -6.0,
+                0.0
+            ],
+            "radius": 24.0,
+            "cooldown": 18.0,
+            "once": false,
+            "on_enter": {
+                "shot": {
+                    "name": "dragon_arena_enter",
+                    "duration": 1.6,
+                    "profile": "boss",
+                    "side": 6.0,
+                    "yaw_bias_deg": 16.0
+                }
+            }
+        }
+    ]
+}

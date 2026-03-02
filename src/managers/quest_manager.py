@@ -55,8 +55,37 @@ class QuestManager:
         if quest:
             self.active_quests[quest_id] = 0
             print(f"[QuestManager] Started quest: {quest['title']}")
+            if hasattr(self.app, "on_quest_started"):
+                try:
+                    self.app.on_quest_started(quest_id, quest)
+                except Exception:
+                    pass
             return True
         return False
+
+    def complete_quest(self, quest_id, grant_rewards=True):
+        quest = self._find_quest(quest_id)
+        if not quest:
+            return False
+        if quest_id in self.completed_quests:
+            return False
+
+        if quest_id in self.active_quests:
+            del self.active_quests[quest_id]
+        self.completed_quests.add(quest_id)
+        print(f"[QuestManager] Completed quest: {quest.get('title', quest_id)}")
+
+        if bool(grant_rewards):
+            rewards = quest.get("rewards", {})
+            if isinstance(rewards, dict):
+                self._give_rewards(rewards)
+
+        if hasattr(self.app, "on_quest_completed"):
+            try:
+                self.app.on_quest_completed(quest_id, quest)
+            except Exception:
+                pass
+        return True
 
     def update(self, player_pos):
         for quest_id, obj_idx in list(self.active_quests.items()):
@@ -85,12 +114,18 @@ class QuestManager:
         if not quest:
             return
         self.active_quests[quest_id] += 1
+        if hasattr(self.app, "on_quest_objective_advanced"):
+            try:
+                self.app.on_quest_objective_advanced(
+                    quest_id,
+                    self.active_quests[quest_id],
+                    max(1, len(quest.get("objectives", []))),
+                )
+            except Exception:
+                pass
 
         if self.active_quests[quest_id] >= len(quest['objectives']):
-            print(f"[QuestManager] Completed quest: {quest['title']}")
-            del self.active_quests[quest_id]
-            self.completed_quests.add(quest_id)
-            self._give_rewards(quest['rewards'])
+            self.complete_quest(quest_id, grant_rewards=True)
         else:
             print(f"[QuestManager] Objective updated for: {quest['title']}")
 

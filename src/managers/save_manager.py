@@ -159,6 +159,13 @@ class SaveManager:
                 vehicles_state = vehicle_mgr.export_state()
             except Exception:
                 vehicles_state = {}
+        tutorial_state = {}
+        tutorial_mgr = getattr(self.app, "movement_tutorial", None)
+        if tutorial_mgr and hasattr(tutorial_mgr, "export_state"):
+            try:
+                tutorial_state = tutorial_mgr.export_state() or {}
+            except Exception:
+                tutorial_state = {}
         slot_idx = None
         if slot_index is not None:
             try:
@@ -188,6 +195,7 @@ class SaveManager:
                 "active_quests": dict(getattr(self.app.quest_mgr, "active_quests", {})),
                 "completed_quests": sorted(list(getattr(self.app.quest_mgr, "completed_quests", set()))),
                 "language": language,
+                "tutorial": tutorial_state,
             },
             "world": {
                 "active_location": active_location,
@@ -274,6 +282,14 @@ class SaveManager:
         completed_quests = progression.get("completed_quests")
         if isinstance(completed_quests, list):
             self.app.quest_mgr.completed_quests = {str(q) for q in completed_quests}
+
+        tutorial_state = progression.get("tutorial")
+        tutorial_mgr = getattr(self.app, "movement_tutorial", None)
+        if isinstance(tutorial_state, dict) and tutorial_mgr and hasattr(tutorial_mgr, "import_state"):
+            try:
+                tutorial_mgr.import_state(tutorial_state)
+            except Exception as exc:
+                logger.warning(f"[SaveManager] Tutorial state import failed: {exc}")
 
         player = payload.get("player", {})
         position = player.get("position")

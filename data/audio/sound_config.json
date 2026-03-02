@@ -156,6 +156,14 @@
     "boss_hold_time": 8.0,
     "ambient_enabled": true,
     "sfx_polyphony": 4,
+    "sfx_global_limit": 22,
+    "mixer": {
+        "dialog_music_duck": 0.55,
+        "dialog_ambient_duck": 0.45,
+        "boss_ambient_duck": 0.62,
+        "combat_ambient_duck": 0.8,
+        "ui_music_duck": 0.72
+    },
     "sfx_cooldowns": {
         "default": 0.0,
         "ui_hover": 0.05,
