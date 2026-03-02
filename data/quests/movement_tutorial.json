@@ -1,0 +1,19 @@
+{
+    "id": "movement_tutorial",
+    "title": "Path of Movement",
+    "description": "Complete movement, combat basics, and traversal training.",
+    "objectives": [
+        {
+            "type": "tutorial_progress",
+            "description": "Finish the movement tutorial sequence"
+        }
+    ],
+    "rewards": {
+        "gold": 80,
+        "experience": 140,
+        "items": [
+            "herb_bundle"
+        ]
+    },
+    "prerequisites": []
+}

@@ -7,8 +7,10 @@ Feature-specific test launchers:
 - `python launcher_test_journal.py`
 - `python launcher_test_mounts.py`
 - `python launcher_test_skills.py`
+- `python launcher_test_movement.py`
 - `python launcher_test_manifest.py` (checks `data/actors/player_animations.json` integrity)
 - `python launcher_test_baseline.py` (prints static project baseline metrics)
+- `python launcher_test_smoke.py` (runs static smoke checks + preflight reports)
 
 Each launcher sets:
 
@@ -24,6 +26,7 @@ Supported location presets:
 - `docks`
 - `dragon_arena`
 - `boats`
+- `training` / `training_grounds`
 
 You can also pass custom coordinates via env var:
 

@@ -68,6 +68,21 @@ def run_app(startup_tag, error_handler=None, pause_on_error=False):
             logger = app_logger
             logger.info(startup_tag)
             logger.info(f"Working Directory: {os.getcwd()}")
+
+            skip_preflight = str(os.environ.get("XBOT_SKIP_PREFLIGHT", "")).strip().lower() in {"1", "true", "yes"}
+            strict_preflight = str(os.environ.get("XBOT_STRICT_PREFLIGHT", "")).strip().lower() in {"1", "true", "yes"}
+            if not skip_preflight:
+                try:
+                    from utils.preflight_checks import run_startup_preflight
+
+                    preflight = run_startup_preflight(root, logger=logger, strict=strict_preflight)
+                    if strict_preflight and not bool(preflight.get("ok", False)):
+                        logger.error("[Preflight] Strict mode enabled; aborting startup due to preflight errors.")
+                        if pause_on_error:
+                            input("Preflight failed. Press Enter to close...")
+                        return 1
+                except Exception as exc:
+                    logger.warning(f"[Preflight] Startup preflight failed unexpectedly: {exc}")
         except Exception as exc:
             message = f"Logger initialization failed:\n{exc}"
             if error_handler:

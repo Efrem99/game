@@ -1,100 +1,82 @@
 {
+    "meta": {
+        "version": 2,
+        "architecture": "layered_fsm_with_priority_rules",
+        "layers": [
+            "life",
+            "stability",
+            "action",
+            "locomotion",
+            "mount"
+        ],
+        "priority_bands": {
+            "life": 0,
+            "stability": 20,
+            "action": 30,
+            "locomotion": 40,
+            "mount": 15
+        }
+    },
     "states": [
         {
-            "name": "idle",
-            "animation": "Idle_Loop",
-            "can_move": true,
-            "can_act": true
-        },
-        {
-            "name": "walking",
-            "animation": "Walk_Loop",
-            "can_move": true,
-            "can_act": true
-        },
-        {
-            "name": "running",
-            "animation": "Sprint_Loop",
-            "can_move": true,
-            "can_act": true
-        },
-        {
-            "name": "swim",
-            "animation": "swim",
-            "can_move": true,
-            "can_act": true
-        },
-        {
-            "name": "flying",
-            "animation": "flying",
-            "can_move": true,
-            "can_act": true
-        },
-        {
-            "name": "jumping",
-            "animation": "Jump_Start",
-            "can_move": true,
-            "can_act": false,
-            "duration": 0.3
-        },
-        {
-            "name": "falling",
-            "animation": "Fall_Loop",
-            "can_move": true,
-            "can_act": false
-        },
-        {
-            "name": "landing",
-            "animation": "Jump_Land",
+            "name": "dead",
+            "animation": "death",
+            "layer": "life",
+            "priority": 0,
+            "uninterruptible": true,
             "can_move": false,
             "can_act": false,
-            "duration": 0.4
+            "duration": 1.2
         },
         {
-            "name": "attacking",
-            "animation": "Sword_Slash",
+            "name": "falling_hard",
+            "animation": "falling_hard",
+            "layer": "stability",
+            "priority": 10,
+            "uninterruptible": true,
+            "interruptible_by": [
+                "dead"
+            ],
             "can_move": false,
-            "can_act": false
+            "can_act": false,
+            "duration": 0.75
         },
         {
-            "name": "dodging",
-            "animation": "Dodge_Backward",
+            "name": "staggered",
+            "animation": "staggered",
+            "layer": "stability",
+            "priority": 20,
             "can_move": false,
-            "can_act": false
+            "can_act": false,
+            "duration": 0.45
         },
         {
-            "name": "blocking",
-            "animation": "Block_Idle",
+            "name": "sliding",
+            "animation": "sliding",
+            "layer": "stability",
+            "priority": 22,
             "can_move": false,
-            "can_act": true
+            "can_act": false,
+            "duration": 0.35
         },
         {
-            "name": "casting",
-            "animation": "Spell_Cast",
+            "name": "recovering",
+            "animation": "recovering",
+            "layer": "stability",
+            "priority": 24,
             "can_move": false,
-            "can_act": false
-        },
-        {
-            "name": "vaulting",
-            "animation": "Vault_Over",
-            "can_move": false,
-            "can_act": false
-        },
-        {
-            "name": "climbing",
-            "animation": "Ledge_Climb",
-            "can_move": false,
-            "can_act": false
-        },
-        {
-            "name": "wallrun",
-            "animation": "Wall_Run",
-            "can_move": false,
-            "can_act": false
+            "can_act": false,
+            "duration": 0.35
         },
         {
             "name": "mounting",
             "animation": "mounting",
+            "layer": "mount",
+            "priority": 14,
+            "uninterruptible": true,
+            "interruptible_by": [
+                "dead"
+            ],
             "can_move": false,
             "can_act": false,
             "duration": 0.55
@@ -102,133 +84,282 @@
         {
             "name": "mounted_idle",
             "animation": "mounted_idle",
+            "layer": "mount",
+            "priority": 15,
             "can_move": true,
             "can_act": false
         },
         {
             "name": "mounted_move",
             "animation": "mounted_move",
+            "layer": "mount",
+            "priority": 15,
             "can_move": true,
             "can_act": false
         },
         {
             "name": "dismounting",
             "animation": "dismounting",
+            "layer": "mount",
+            "priority": 15,
+            "uninterruptible": true,
+            "interruptible_by": [
+                "dead"
+            ],
             "can_move": false,
             "can_act": false,
             "duration": 0.45
         },
         {
-            "name": "dead",
-            "animation": "death",
+            "name": "attacking",
+            "animation": "Sword_Slash",
+            "layer": "action",
+            "priority": 30,
             "can_move": false,
             "can_act": false
+        },
+        {
+            "name": "dodging",
+            "animation": "Dodge_Backward",
+            "layer": "action",
+            "priority": 30,
+            "can_move": false,
+            "can_act": false
+        },
+        {
+            "name": "blocking",
+            "animation": "Block_Idle",
+            "layer": "action",
+            "priority": 31,
+            "can_move": false,
+            "can_act": true
+        },
+        {
+            "name": "casting",
+            "animation": "Spell_Cast",
+            "layer": "action",
+            "priority": 30,
+            "can_move": false,
+            "can_act": false
+        },
+        {
+            "name": "vaulting",
+            "animation": "Vault_Over",
+            "layer": "action",
+            "priority": 32,
+            "can_move": false,
+            "can_act": false
+        },
+        {
+            "name": "climbing",
+            "animation": "Ledge_Climb",
+            "layer": "action",
+            "priority": 32,
+            "can_move": false,
+            "can_act": false
+        },
+        {
+            "name": "wallrun",
+            "animation": "Wall_Run",
+            "layer": "action",
+            "priority": 31,
+            "can_move": false,
+            "can_act": false
+        },
+        {
+            "name": "swim",
+            "animation": "swim",
+            "layer": "locomotion",
+            "priority": 40,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "flying",
+            "animation": "flying",
+            "layer": "locomotion",
+            "priority": 40,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "jumping",
+            "animation": "Jump_Start",
+            "layer": "locomotion",
+            "priority": 41,
+            "can_move": true,
+            "can_act": false,
+            "duration": 0.3
+        },
+        {
+            "name": "falling",
+            "animation": "Fall_Loop",
+            "layer": "locomotion",
+            "priority": 41,
+            "can_move": true,
+            "can_act": false
+        },
+        {
+            "name": "landing",
+            "animation": "Jump_Land",
+            "layer": "locomotion",
+            "priority": 41,
+            "can_move": false,
+            "can_act": false,
+            "duration": 0.4
+        },
+        {
+            "name": "idle",
+            "animation": "Idle_Loop",
+            "layer": "locomotion",
+            "priority": 45,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "walking",
+            "animation": "Walk_Loop",
+            "layer": "locomotion",
+            "priority": 45,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "running",
+            "animation": "Sprint_Loop",
+            "layer": "locomotion",
+            "priority": 45,
+            "can_move": true,
+            "can_act": true
+        }
+    ],
+    "rules": [
+        {
+            "name": "life_death_override",
+            "from": [
+                "*"
+            ],
+            "to": "dead",
+            "condition": "hp <= 0",
+            "priority": 0,
+            "force": true
+        },
+        {
+            "name": "hard_landing_event",
+            "from": [
+                "*"
+            ],
+            "to": "falling_hard",
+            "trigger": "hard_landing",
+            "priority": 10,
+            "force": true
+        },
+        {
+            "name": "mount_context_move",
+            "from": [
+                "*"
+            ],
+            "to": "mounted_move",
+            "condition": "mounted && speed > 0.15",
+            "priority": 14
+        },
+        {
+            "name": "mount_context_idle",
+            "from": [
+                "*"
+            ],
+            "to": "mounted_idle",
+            "condition": "mounted && speed <= 0.15",
+            "priority": 14
+        },
+        {
+            "name": "flight_context",
+            "from": [
+                "*"
+            ],
+            "to": "flying",
+            "condition": "is_flying && !mounted",
+            "priority": 22
+        },
+        {
+            "name": "water_context",
+            "from": [
+                "*"
+            ],
+            "to": "swim",
+            "condition": "in_water && !mounted && !is_flying",
+            "priority": 24
+        },
+        {
+            "name": "wallrun_exit_unstable",
+            "from": [
+                "wallrun"
+            ],
+            "to": "staggered",
+            "trigger": "exit_wallrun",
+            "condition": "!on_ground && speed > 7.0",
+            "priority": 25
+        },
+        {
+            "name": "falling_reacquire",
+            "from": [
+                "*"
+            ],
+            "to": "falling",
+            "condition": "!on_ground && vertical_speed < -0.35 && !is_flying && !mounted && !in_water",
+            "priority": 34
         }
     ],
     "transitions": [
         {
             "from": [
-                "idle"
+                "falling_hard"
             ],
-            "to": "walking",
-            "condition": "speed > 0.1 && !shift_pressed"
+            "to": "recovering",
+            "trigger": "animation_finished",
+            "priority": 12
         },
         {
             "from": [
-                "idle"
+                "staggered",
+                "sliding"
             ],
-            "to": "running",
-            "condition": "speed > 0.1 && shift_pressed"
+            "to": "recovering",
+            "trigger": "animation_finished",
+            "priority": 24
         },
         {
             "from": [
-                "walking"
+                "recovering"
             ],
             "to": "idle",
-            "condition": "speed <= 0.1"
-        },
-        {
-            "from": [
-                "walking"
-            ],
-            "to": "running",
-            "condition": "speed > 0.1 && shift_pressed"
-        },
-        {
-            "from": [
-                "running"
-            ],
-            "to": "walking",
-            "condition": "speed > 0.1 && !shift_pressed"
-        },
-        {
-            "from": [
-                "running"
-            ],
-            "to": "idle",
-            "condition": "speed <= 0.1"
+            "trigger": "animation_finished",
+            "priority": 28
         },
         {
             "from": [
                 "idle",
                 "walking",
-                "running"
-            ],
-            "to": "jumping",
-            "trigger": "jump"
-        },
-        {
-            "from": [
-                "jumping"
-            ],
-            "to": "falling",
-            "condition": "!on_ground"
-        },
-        {
-            "from": [
-                "falling"
-            ],
-            "to": "landing",
-            "condition": "on_ground"
-        },
-        {
-            "from": [
+                "running",
+                "jumping",
+                "falling",
                 "landing"
             ],
-            "to": "idle",
-            "trigger": "animation_finished"
-        },
-        {
-            "from": [
-                "idle",
-                "walking",
-                "running"
-            ],
             "to": "attacking",
-            "trigger": "attack"
-        },
-        {
-            "from": [
-                "attacking"
-            ],
-            "to": "idle",
-            "trigger": "animation_finished"
+            "trigger": "attack",
+            "priority": 30
         },
         {
             "from": [
                 "idle",
                 "walking",
-                "running"
+                "running",
+                "jumping",
+                "falling"
             ],
             "to": "dodging",
-            "trigger": "dodge"
-        },
-        {
-            "from": [
-                "dodging"
-            ],
-            "to": "idle",
-            "trigger": "animation_finished"
+            "trigger": "dodge",
+            "priority": 30
         },
         {
             "from": [
@@ -237,14 +368,8 @@
                 "running"
             ],
             "to": "blocking",
-            "trigger": "block_start"
-        },
-        {
-            "from": [
-                "blocking"
-            ],
-            "to": "idle",
-            "trigger": "block_end"
+            "trigger": "block_start",
+            "priority": 31
         },
         {
             "from": [
@@ -253,28 +378,16 @@
                 "running"
             ],
             "to": "casting",
-            "trigger": "cast_spell"
-        },
-        {
-            "from": [
-                "casting"
-            ],
-            "to": "idle",
-            "trigger": "animation_finished"
+            "trigger": "cast_spell",
+            "priority": 30
         },
         {
             "from": [
                 "running"
             ],
             "to": "vaulting",
-            "trigger": "vault"
-        },
-        {
-            "from": [
-                "vaulting"
-            ],
-            "to": "running",
-            "trigger": "animation_finished"
+            "trigger": "vault",
+            "priority": 32
         },
         {
             "from": [
@@ -282,58 +395,61 @@
                 "jumping"
             ],
             "to": "climbing",
-            "trigger": "ledge_grab"
+            "trigger": "ledge_grab",
+            "priority": 32
         },
         {
             "from": [
-                "climbing"
-            ],
-            "to": "idle",
-            "trigger": "animation_finished"
-        },
-        {
-            "from": [
-                "running"
+                "running",
+                "jumping",
+                "falling"
             ],
             "to": "wallrun",
-            "trigger": "wall_contact"
+            "trigger": "wall_contact",
+            "priority": 31
         },
         {
             "from": [
+                "attacking",
+                "dodging",
+                "casting",
+                "vaulting",
+                "climbing",
                 "wallrun"
             ],
-            "to": "falling",
-            "trigger": "animation_finished"
+            "to": "recovering",
+            "trigger": "animation_finished",
+            "priority": 34
+        },
+        {
+            "from": [
+                "blocking"
+            ],
+            "to": "idle",
+            "trigger": "block_end",
+            "priority": 34
         },
         {
             "from": [
                 "idle",
                 "walking",
-                "running"
+                "running",
+                "jumping",
+                "falling",
+                "landing",
+                "recovering"
             ],
             "to": "mounting",
-            "trigger": "mount_start"
+            "trigger": "mount_start",
+            "priority": 14
         },
         {
             "from": [
                 "mounting"
             ],
             "to": "mounted_idle",
-            "trigger": "animation_finished"
-        },
-        {
-            "from": [
-                "mounted_idle"
-            ],
-            "to": "mounted_move",
-            "condition": "mounted && speed > 0.15"
-        },
-        {
-            "from": [
-                "mounted_move"
-            ],
-            "to": "mounted_idle",
-            "condition": "!mounted || speed <= 0.15"
+            "trigger": "animation_finished",
+            "priority": 14
         },
         {
             "from": [
@@ -341,21 +457,106 @@
                 "mounted_move"
             ],
             "to": "dismounting",
-            "trigger": "dismount_start"
+            "trigger": "dismount_start",
+            "priority": 14
         },
         {
             "from": [
                 "dismounting"
             ],
             "to": "idle",
-            "trigger": "animation_finished"
+            "trigger": "animation_finished",
+            "priority": 14
         },
         {
             "from": [
-                "*"
+                "idle",
+                "walking",
+                "running"
             ],
-            "to": "dead",
-            "condition": "hp <= 0"
+            "to": "jumping",
+            "trigger": "jump",
+            "priority": 40
+        },
+        {
+            "from": [
+                "jumping"
+            ],
+            "to": "falling",
+            "condition": "!on_ground",
+            "priority": 40
+        },
+        {
+            "from": [
+                "falling"
+            ],
+            "to": "landing",
+            "trigger": "soft_landing",
+            "priority": 39
+        },
+        {
+            "from": [
+                "falling"
+            ],
+            "to": "landing",
+            "condition": "on_ground",
+            "priority": 40
+        },
+        {
+            "from": [
+                "landing"
+            ],
+            "to": "idle",
+            "trigger": "animation_finished",
+            "priority": 40
+        },
+        {
+            "from": [
+                "idle"
+            ],
+            "to": "walking",
+            "condition": "speed > 0.1 && !shift_pressed && on_ground && !mounted && !in_water && !is_flying",
+            "priority": 90
+        },
+        {
+            "from": [
+                "idle"
+            ],
+            "to": "running",
+            "condition": "speed > 0.1 && shift_pressed && on_ground && !mounted && !in_water && !is_flying",
+            "priority": 90
+        },
+        {
+            "from": [
+                "walking"
+            ],
+            "to": "idle",
+            "condition": "speed <= 0.1",
+            "priority": 90
+        },
+        {
+            "from": [
+                "walking"
+            ],
+            "to": "running",
+            "condition": "speed > 0.1 && shift_pressed",
+            "priority": 90
+        },
+        {
+            "from": [
+                "running"
+            ],
+            "to": "walking",
+            "condition": "speed > 0.1 && !shift_pressed",
+            "priority": 90
+        },
+        {
+            "from": [
+                "running"
+            ],
+            "to": "idle",
+            "condition": "speed <= 0.1",
+            "priority": 90
         }
     ]
 }

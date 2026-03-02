@@ -38,12 +38,15 @@ from entities.boss_manager import BossManager
 from entities.player import Player
 from managers.data_manager import DataManager
 from managers.audio_director import AudioDirector
+from managers.camera_director import CameraDirector
+from managers.cutscene_trigger_manager import CutsceneTriggerManager
 from managers.state_manager import StateManager, GameState
 from managers.quest_manager import QuestManager
 from managers.save_manager import SaveManager
 from managers.vehicle_manager import VehicleManager
 from managers.npc_manager import NPCManager
-from render.model_visuals import ensure_model_visual_defaults
+from managers.movement_tutorial_manager import MovementTutorialManager
+from render.model_visuals import ensure_model_visual_defaults, audit_node_visual_health
 from ui.menu_main import MainMenu
 from ui.menu_pause import PauseMenu
 from ui.menu_inventory import InventoryUI
@@ -179,6 +182,8 @@ class XBotApp(ShowBase):
             logger.debug(f"Could not apply startup audio settings: {e}")
 
         self.audio = AudioDirector(self)
+        self.camera_director = CameraDirector(self)
+        self.cutscene_triggers = CutsceneTriggerManager(self)
 
         self.profile = {"xp": 0, "gold": 0, "items": {}}
         self.state_mgr = StateManager(self)
@@ -187,6 +192,10 @@ class XBotApp(ShowBase):
         self.save_mgr = SaveManager(self)
         self.vehicle_mgr = VehicleManager(self)
         self.npc_mgr = NPCManager(self)
+        self.movement_tutorial = MovementTutorialManager(self)
+        self._tutorial_quest_id = "movement_tutorial"
+        self._tutorial_core_complete_sent = False
+        self._tutorial_full_complete_sent = False
         self._autosave_interval = 45.0
         self._last_autosave_time = 0.0
         self._autosave_flash_until = 0.0
@@ -243,6 +252,8 @@ class XBotApp(ShowBase):
         self.accept("shift-f5", self._load_slot_hotkey, [1])
         self.accept("shift-f6", self._load_slot_hotkey, [2])
         self.accept("shift-f7", self._load_slot_hotkey, [3])
+        self.accept("f8", self._restart_main_tutorial_hotkey)
+        self.accept("shift-f8", self._restart_full_tutorial_hotkey)
 
         self.accept("wheel_up", self._zoom_camera, [-2.0])
         self.accept("wheel_down", self._zoom_camera, [2.0])
@@ -609,6 +620,8 @@ class XBotApp(ShowBase):
             "docks": Vec3(0.0, -60.0, 0.0),
             "dragon_arena": Vec3(34.0, -6.0, 0.0),
             "boats": Vec3(0.0, -77.0, 0.0),
+            "training": Vec3(18.0, 24.0, 0.0),
+            "training_grounds": Vec3(18.0, 24.0, 0.0),
         }
         if raw in presets:
             pos = Vec3(presets[raw])
@@ -658,6 +671,100 @@ class XBotApp(ShowBase):
         if started == 0:
             self._bootstrap_quests()
 
+    def _emit_cutscene_event(self, event_name, payload=None):
+        mgr = getattr(self, "cutscene_triggers", None)
+        if not mgr or not hasattr(mgr, "emit"):
+            return
+        try:
+            mgr.emit(event_name, payload or {})
+        except Exception as exc:
+            logger.debug(f"[CutsceneTriggers] emit failed '{event_name}': {exc}")
+
+    def on_quest_started(self, quest_id, quest):
+        del quest
+        self._emit_cutscene_event("quest_started", {"quest_id": str(quest_id)})
+
+    def on_quest_completed(self, quest_id, quest):
+        del quest
+        self._emit_cutscene_event("quest_completed", {"quest_id": str(quest_id)})
+
+    def on_quest_objective_advanced(self, quest_id, objective_index, objective_total):
+        self._emit_cutscene_event(
+            "quest_objective_advanced",
+            {
+                "quest_id": str(quest_id),
+                "objective_index": int(objective_index),
+                "objective_total": int(objective_total),
+            },
+        )
+
+    def _ensure_tutorial_quest_started(self):
+        qm = getattr(self, "quest_mgr", None)
+        quest_id = str(getattr(self, "_tutorial_quest_id", "movement_tutorial"))
+        if not qm or not quest_id:
+            return False
+        if quest_id in getattr(qm, "completed_quests", set()):
+            return False
+        if quest_id in getattr(qm, "active_quests", {}):
+            return False
+        try:
+            return bool(qm.start_quest(quest_id))
+        except Exception:
+            return False
+
+    def _complete_tutorial_quest(self):
+        qm = getattr(self, "quest_mgr", None)
+        quest_id = str(getattr(self, "_tutorial_quest_id", "movement_tutorial"))
+        if not qm or not quest_id:
+            return False
+        if quest_id in getattr(qm, "completed_quests", set()):
+            return False
+        if hasattr(qm, "complete_quest"):
+            try:
+                return bool(qm.complete_quest(quest_id, grant_rewards=True))
+            except Exception as exc:
+                logger.warning(f"[TutorialQuest] complete_quest failed: {exc}")
+                return False
+        return False
+
+    def _sync_tutorial_completion_flags(self):
+        tutorial = getattr(self, "movement_tutorial", None)
+        if not tutorial:
+            self._tutorial_core_complete_sent = False
+            self._tutorial_full_complete_sent = False
+            return
+        snap = tutorial.get_status_snapshot() if hasattr(tutorial, "get_status_snapshot") else {}
+        self._tutorial_core_complete_sent = bool(snap.get("core_complete", False))
+        self._tutorial_full_complete_sent = bool(snap.get("full_complete", False))
+
+    def _start_tutorial_flow(self, *, reset, mode, source="runtime"):
+        tutorial = getattr(self, "movement_tutorial", None)
+        if not tutorial:
+            return
+
+        was_enabled = bool(getattr(tutorial, "enabled", False))
+        prev_snap = tutorial.get_status_snapshot() if hasattr(tutorial, "get_status_snapshot") else {}
+        tutorial.enable(reset=bool(reset), mode=mode)
+        self._sync_tutorial_completion_flags()
+
+        if self._norm_test_mode() != "movement" and str(mode).lower() == "main":
+            self._ensure_tutorial_quest_started()
+
+        new_snap = tutorial.get_status_snapshot() if hasattr(tutorial, "get_status_snapshot") else {}
+        started_now = (not was_enabled) or bool(reset) or (not prev_snap.get("enabled", False))
+        if started_now:
+            self._emit_cutscene_event(
+                "tutorial_started",
+                {"mode": str(mode), "source": str(source or "runtime")},
+            )
+        logger.info(
+            f"[Tutorial] Flow mode={mode} reset={bool(reset)} source={source} "
+            f"progress={new_snap.get('required_done', 0)}/{new_snap.get('required_total', 0)}"
+        )
+
+    def _norm_test_mode(self):
+        return str(getattr(self, "_test_profile", "") or "").strip().lower()
+
     def _apply_test_profile(self):
         profile = str(self._test_profile or "").strip().lower()
         if not profile and not self._test_location_raw:
@@ -669,11 +776,16 @@ class XBotApp(ShowBase):
             "journal": "town",
             "mounts": "9,6,0",
             "skills": "0,0,0",
+            "movement": "training",
         }.get(profile, "")
 
         desired = self._resolve_test_location(self._test_location_raw or default_location)
         if desired is not None:
             self._teleport_player_to(desired)
+
+        if self.movement_tutorial:
+            self.movement_tutorial.disable()
+            self.movement_tutorial.set_mode("main", reset=False)
 
         if profile == "dragon":
             primary = None
@@ -696,11 +808,82 @@ class XBotApp(ShowBase):
             self.inventory_ui.show()
             self.inventory_ui._switch_tab("journal")
             self.state_mgr.set_state(self.GameState.INVENTORY)
+        elif profile == "movement":
+            if self.world:
+                self.world.active_location = "Training Grounds"
+            if self.movement_tutorial:
+                self._start_tutorial_flow(reset=True, mode="demo", source="test_profile")
 
         logger.info(
             f"[TestProfile] Applied profile='{profile or 'custom'}' "
             f"location='{self._test_location_raw or default_location or '-'}'"
         )
+
+    def _setup_main_game_tutorial(self):
+        tutorial = getattr(self, "movement_tutorial", None)
+        if not tutorial:
+            return
+
+        profile = self._norm_test_mode()
+        if profile == "movement":
+            return
+        if profile:
+            tutorial.disable()
+            self._sync_tutorial_completion_flags()
+            return
+
+        if tutorial.is_complete():
+            tutorial.disable()
+            self._sync_tutorial_completion_flags()
+            return
+
+        if tutorial.has_progress():
+            self._start_tutorial_flow(reset=False, mode="main", source="resume_save")
+            return
+
+        tutorial.set_mode("main", reset=False)
+
+        xp = 0
+        try:
+            xp = int(getattr(self, "profile", {}).get("xp", 0) or 0)
+        except Exception:
+            xp = 0
+        completed = getattr(getattr(self, "quest_mgr", None), "completed_quests", set()) or set()
+        if xp <= 0 and not completed:
+            self._start_tutorial_flow(reset=True, mode="main", source="new_game")
+        else:
+            tutorial.disable()
+            self._sync_tutorial_completion_flags()
+
+    def _restart_main_tutorial_hotkey(self):
+        if not self.state_mgr.is_playing() or not self.player or not self.movement_tutorial:
+            return
+        self._start_tutorial_flow(reset=True, mode="main", source="hotkey_f8")
+        logger.info("[Tutorial] Restarted main training flow (F8).")
+
+    def _restart_full_tutorial_hotkey(self):
+        if not self.state_mgr.is_playing() or not self.player or not self.movement_tutorial:
+            return
+        self._start_tutorial_flow(reset=True, mode="demo", source="hotkey_shift_f8")
+        logger.info("[Tutorial] Restarted full training flow (Shift+F8).")
+
+    def play_camera_shot(self, name="shot", duration=1.35, profile="boss", side=0.0, yaw_bias_deg=0.0):
+        director = getattr(self, "camera_director", None)
+        if not director or not hasattr(director, "play_camera_shot"):
+            return False
+        try:
+            return bool(
+                director.play_camera_shot(
+                    name=name,
+                    duration=duration,
+                    profile=profile,
+                    side=side,
+                    yaw_bias_deg=yaw_bias_deg,
+                )
+            )
+        except Exception as exc:
+            logger.debug(f"[CameraDirector] Failed to play shot '{name}': {exc}")
+            return False
 
     def _dev_transition_next(self):
         if not self.world or not self.world.locations:
@@ -792,6 +975,7 @@ class XBotApp(ShowBase):
             self._autosave_flash_until,
             globalClock.getFrameTime() + 1.2,
         )
+        self._setup_main_game_tutorial()
 
     def _hide_all_menus(self):
         if hasattr(self, "main_menu") and self.main_menu:
@@ -917,6 +1101,15 @@ class XBotApp(ShowBase):
             self.pending_save_load = None
 
         self._apply_test_profile()
+        self._setup_main_game_tutorial()
+        try:
+            audit_node_visual_health(
+                self.render,
+                report_path="logs/scene_visual_audit.json",
+                debug_label="post_finalize",
+            )
+        except Exception as exc:
+            logger.debug(f"[Visuals] Scene audit failed: {exc}")
 
         self._last_autosave_time = globalClock.getFrameTime()
 
@@ -1007,6 +1200,36 @@ class XBotApp(ShowBase):
             self.particles = self.water_sim = None
             self.char_state = self.parkour_state = None
 
+    def _handle_tutorial_runtime_events(self):
+        tutorial = getattr(self, "movement_tutorial", None)
+        if not tutorial or not hasattr(tutorial, "get_status_snapshot"):
+            return
+        snap = tutorial.get_status_snapshot()
+        core_complete = bool(snap.get("core_complete", False))
+        full_complete = bool(snap.get("full_complete", False))
+
+        if core_complete and not self._tutorial_core_complete_sent:
+            self._tutorial_core_complete_sent = True
+            if self._norm_test_mode() != "movement":
+                self._complete_tutorial_quest()
+            self._emit_cutscene_event(
+                "tutorial_completed",
+                {
+                    "phase": "core",
+                    "mode": str(snap.get("mode", "")),
+                },
+            )
+
+        if full_complete and not self._tutorial_full_complete_sent:
+            self._tutorial_full_complete_sent = True
+            self._emit_cutscene_event(
+                "tutorial_completed",
+                {
+                    "phase": "full",
+                    "mode": str(snap.get("mode", "")),
+                },
+            )
+
     def _update(self, task):
         dt = globalClock.getDt()
         dt = min(dt, 0.05) # Cap delta time
@@ -1051,13 +1274,28 @@ class XBotApp(ShowBase):
                     )
         self.quest_mgr.update(player_pos)
         self.world.update(player_pos)
+        if getattr(self, "cutscene_triggers", None):
+            try:
+                self.cutscene_triggers.update(
+                    player_pos,
+                    getattr(self.world, "active_location", None),
+                )
+            except Exception as exc:
+                logger.debug(f"[CutsceneTriggers] Update failed: {exc}")
         mount_hint = ""
         if hasattr(self, "vehicle_mgr") and self.vehicle_mgr:
             try:
                 mount_hint = self.vehicle_mgr.get_interaction_hint(self.player)
             except Exception:
                 mount_hint = ""
+        quest_data = []
+        if hasattr(self, "quest_mgr") and self.quest_mgr:
+            try:
+                quest_data = self.quest_mgr.get_hud_data(player_pos=player_pos)
+            except Exception:
+                quest_data = []
         combat_event = None
+        tutorial_message = ""
         spell_labels = []
         active_skill_idx = 0
         ultimate_skill_idx = 0
@@ -1071,10 +1309,32 @@ class XBotApp(ShowBase):
                 spell_labels, active_skill_idx, ultimate_skill_idx = self.player.get_skill_wheel_state()
             except Exception:
                 spell_labels, active_skill_idx, ultimate_skill_idx = [], 0, 0
+        if self.movement_tutorial:
+            try:
+                self.movement_tutorial.update(dt)
+                tutorial_message = self.movement_tutorial.get_hud_message()
+                self._handle_tutorial_runtime_events()
+            except Exception as exc:
+                logger.debug(f"[MovementTutorial] Update failed: {exc}")
+                tutorial_message = ""
+            if hasattr(self.movement_tutorial, "get_checkpoint_entry"):
+                try:
+                    tutorial_cp = self.movement_tutorial.get_checkpoint_entry(player_pos=player_pos)
+                except Exception:
+                    tutorial_cp = None
+                if isinstance(tutorial_cp, dict):
+                    filtered = []
+                    for entry in quest_data:
+                        if not isinstance(entry, dict):
+                            continue
+                        if str(entry.get("quest_id", "")).strip().lower() == "movement_tutorial":
+                            continue
+                        filtered.append(entry)
+                    quest_data = [tutorial_cp] + filtered
         self.hud.update(
             dt,
             self.char_state,
-            self.quest_mgr.get_hud_data(player_pos=player_pos),
+            quest_data,
             self.profile,
             mount_hint,
             combat_event,
@@ -1082,6 +1342,7 @@ class XBotApp(ShowBase):
             active_skill_idx,
             ultimate_skill_idx,
             player_pos,
+            tutorial_message,
         )
 
         self._follow_camera(dt)
@@ -1090,27 +1351,40 @@ class XBotApp(ShowBase):
 
     def _follow_camera(self, dt):
         if self.player and self.player.actor:
+            profile_cfg = None
+            director = getattr(self, "camera_director", None)
+            manual_look = bool(
+                self.state_mgr.is_playing()
+                and self.mouseWatcherNode
+                and self.mouseWatcherNode.isButtonDown(MouseButton.three())
+            )
+            if director:
+                try:
+                    profile_cfg = director.update(dt, manual_look=manual_look)
+                except Exception as exc:
+                    logger.debug(f"[CameraDirector] Update failed: {exc}")
+                    profile_cfg = None
+
             # Fallback to actor position if char_state is missing
             if self.char_state:
                 cp = self.char_state.position
-                target = LPoint3(cp.x, cp.y, cp.z + 1.8)
-                base_z = cp.z
+                center = Vec3(float(cp.x), float(cp.y), float(cp.z))
+                base_z = float(cp.z)
             else:
                 # Python-only mode fallback
                 ap = self.player.actor.getPos()
-                target = LPoint3(ap.x, ap.y, ap.z + 1.8)
-                cp = ap # Use actor pos as center
-                base_z = ap.z
+                center = Vec3(float(ap.x), float(ap.y), float(ap.z))
+                base_z = float(ap.z)
 
             # --- Handle Mouse Look ---
             if self.mouseWatcherNode.hasMouse():
                 mouse_x = self.mouseWatcherNode.getMouseX()
                 mouse_y = self.mouseWatcherNode.getMouseY()
+                shot_active = bool(director and hasattr(director, "is_cutscene_active") and director.is_cutscene_active())
 
                 # Apply rotation based on mouse delta from center
                 # We don't recenter here to allow simple UI interaction, just relative drag
-                if getattr(self, '_last_mouse_x', None) is not None and self.state_mgr.is_playing() and \
-                   self.mouseWatcherNode.isButtonDown(MouseButton.three()):
+                if (not shot_active) and getattr(self, '_last_mouse_x', None) is not None and manual_look:
                     dx = mouse_x - self._last_mouse_x
                     dy = mouse_y - self._last_mouse_y
                     self._cam_yaw += dx * -150.0  # Sensitivity
@@ -1130,15 +1404,30 @@ class XBotApp(ShowBase):
 
             yr = self._cam_yaw_rad
             pr = self._cam_pitch_rad
-            cx = cp.x + self._cam_dist * math.sin(yr) * math.cos(pr)
-            cy = cp.y - self._cam_dist * math.cos(yr) * math.cos(pr)
+            if director:
+                try:
+                    cam_pos, target = director.resolve_transform(
+                        center=center,
+                        base_z=base_z,
+                        yaw_rad=yr,
+                        pitch_rad=pr,
+                        profile_cfg=profile_cfg,
+                    )
+                    self.camera.setPos(cam_pos)
+                    self.camera.lookAt(target)
+                    return
+                except Exception as exc:
+                    logger.debug(f"[CameraDirector] Resolve transform failed: {exc}")
+
+            cx = center.x + self._cam_dist * math.sin(yr) * math.cos(pr)
+            cy = center.y - self._cam_dist * math.cos(yr) * math.cos(pr)
             cz = base_z + 1.8 + self._cam_dist * math.sin(-pr)
 
             if cz < base_z + 0.5:
                 cz = base_z + 0.5 # Basic terrain anti-clipping for camera
 
             self.camera.setPos(cx, cy, cz)
-            self.camera.lookAt(target)
+            self.camera.lookAt(LPoint3(center.x, center.y, base_z + 1.8))
 
     def _heartbeat(self, task):
         if task.frame < 10:

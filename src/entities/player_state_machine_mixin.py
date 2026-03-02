@@ -44,6 +44,8 @@ class PlayerStateMachineMixin:
         in_wallrun = action_name in {"wallrun", "wall_run"}
         if in_wallrun and not self._was_wallrun:
             self._queue_state_trigger("wall_contact")
+        elif (not in_wallrun) and self._was_wallrun:
+            self._queue_state_trigger("exit_wallrun")
         self._was_wallrun = in_wallrun
 
     def _transition_from_matches(self, current_state, from_states):
@@ -54,6 +56,91 @@ class PlayerStateMachineMixin:
             normalized = str(source or "").strip().lower()
             if normalized == "*" or normalized == current:
                 return True
+        return False
+
+    def _state_def(self, state_name):
+        key = str(state_name or "").strip().lower()
+        if not key:
+            return {}
+        defs = getattr(self, "_state_defs", {})
+        if not isinstance(defs, dict):
+            return {}
+        value = defs.get(key)
+        return value if isinstance(value, dict) else {}
+
+    def _state_layer(self, state_name):
+        state_def = self._state_def(state_name)
+        layer = state_def.get("layer", "locomotion")
+        token = str(layer or "locomotion").strip().lower()
+        return token if token else "locomotion"
+
+    def _state_priority(self, state_name):
+        state_def = self._state_def(state_name)
+        try:
+            return int(state_def.get("priority", 50))
+        except Exception:
+            return 50
+
+    def _rule_priority(self, rule):
+        if not isinstance(rule, dict):
+            return 100
+        try:
+            return int(rule.get("priority", 100))
+        except Exception:
+            return 100
+
+    def _sort_rules(self, rules):
+        if not isinstance(rules, list):
+            return []
+        indexed = list(enumerate(rules))
+        indexed.sort(key=lambda pair: (self._rule_priority(pair[1]), pair[0]))
+        return [pair[1] for pair in indexed]
+
+    def _transition_allowed(self, current_state, target_state, trigger=None, force=False):
+        current = str(current_state or "").strip().lower()
+        target = str(target_state or "").strip().lower()
+        if not target:
+            return False
+        if current == target:
+            return False
+        if force or target == "dead":
+            return True
+
+        current_def = self._state_def(current)
+        target_priority = self._state_priority(target)
+        current_priority = self._state_priority(current)
+        trigger_token = str(trigger or "").strip().lower()
+
+        if bool(current_def.get("uninterruptible", False)):
+            if trigger_token == "animation_finished":
+                return True
+            allowed_by = current_def.get("interruptible_by", [])
+            if isinstance(allowed_by, list):
+                target_layer = self._state_layer(target)
+                for token in allowed_by:
+                    marker = str(token or "").strip().lower()
+                    if marker in {"*", target, target_layer}:
+                        return True
+            if target_priority < current_priority:
+                return True
+            return False
+
+        if target_priority < current_priority:
+            return True
+        if target_priority == current_priority:
+            return True
+
+        if trigger_token == "animation_finished":
+            return True
+        if self._state_layer(current) == self._state_layer(target):
+            return True
+
+        explicit = current_def.get("can_transition_to", [])
+        if isinstance(explicit, list):
+            target_norm = str(target).strip().lower()
+            if any(str(v or "").strip().lower() == target_norm for v in explicit):
+                return True
+
         return False
 
     def _build_state_context(self):
@@ -67,6 +154,9 @@ class PlayerStateMachineMixin:
             speed = math.sqrt((self.cs.velocity.x**2) + (self.cs.velocity.y**2))
             on_ground = bool(getattr(self.cs, "grounded", True))
             hp = float(getattr(self.cs, "health", 100.0) or 0.0)
+            vertical_speed = float(getattr(self.cs.velocity, "z", 0.0) or 0.0)
+        else:
+            vertical_speed = 0.0
 
         vehicle_mgr = getattr(self.app, "vehicle_mgr", None)
         if vehicle_mgr and getattr(vehicle_mgr, "is_mounted", False):
@@ -86,6 +176,16 @@ class PlayerStateMachineMixin:
             self._mount_anim_kind = ""
 
         resolved_mounted_kind = mounted_kind or str(self._mount_anim_kind or "").strip().lower()
+        parkour_action = self._parkour_action_name()
+        landing_impact = float(getattr(self, "_last_landing_impact_speed", 0.0) or 0.0)
+        grounded_now = bool(on_ground)
+        was_grounded = bool(getattr(self, "_was_grounded", grounded_now))
+        is_attacking = False
+        try:
+            if self.combat and hasattr(self.combat, "isAttacking"):
+                is_attacking = bool(self.combat.isAttacking())
+        except Exception:
+            is_attacking = False
 
         return {
             "speed": speed,
@@ -96,6 +196,15 @@ class PlayerStateMachineMixin:
             "mounted_kind": resolved_mounted_kind,
             "in_water": bool(self.cs and getattr(self.cs, "inWater", False)),
             "is_flying": bool(self._is_flying),
+            "vertical_speed": vertical_speed,
+            "parkour_action": parkour_action,
+            "wall_contact": bool(getattr(self, "_was_wallrun", False)),
+            "landed_hard": bool(landing_impact >= 10.0),
+            "landed_soft": bool(landing_impact >= 3.0),
+            "landing_impact_speed": landing_impact,
+            "was_grounded": was_grounded,
+            "is_attacking": is_attacking,
+            "is_blocking": bool(getattr(self, "_block_pressed", False)),
         }
 
     def _eval_transition_condition(self, condition, context):
@@ -148,6 +257,41 @@ class PlayerStateMachineMixin:
         self._state_lock_until = (now + duration) if duration > 0.0 else 0.0
         return True
 
+    def _apply_runtime_rules(self, current_state, context, triggers):
+        rules = self._sort_rules(getattr(self, "_state_rules", []))
+        if not rules:
+            return False
+
+        trigger_set = {str(token or "").strip().lower() for token in list(triggers or [])}
+        for rule in rules:
+            target = str(rule.get("to", "")).strip().lower()
+            if not target:
+                continue
+            if not self._transition_from_matches(current_state, rule.get("from", [])):
+                continue
+
+            required_trigger = str(rule.get("trigger", "")).strip().lower()
+            if required_trigger and required_trigger not in trigger_set:
+                continue
+
+            cond = rule.get("condition")
+            if isinstance(cond, str) and cond.strip():
+                if not self._eval_transition_condition(cond, context):
+                    continue
+
+            force = bool(rule.get("force", False))
+            if not self._transition_allowed(
+                current_state,
+                target,
+                trigger=required_trigger,
+                force=force,
+            ):
+                continue
+
+            if self._enter_state(target):
+                return True
+        return False
+
     def _run_animation_state_machine(self):
         if not self._state_transitions:
             self._enter_state(self._compute_default_state(self._build_state_context()))
@@ -165,22 +309,39 @@ class PlayerStateMachineMixin:
         triggers = list(self._queued_state_triggers)
         self._queued_state_triggers = []
 
+        if self._apply_runtime_rules(current, context, triggers):
+            return
+
         for trigger in triggers:
-            for rule in self._state_transitions:
+            for rule in self._sort_rules(self._state_transitions):
                 if rule.get("trigger") != trigger:
                     continue
                 if not self._transition_from_matches(current, rule.get("from", [])):
                     continue
+                if not self._transition_allowed(
+                    current,
+                    rule.get("to"),
+                    trigger=trigger,
+                    force=bool(rule.get("force", False)),
+                ):
+                    continue
                 if self._enter_state(rule.get("to")):
                     return
 
-        for rule in self._state_transitions:
+        for rule in self._sort_rules(self._state_transitions):
             condition = rule.get("condition")
             if not condition:
                 continue
             if not self._transition_from_matches(current, rule.get("from", [])):
                 continue
             if self._eval_transition_condition(condition, context):
+                if not self._transition_allowed(
+                    current,
+                    rule.get("to"),
+                    trigger=rule.get("trigger"),
+                    force=bool(rule.get("force", False)),
+                ):
+                    continue
                 if self._enter_state(rule.get("to")):
                     return
 
@@ -200,4 +361,3 @@ class PlayerStateMachineMixin:
         }
         if current in locomotion and fallback != current:
             self._enter_state(fallback)
-

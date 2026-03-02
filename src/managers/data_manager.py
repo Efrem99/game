@@ -14,6 +14,9 @@ class DataManager:
         self.ui_strings = {}
         self.locales = {}
         self.sound_config = {}
+        self.camera_profiles = {}
+        self.cutscene_triggers = {}
+        self.player_config = {}
         self.language = "en"
 
         self.load_all()
@@ -39,6 +42,9 @@ class DataManager:
         self.graphics_settings = self._load_file("graphics_settings.json")
         self.audio_settings = self._load_file("audio_settings.json")
         self.sound_config = self._load_file("audio/sound_config.json")
+        self.camera_profiles = self._load_file("camera_profiles.json")
+        self.cutscene_triggers = self._load_file("cutscene_triggers.json")
+        self.player_config = self._load_file("actors/player.json")
         self.locales = {
             "en": self._load_file("locales/en.json"),
             "ru": self._load_file("locales/ru.json"),
@@ -282,3 +288,10 @@ class DataManager:
              # Try searching in other world files
              biomes = self._load_file("world/biomes.json")
         return biomes.get(name, {})
+
+    def get_player_config(self):
+        payload = self.player_config if isinstance(self.player_config, dict) else {}
+        player = payload.get("player", payload)
+        if not isinstance(player, dict):
+            return {}
+        return dict(player)

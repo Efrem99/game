@@ -180,6 +180,7 @@ class SharuanWorld:
             (0.65, self._build_city_wall, "Erecting city fortifications..."),
             (0.75, self._build_districts, "Laying out city districts..."),
             (0.82, self._build_center, "Designing town center..."),
+            (0.86, self._build_movement_training_ground, "Preparing movement training grounds..."),
             (0.90, self._build_scenery, "Adding scenery and decorations..."),
             (1.0, self._build_flora_fauna, "Populating world flora..."),
         ]
@@ -543,6 +544,126 @@ class SharuanWorld:
             pz = self._th(0, py)
             self._pl(mk_plane(f"path_{py}", 3.5, 4.2, 2.0), 0, py, pz + 0.02,
                      self.tx["dirt"], dirt_mat, "Castle Road", is_platform=False)
+
+    def _build_movement_training_ground(self):
+        """Dedicated test arena for movement tutorial and animation state validation."""
+        tx, ty = 18.0, 24.0
+        center_z = self._th(tx, ty)
+        stone_mat = mk_mat((0.52, 0.49, 0.45, 1.0), 0.72, 0.02)
+        dirt_mat = mk_mat((0.42, 0.35, 0.26, 1.0), 0.88, 0.0)
+        water_mat = mk_mat((0.12, 0.30, 0.50, 0.82), 0.15, 0.18)
+
+        # Ground platform / sprint lane base.
+        self._pl(
+            mk_plane("training_plaza", 48.0, 34.0, 2.6),
+            tx,
+            ty,
+            center_z + 0.03,
+            self.tx["dirt"],
+            dirt_mat,
+            "Training Grounds",
+            is_platform=False,
+        )
+
+        # Sprint lane guide stones.
+        for idx in range(7):
+            px = tx - 18.0 + (idx * 6.0)
+            py = ty - 11.0
+            pz = self._th(px, py)
+            self._pl(
+                mk_box(f"training_lane_marker_{idx}", 0.8, 0.8, 0.18),
+                px,
+                py,
+                pz + 0.09,
+                self.tx["stone"],
+                stone_mat,
+                "Training Grounds",
+                is_platform=False,
+            )
+
+        # Jump sequence platforms.
+        jump_specs = [
+            ("training_jump_a", tx - 11.0, ty + 6.0, 1.0, 2.6),
+            ("training_jump_b", tx - 5.5, ty + 6.8, 1.5, 2.4),
+            ("training_jump_c", tx + 0.5, ty + 7.6, 1.9, 2.3),
+        ]
+        for name, px, py, h, width in jump_specs:
+            pz = self._th(px, py)
+            self._pl(
+                mk_box(name, width, 2.2, h),
+                px,
+                py,
+                pz + (h * 0.5),
+                self.tx["stone"],
+                stone_mat,
+                "Training Grounds",
+            )
+
+        # Vault barriers (low obstacles).
+        for idx in range(4):
+            px = tx - 12.0 + (idx * 4.2)
+            py = ty + 0.2
+            pz = self._th(px, py)
+            self._pl(
+                mk_box(f"training_vault_barrier_{idx}", 2.1, 0.45, 1.05),
+                px,
+                py,
+                pz + 0.52,
+                self.tx["stone"],
+                stone_mat,
+                "Training Grounds",
+            )
+
+        # Wallrun wall.
+        wall_x = tx + 14.0
+        wall_y = ty + 1.8
+        wall_z = self._th(wall_x, wall_y)
+        self._pl(
+            mk_box("training_wallrun_wall", 1.2, 15.0, 6.2),
+            wall_x,
+            wall_y,
+            wall_z + 3.1,
+            self.tx["stone"],
+            stone_mat,
+            "Training Grounds",
+        )
+
+        # Climb ledge block.
+        ledge_x = tx + 9.0
+        ledge_y = ty + 13.0
+        ledge_z = self._th(ledge_x, ledge_y)
+        self._pl(
+            mk_box("training_climb_block", 4.8, 3.2, 3.8),
+            ledge_x,
+            ledge_y,
+            ledge_z + 1.9,
+            self.tx["stone"],
+            stone_mat,
+            "Training Grounds",
+        )
+
+        # Shallow water pool for swim test.
+        pool_x = tx - 14.0
+        pool_y = ty + 12.0
+        pool_z = self._th(pool_x, pool_y) - 1.1
+        pool = self._pl(
+            mk_plane("training_pool", 11.0, 8.0, 1.6),
+            pool_x,
+            pool_y,
+            pool_z,
+            None,
+            water_mat,
+            "Training Grounds",
+            is_platform=False,
+        )
+        pool.set_transparency(TransparencyAttrib.M_alpha)
+
+        if self.phys:
+            p = gc.Platform()
+            p.aabb.min = gc.Vec3(pool_x - 5.5, pool_y - 4.0, pool_z - 2.5)
+            p.aabb.max = gc.Vec3(pool_x + 5.5, pool_y + 4.0, pool_z + 0.1)
+            p.isWater = True
+            self.phys.addPlatform(p)
 
     def _build_flora_fauna(self):
         bark_mat = mk_mat((0.34, 0.24, 0.16, 1), 0.9, 0.0)

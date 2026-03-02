@@ -49,6 +49,7 @@ class HUDOverlay:
         self._create_minimap()
         self._create_damage_feed()
         self._create_profile_block()
+        self._create_tutorial_hint()
         self._create_mount_hint()
         self._create_skill_wheel()
         self._create_autosave_badge()
@@ -492,6 +493,20 @@ class HUDOverlay:
         )
         place_ui_on_top(self.mount_hint_text, 84)
 
+    def _create_tutorial_hint(self):
+        self.tutorial_text = OnscreenText(
+            text="",
+            pos=(-1.36, 0.74),
+            scale=0.028,
+            fg=THEME["gold_soft"],
+            shadow=(0, 0, 0, 0.80),
+            align=TextNode.ALeft,
+            parent=self.root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        place_ui_on_top(self.tutorial_text, 84)
+
     def _create_skill_wheel(self):
         self.skill_slots = []
         self.skill_slot_meta = []
@@ -928,6 +943,7 @@ class HUDOverlay:
         self._hide_breadcrumbs()
         self.minimap_pin.hide()
         self.minimap_hint.setText("")
+        self.tutorial_text.setText("")
 
     def refresh_locale(self):
         self.hp_label.setText(self.app.data_mgr.t("stats.health", "Health"))
@@ -1034,6 +1050,7 @@ class HUDOverlay:
         active_skill_idx=0,
         ultimate_skill_idx=0,
         player_pos=None,
+        tutorial_message=None,
     ):
         if not isinstance(profile, dict):
             profile = getattr(self.app, "profile", {})
@@ -1064,6 +1081,7 @@ class HUDOverlay:
             self._hide_breadcrumbs()
             self.minimap_pin.hide()
             self.minimap_hint.setText("")
+            self.tutorial_text.setText("")
             return
         self._set_fill(self.hp_fill, char_state.health / max(1.0, char_state.maxHealth))
         self._set_fill(self.sp_fill, char_state.stamina / max(1.0, char_state.maxStamina))
@@ -1102,6 +1120,11 @@ class HUDOverlay:
             self.mount_hint_text.setText(mount_hint)
         else:
             self.mount_hint_text.setText("")
+
+        if isinstance(tutorial_message, str):
+            self.tutorial_text.setText(tutorial_message)
+        else:
+            self.tutorial_text.setText("")
 
         if isinstance(combat_event, dict):
             amount = int(combat_event.get("amount", 0) or 0)
