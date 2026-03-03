@@ -396,6 +396,7 @@ class SharuanWorld:
         t = mk_terrain('terrain', 200, 72, self._th)
         m = mk_mat((0.25,0.45,0.15,1), 1.0, 0.0)
         np = self._pl(t, 0, 0, 0, self.tx['grass'], m, 'Sharuan Plains', is_platform=False)
+        np.set_shader_input("bend_weight", 0.25) # Give it some bend from wind/magic
         # Tile all texture stages for terrain coverage
         for ts in [TextureStage.get_default()]:
             np.set_tex_scale(ts, 10, 10)

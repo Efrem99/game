@@ -34,6 +34,8 @@ except ImportError:
     HAS_CORE = False
 
 from world.sharuan_world import SharuanWorld
+from world.influence_manager import InfluenceManager
+from world.sim_tier_manager import SimTierManager
 from entities.boss_manager import BossManager
 from entities.player import Player
 from managers.data_manager import DataManager
@@ -46,6 +48,8 @@ from managers.save_manager import SaveManager
 from managers.vehicle_manager import VehicleManager
 from managers.npc_manager import NPCManager
 from managers.movement_tutorial_manager import MovementTutorialManager
+from managers.dialog_cinematic_manager import DialogCinematicManager
+from managers.npc_interaction_manager import NPCInteractionManager
 from render.model_visuals import ensure_model_visual_defaults, audit_node_visual_health
 from ui.menu_main import MainMenu
 from ui.menu_pause import PauseMenu
@@ -227,6 +231,10 @@ class XBotApp(ShowBase):
         self.player = None
         self.boss_manager = None
         self.dragon_boss = None
+        self.influence_mgr = InfluenceManager(self.render)
+        self.sim_tier_mgr = SimTierManager(self)
+        self.dialog_cinematic = DialogCinematicManager(self)
+        self.npc_interaction = NPCInteractionManager(self)
 
         # -- Start Intro --
         logger.info("Starting cinematic intro (8.7s expected)...")
@@ -1243,6 +1251,30 @@ class XBotApp(ShowBase):
         if not self.state_mgr.is_playing() or not self.player:
             return Task.cont
 
+        if hasattr(self, "influence_mgr") and self.influence_mgr:
+            self.influence_mgr.update(dt)
+
+        # Attention-based simulation tier manager
+        if hasattr(self, "sim_tier_mgr") and self.sim_tier_mgr and self.player:
+            try:
+                cam = self.camera
+                cam_pos = cam.getPos(self.render)
+                cam_fwd_np = self.render.getRelativeVector(cam, (0, 1, 0))
+                # Approximate angular speed from last forward direction
+                prev_fwd = getattr(self, "_prev_cam_fwd", None)
+                ang_speed = 0.0
+                if prev_fwd is not None:
+                    dot = max(-1.0, min(1.0, (
+                        cam_fwd_np.x * prev_fwd[0] +
+                        cam_fwd_np.y * prev_fwd[1] +
+                        cam_fwd_np.z * prev_fwd[2]
+                    )))
+                    ang_speed = math.acos(dot) / max(dt, 0.001)
+                self._prev_cam_fwd = (cam_fwd_np.x, cam_fwd_np.y, cam_fwd_np.z)
+                self.sim_tier_mgr.update(dt, cam_pos, cam_fwd_np, ang_speed)
+            except Exception as _exc:
+                pass
+
         if HAS_CORE:
             self.particles.update(dt)
             self._particle_upload_accum += dt
@@ -1260,6 +1292,11 @@ class XBotApp(ShowBase):
             except Exception as exc:
                 logger.warning(f"[NPCManager] Update failed: {exc}")
                 self.npc_mgr = None
+        if getattr(self, "npc_interaction", None):
+            try:
+                self.npc_interaction.update(dt)
+            except Exception as exc:
+                logger.debug(f"[NPCInteraction] Update failed: {exc}")
         if self.boss_manager and self.player:
             try:
                 self.boss_manager.update(dt, self.player.actor.getPos(self.render))

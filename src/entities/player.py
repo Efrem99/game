@@ -113,6 +113,12 @@ class Player(
         self._mount_anim_kind = ""
         self._anim_failed_once = set()
         self._anim_missing_state_once = set()
+        # ContextFlags (updated each FSM tick by _update_context_flags)
+        self._context_flags: set = set()
+        self._env_flags: set = set()   # injected by world/app for surface context
+        # Pending spell staging (Prepare → Release)
+        self._pending_spell = None
+        self._pending_spell_release_time = 0.0
 
         self._keys = {}
         self._consumed = {}
@@ -217,6 +223,8 @@ class Player(
     def _resolve_player_model_candidates(self):
         cfg = self._player_model_config()
         raw_model = str(cfg.get("model", "") or "").strip()
+        raw_fallback_model = str(cfg.get("fallback_model", "") or "").strip()
+        raw_candidates = cfg.get("model_candidates")
         candidates = []
 
         def _add(path_token):
@@ -225,6 +233,10 @@ class Player(
                 return
             if token not in candidates:
                 candidates.append(token)
+
+        if isinstance(raw_candidates, list):
+            for item in raw_candidates:
+                _add(item)
 
         if raw_model:
             _add(raw_model)
@@ -237,6 +249,15 @@ class Player(
 
             if Path(raw_model).name.lower() == "xbot.glb":
                 _add("assets/models/xbot/Xbot.glb")
+
+        if raw_fallback_model:
+            _add(raw_fallback_model)
+            if raw_fallback_model.startswith("./"):
+                _add(raw_fallback_model[2:])
+            if raw_fallback_model.startswith("models/"):
+                _add(f"assets/{raw_fallback_model}")
+            if not raw_fallback_model.startswith("assets/"):
+                _add(f"assets/{raw_fallback_model}")
 
         _add("assets/models/xbot/Xbot.glb")
 
@@ -1329,10 +1350,11 @@ class Player(
             action_used = True
 
         self.combat.update(dt, self.cs, self.enemies)
+        if hasattr(self, "_update_spell_casting"):
+            self._update_spell_casting()
         self.magic.update(dt, self.enemies, lambda fx: self._on_spell_effect(fx))
 
         if action_used:
             self._set_weapon_drawn(True)
         elif hasattr(self.combat, "isAttacking") and self.combat.isAttacking():
             self._drawn_hold_timer = 1.0
-

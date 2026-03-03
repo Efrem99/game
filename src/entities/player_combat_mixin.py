@@ -221,25 +221,84 @@ class PlayerCombatMixin:
         if not spell_type:
             return False
 
-        effect = self.magic.castSpell(self.cs, spell_type, self.cs.facingDir, self.enemies)
-        self._on_spell_effect(effect)
         if runtime.get("cast_sfx"):
             self._play_sfx(runtime["cast_sfx"], volume=0.9)
+
+        if runtime["cast_time"] > 0.0:
+            self._spell_cast_lock_until = now + runtime["cast_time"]
+            delay = max(0.1, runtime["cast_time"] * 0.4)
+        else:
+            delay = 0.0
+
+        self._pending_spell = {
+            "type": spell_type,
+            "key": spell_key,
+            "data": spell_data,
+            "runtime": runtime,
+        }
+        self._pending_spell_release_time = now + delay
+
+        self._set_weapon_drawn(True)
+        self._queue_state_trigger(runtime.get("anim_trigger", "cast_spell"))
+        return True
+
+    def _update_spell_casting(self):
+        pending = getattr(self, "_pending_spell", None)
+        if not pending:
+            return
+
+        now = globalClock.getFrameTime()
+        if now >= getattr(self, "_pending_spell_release_time", 0.0):
+            self._release_pending_spell()
+
+    def _cancel_pending_spell(self):
+        self._pending_spell = None
+        self._pending_spell_release_time = 0.0
+
+    def _release_pending_spell(self):
+        pending = getattr(self, "_pending_spell", None)
+        if not pending:
+            return
+
+        spell_type = pending["type"]
+        spell_key = pending["key"]
+        spell_data = pending["data"]
+        runtime = pending["runtime"]
+        self._pending_spell = None
+
+        effect = self.magic.castSpell(self.cs, spell_type, self.cs.facingDir, self.enemies)
+        self._on_spell_effect(effect)
+
+        # Reactive Static Layer (World Influences)
+        if hasattr(self.app, "influence_mgr") and self.app.influence_mgr and effect:
+            radius = max(3.0, float(getattr(effect, "radius", 5.0)))
+            strength = 1.0
+            duration = 1.5
+            fx_type = "force"
+
+            if "fire" in spell_key:
+                fx_type = "fire"
+                duration = 2.5
+            elif "ice" in spell_key or "blizzard" in spell_key:
+                fx_type = "ice"
+                duration = 4.0
+
+            pos = effect.destination if hasattr(effect, "destination") else effect.pos
+            self.app.influence_mgr.add_influence(fx_type, pos, radius, strength, duration)
 
         damage_val = 0
         if isinstance(spell_data, dict):
             damage_val = int(spell_data.get("damage", spell_data.get("heal_value", 0)) or 0)
         dmg_type = runtime.get("damage_type") or self._spell_damage_type(spell_key, spell_data)
+
         if runtime.get("impact_sfx"):
             self._play_sfx(runtime["impact_sfx"], volume=0.95)
+
         self._push_combat_event(dmg_type, damage_val, source_label=runtime.get("label") or spell_key)
-        if runtime["cooldown"] > 0.0:
-            cooldowns[spell_key] = now + runtime["cooldown"]
-        if runtime["cast_time"] > 0.0:
-            self._spell_cast_lock_until = now + runtime["cast_time"]
-        self._set_weapon_drawn(True)
-        self._queue_state_trigger(runtime.get("anim_trigger", "cast_spell"))
-        return True
+
+        cooldowns = getattr(self, "_spell_cooldowns", None)
+        if isinstance(cooldowns, dict) and runtime["cooldown"] > 0.0:
+            cooldowns[spell_key] = globalClock.getFrameTime() + runtime["cooldown"]
 
     def _resolve_spell_type(self, spell_key, spell_data):
         candidates = []

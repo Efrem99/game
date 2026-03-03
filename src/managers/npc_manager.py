@@ -22,14 +22,21 @@ class NPCManager:
             "run": "assets/models/xbot/run.glb",
         }
 
-    def clear(self):
         for unit in self.units:
             actor = unit.get("actor")
+            npc_id = unit.get("id")
             if actor:
                 try:
                     actor.removeNode()
                 except Exception:
                     pass
+            sim_tier_mgr = getattr(self.app, "sim_tier_mgr", None)
+            if sim_tier_mgr and npc_id:
+                sim_tier_mgr.unregister(npc_id)
+            interaction_mgr = getattr(self.app, "npc_interaction", None)
+            if interaction_mgr and npc_id:
+                interaction_mgr.unregister_unit(npc_id)
+
         self.units = []
 
     def spawn_from_data(self, npcs_data):
@@ -82,6 +89,17 @@ class NPCManager:
             debug_label=f"npc:{npc_id}",
         )
         self._apply_appearance_tint(actor, appr)
+
+        dialogue_path = str(payload.get("dialogue", npc_id))
+        npc_name = str(payload.get("name", npc_id))
+
+        interaction_mgr = getattr(self.app, "npc_interaction", None)
+        if interaction_mgr:
+            interaction_mgr.register_unit(npc_id, actor, dialogue_path, npc_name)
+
+        sim_tier_mgr = getattr(self.app, "sim_tier_mgr", None)
+        if sim_tier_mgr:
+            sim_tier_mgr.register(npc_id, actor)
 
         self._play_anim(actor, "idle", loop=True)
         return {

@@ -11,6 +11,7 @@ Feature-specific test launchers:
 - `python launcher_test_manifest.py` (checks `data/actors/player_animations.json` integrity)
 - `python launcher_test_baseline.py` (prints static project baseline metrics)
 - `python launcher_test_smoke.py` (runs static smoke checks + preflight reports)
+- `python launcher_test_sherward.py` (validates Shervard hero asset slot/config/docs)
 
 Each launcher sets:
 

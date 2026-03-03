@@ -157,12 +157,16 @@
     "ambient_enabled": true,
     "sfx_polyphony": 4,
     "sfx_global_limit": 22,
+    "voices_path": "data/audio/voices",
+    "voice_volume": 0.88,
     "mixer": {
-        "dialog_music_duck": 0.55,
-        "dialog_ambient_duck": 0.45,
+        "dialog_music_duck": 0.30,
+        "dialog_ambient_duck": 0.28,
         "boss_ambient_duck": 0.62,
         "combat_ambient_duck": 0.8,
-        "ui_music_duck": 0.72
+        "ui_music_duck": 0.72,
+        "voice_music_duck": 0.20,
+        "voice_ambient_duck": 0.18
     },
     "sfx_cooldowns": {
         "default": 0.0,
