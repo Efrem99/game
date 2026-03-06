@@ -153,18 +153,42 @@ class EnemyUnit:
         return np
 
     def _build_external_model(self):
-        if not bool(self.cfg.get("use_external_model", False)):
+        primary_path = str(self.cfg.get("model", "")).strip().replace("\\", "/")
+        fallback_path = self._fallback_model_for_kind()
+        candidate_paths = []
+        if primary_path:
+            candidate_paths.append(primary_path)
+        if fallback_path and fallback_path not in candidate_paths:
+            candidate_paths.append(fallback_path)
+        if not candidate_paths:
             return False
-        path = str(self.cfg.get("model", "")).strip().replace("\\", "/")
-        if not path or not Path(path).exists():
-            return False
+
         sc = float(self.cfg.get("scale", 1.0) or 1.0)
         self.actor = None
         self._anim_map = {}
         self._anim_active_clip = ""
         self._anim_active_state = ""
-
         prefer_actor = bool(self.cfg.get("use_actor", True))
+
+        for path in candidate_paths:
+            if not Path(path).exists():
+                continue
+            if self._try_load_external_model(path, sc, prefer_actor):
+                if path != primary_path:
+                    logger.warning(f"[Enemy] Using fallback model for '{self.id}': {path}")
+                return True
+        return False
+
+    def _fallback_model_for_kind(self):
+        fallback = {
+            "golem": "assets/models/enemies/golem_boss.glb",
+            "fire_elemental": "assets/models/enemies/fire_elemental.glb",
+            "shadow": "assets/models/enemies/shadow_stalker.glb",
+            "goblin": "assets/models/enemies/goblin_raider.glb",
+        }
+        return str(fallback.get(self.kind, "") or "").strip()
+
+    def _try_load_external_model(self, path, sc, prefer_actor):
         if prefer_actor:
             try:
                 actor = Actor(path)
@@ -385,13 +409,21 @@ class EnemyUnit:
     def _build_telegraph_ring(self):
         self.nodes.pop("telegraph", None)
         cm = CardMaker(f"{self.id}_telegraph")
-        cm.setFrame(-1.0, 1.0, -1.0, 1.0)
+        cm.setFrame(-0.5, 0.5, -0.5, 0.5)
         ring = self.root.attachNewNode(cm.generate())
         ring.setP(-90)
         ring.setPos(0.0, 0.0, 0.06)
         ring.setTransparency(TransparencyAttrib.MAlpha)
         ring.setLightOff(1)
         ring.setTwoSided(True)
+        ring.setDepthWrite(False)
+        ring.setBin("transparent", 30)
+        try:
+            tex = self.loader.loadTexture("assets/textures/flare.png")
+            if tex:
+                ring.setTexture(tex, 1)
+        except Exception:
+            pass
         ring.setColorScale(*self._fx_color("idle_color", (1.0, 0.25, 0.15, 0.0)))
         min_scale = self._fx_float("min_scale", 1.2, 0.2, 50.0)
         ring.setScale(max(min_scale, self._stat("attack_range", 2.4)))
@@ -401,7 +433,7 @@ class EnemyUnit:
             force_two_sided=True,
             debug_label=f"enemy:{self.id}:telegraph",
         )
-        self._apply_python_only_visual_fallback(ring, debug_label=f"enemy:{self.id}:telegraph")
+        # Keep authored alpha values for telegraph and do not force opaque fallback color scale.
         self.nodes["telegraph"] = ring
 
     def _apply_visual_state(self, dt):
@@ -415,6 +447,13 @@ class EnemyUnit:
 
         ring = self.nodes.get("telegraph")
         if not ring:
+            return
+
+        active_ring = self.state in {"telegraph", "attack", "recover", "hit"} or self._is_engaged
+        if active_ring:
+            ring.show()
+        else:
+            ring.hide()
             return
 
         if self.state == "telegraph":

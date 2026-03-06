@@ -136,7 +136,8 @@ class IntroUI:
         # ── Skip hint ─────────────────────────────────────────────
         self.skip_hint = OnscreenText(
             text=self.app.data_mgr.t("ui.press_space_skip", "Press Space to skip"),
-            pos=(0.0, -0.88),
+            # Lower safe-zone to avoid clipping on DPI-scaled window clients.
+            pos=(0.0, -0.82),
             scale=0.038,
             fg=THEME["text_muted"],
             shadow=(0, 0, 0, 0.7),

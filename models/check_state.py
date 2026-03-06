@@ -1,14 +1,16 @@
 import bpy
 import os
+from pathlib import Path
 
-BLEND_PATH = r"C:\xampp\htdocs\models\xbot_customized_slim.blend"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+BLEND_PATH = PROJECT_ROOT / "models" / "xbot_customized_slim.blend"
 
 def check_state():
     if not os.path.exists(BLEND_PATH):
         print("ERROR: File not found!")
         return
         
-    bpy.ops.wm.open_mainfile(filepath=BLEND_PATH)
+    bpy.ops.wm.open_mainfile(filepath=str(BLEND_PATH))
     print("\n--- STATUS CHECK ---")
     
     # 1. Workspace

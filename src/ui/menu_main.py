@@ -30,7 +30,8 @@ class BaseMenu:
             frameColor=(0, 0, 0, 0),
             frameSize=(-asp, asp, -1, 1),
             parent=self.app.aspect2d,
-            suppressMouse=1,
+            # Keep the root menu frame mouse-active so child buttons receive input.
+            suppressMouse=0,
         )
         place_ui_on_top(self.frame, 42)
 
@@ -119,7 +120,8 @@ class BaseMenu:
 
         self.status = OnscreenText(
             text="",
-            pos=(0.0, -0.93),
+            # Keep status inside a conservative safe-zone for DPI-scaled windows.
+            pos=(0.0, -0.88),
             scale=0.038,
             fg=THEME["text_muted"],
             shadow=(0, 0, 0, 0.65),
@@ -696,6 +698,15 @@ class BaseMenu:
         self._reveal_seq.start()
 
     def _start_game(self, load_save=False, slot_index=None):
+        # Ignore stale key/mouse events while intro is still active or menu is hidden.
+        intro = getattr(self.app, "intro", None)
+        if intro and not bool(getattr(intro, "_done", False)):
+            return False
+        if self.frame.isHidden():
+            return False
+        if getattr(self.app.state_mgr, "current_state", None) != self.app.GameState.MAIN_MENU:
+            return False
+
         if hasattr(self.app, "start_play"):
             loaded = self.app.start_play(load_save=load_save, slot_index=slot_index)
             if load_save and not loaded:
@@ -876,6 +887,7 @@ class BaseMenu:
         ui_scale = max(0.9, min(1.1, aspect / 1.777777))
         self.title.setPos(0, 0.72)
         self.subtitle.setPos(0, 0.58)
+        self.status.setPos(0, -0.88)
         self.title.setScale(0.15 * ui_scale)
         self.subtitle.setScale(0.06 * ui_scale)
 

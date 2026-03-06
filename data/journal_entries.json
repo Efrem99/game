@@ -1,70 +1,53 @@
 {
-    "sections": [
-        {
-            "title": "World Briefing",
-            "entries": [
-                "Sharuan is divided into Castle heights, Town center, and Southern Docks.",
-                "Weathered ruins and old roads often hide side objectives and rare loot.",
-                "Fast travel is not active yet, so route planning matters."
-            ]
-        },
-        {
-            "title": "Combat Notes",
-            "entries": [
-                "Light attacks keep pressure, heavy attacks break guards.",
-                "Parry windows are short; block first, then counter.",
-                "Magic can finish enemies outside melee range."
-            ]
-        },
-        {
-            "title": "Enemy Intel",
-            "entries": [
-                "Goblins are fast but fragile; punish their approach.",
-                "Shadows attack from mid-range with dark projectiles.",
-                "Fire elementals control area with sustained burn damage.",
-                "Golems are armored and serve as boss-tier threats."
-            ]
-        },
-        {
-            "title": "Boss Protocol",
-            "entries": [
-                "Warden Golem uses heavy single hits and brief guard windows.",
-                "Titan Golem is slower but has higher armor and damage.",
-                "Keep stamina for evade timing during their attack wind-up."
-            ]
-        },
-        {
-            "title": "Controls Reminder",
-            "entries": [
-                "I opens inventory and journal tabs.",
-                "F5/F6/F7 save to slots, Shift+F5/F6/F7 load slots.",
-                "F9 cycles test locations in development builds.",
-                "Hold TAB (or your bound key) to open the skill wheel, hover with mouse, release to equip."
-            ]
-        },
-        {
-            "title": "Checkpoint & Quest Flow",
-            "entries": [
-                "Tracked objectives show distance in HUD and a world checkpoint marker.",
-                "Reach objectives complete automatically when you enter their radius.",
-                "Interact objectives require pressing your interaction key near the target NPC/anchor."
-            ]
-        },
-        {
-            "title": "Mounts & Travel",
-            "entries": [
-                "Mount hints appear near valid vehicles and mounts.",
-                "Different mount types can use dedicated mount/dismount animations.",
-                "Use test profiles (mounts/music/dragon/journal/skills) to verify isolated systems quickly."
-            ]
-        },
-        {
-            "title": "Biomes & Audio Routing",
-            "entries": [
-                "Music routes by state: menu -> exploration -> combat -> boss.",
-                "Ambient routes by location and biome, then reacts to water/flying states.",
-                "Crossfades prevent layer overlap; short SFX cooldowns reduce spam in heavy combat."
-            ]
-        }
-    ]
+  "sections": [
+    {
+      "title": "Opening Canon",
+      "entries": [
+        "The playable story opens with Sherward's morning memory before direct control.",
+        "The first conflict is a sharp argument between Sherward and his father Sebastian.",
+        "Adalin remains a core line of the main arc from the opening onward."
+      ]
+    },
+    {
+      "title": "Codex Book Structure",
+      "entries": [
+        "Characters records key people tied to the main narrative and local encounters.",
+        "Factions tracks powers influencing the region and political pressure.",
+        "Locations stores discovered places, routes, and notable landmarks.",
+        "Events captures major transitions and player-facing world moments."
+      ]
+    },
+    {
+      "title": "World Briefing",
+      "entries": [
+        "Sharuan is split into castle heights, trade town, and southern docks.",
+        "The hill roads and forest routes are safer by day and volatile at night.",
+        "River travel and coastal approach connect inland roads to the sea port."
+      ]
+    },
+    {
+      "title": "Combat Notes",
+      "entries": [
+        "Light attacks maintain pressure, heavy attacks open guarded targets.",
+        "Parry windows are short; block first, counter only on clean reads.",
+        "Movement and stamina control decide most early duels."
+      ]
+    },
+    {
+      "title": "Mounts and Travel",
+      "entries": [
+        "Mount hints appear near valid horses, carriages, and ships.",
+        "Dismount checks use safe placement to avoid clipping and fall-through.",
+        "Ship travel is currently coastal and river-estuary only."
+      ]
+    },
+    {
+      "title": "Controls Reminder",
+      "entries": [
+        "I opens Inventory, Map, Skills, and Journal tabs.",
+        "F5/F6/F7 save to slots, Shift+F5/F6/F7 load from slots.",
+        "F8 restarts the main tutorial; Shift+F8 restarts full training."
+      ]
+    }
+  ]
 }

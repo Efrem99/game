@@ -9,6 +9,7 @@
         ],
         "appearance": {
             "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb",
             "skin_color": [
                 0.8,
                 0.7,
@@ -31,6 +32,7 @@
         ],
         "appearance": {
             "scale": 1.1,
+            "model": "assets/models/xbot/Xbot.glb",
             "skin_color": [
                 0.75,
                 0.65,

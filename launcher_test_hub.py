@@ -104,6 +104,66 @@ def _menu_choice():
         print("Invalid choice.")
 
 
+def _menu_choice_gui():
+    options = list(RUNTIME_TESTS.keys()) + list(SCRIPT_TESTS.keys())
+    if not options:
+        return ""
+    try:
+        import tkinter as tk
+        from tkinter import ttk
+    except Exception:
+        return ""
+
+    chosen = {"key": ""}
+    root = tk.Tk()
+    root.title("XBot Test Hub")
+    root.resizable(False, False)
+    root.geometry("420x170")
+    root.configure(bg="#121212")
+
+    pad = {"padx": 12, "pady": 8}
+    label = tk.Label(
+        root,
+        text="Select test profile",
+        bg="#121212",
+        fg="#E7D39B",
+        font=("Segoe UI", 11, "bold"),
+    )
+    label.pack(**pad)
+
+    value = tk.StringVar(value=options[0])
+    combo = ttk.Combobox(root, textvariable=value, values=options, state="readonly", width=44)
+    combo.pack(padx=12, pady=6)
+    combo.focus_set()
+
+    kind_var = tk.StringVar(value=f"kind: {'runtime' if options[0] in RUNTIME_TESTS else 'script'}")
+    kind_label = tk.Label(root, textvariable=kind_var, bg="#121212", fg="#B8B8B8", font=("Segoe UI", 9))
+    kind_label.pack(padx=12, pady=2)
+
+    def _update_kind(*_):
+        key = str(value.get() or "")
+        kind_var.set(f"kind: {'runtime' if key in RUNTIME_TESTS else 'script'}")
+
+    value.trace_add("write", _update_kind)
+
+    btn_wrap = tk.Frame(root, bg="#121212")
+    btn_wrap.pack(padx=12, pady=10)
+
+    def _run():
+        chosen["key"] = str(value.get() or "").strip().lower()
+        root.destroy()
+
+    def _cancel():
+        chosen["key"] = ""
+        root.destroy()
+
+    tk.Button(btn_wrap, text="Run", width=12, command=_run).pack(side=tk.LEFT, padx=5)
+    tk.Button(btn_wrap, text="Cancel", width=12, command=_cancel).pack(side=tk.LEFT, padx=5)
+    root.protocol("WM_DELETE_WINDOW", _cancel)
+    root.mainloop()
+    return chosen["key"]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Unified test launcher for XBot RPG.")
     parser.add_argument("--test", default="", help="Test key (runtime or script).")
@@ -122,7 +182,11 @@ def main():
 
     key = str(args.test or "").strip().lower()
     if not key:
-        key = _menu_choice()
+        stdin_is_tty = bool(getattr(sys.stdin, "isatty", lambda: False)())
+        if stdin_is_tty:
+            key = _menu_choice()
+        else:
+            key = _menu_choice_gui()
         if not key:
             return 0
 

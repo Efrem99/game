@@ -67,7 +67,27 @@
         "tutorial_hud_stage_complete": "Complete",
         "tutorial_core_complete_title": "Core training complete",
         "tutorial_core_complete_hint": "Reach the Training Grounds to unlock advanced drills.",
-        "tutorial_keys": "Keys"
+        "tutorial_keys": "Keys",
+        "tutorial_banner_title": "Training Completed",
+        "tutorial_banner_hint": "Open journal and continue your path.",
+        "opening_tutorial_header": "Field Notes",
+        "opening_tutorial_move_title": "Move and Observe",
+        "opening_tutorial_move_text": "Walk a few steps and center the camera before pushing deeper into the valley.",
+        "opening_tutorial_codex_title": "Use the Codex",
+        "opening_tutorial_codex_text": "Open the Journal to read Characters, Locations, Events, and Factions as they unlock.",
+        "opening_tutorial_interact_title": "Read the World",
+        "opening_tutorial_interact_text": "Look at NPCs or threats in your reticle to register them in the Codex.",
+        "journal_chronicle": "Chronicle",
+        "journal_codex": "Codex",
+        "journal_footer_hint": "World records update automatically as you explore.",
+        "journal_characters": "Characters:",
+        "journal_factions": "Factions:",
+        "journal_locations": "Locations:",
+        "journal_events": "Events:",
+        "journal_npc_archive": "NPC Archive:",
+        "journal_enemy_archive": "Enemy Archive:",
+        "journal_tutorial_archive": "Training Archive:",
+        "journal_recent_events": "Recent Events:"
     },
     "stats": {
         "health": "Health",
@@ -118,6 +138,9 @@
         "reach": "Reach",
         "interact": "Interact",
         "minimap": "MINIMAP",
-        "no_target": "No target"
+        "no_target": "No target",
+        "target_locked": "LOCKED",
+        "target_lock_hint": "Press T to lock",
+        "target_lock_release": "Press T to release"
     }
 }

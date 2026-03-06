@@ -4,6 +4,20 @@
     },
     "event_triggers": [
         {
+            "id": "opening_memory_sherward_morning",
+            "event": "opening_memory_started",
+            "phase": "morning_argument_with_father",
+            "once": true,
+            "shot": {
+                "name": "opening_memory_sherward_morning",
+                "duration": 1.9,
+                "profile": "cinematic",
+                "side": 2.6,
+                "yaw_bias_deg": 14.0,
+                "priority": 86
+            }
+        },
+        {
             "id": "location_training_enter",
             "event": "location_enter",
             "location": "Training Grounds",

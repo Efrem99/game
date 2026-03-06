@@ -2,6 +2,7 @@
 
 import math
 import random
+from pathlib import Path
 
 from direct.actor.Actor import Actor
 from panda3d.core import Vec3
@@ -16,6 +17,7 @@ class NPCManager:
         self.app = app
         self._rng = random.Random(7731)
         self.units = []
+        self._default_model = "assets/models/xbot/Xbot.glb"
         self._base_anims = {
             "idle": "assets/models/xbot/idle.glb",
             "walk": "assets/models/xbot/walk.glb",
@@ -75,7 +77,7 @@ class NPCManager:
         if idle_max < idle_min:
             idle_max = idle_min + 0.5
 
-        actor = self._build_actor(npc_id)
+        actor = self._build_actor(npc_id, payload, appr)
         if not actor:
             return None
 
@@ -159,17 +161,73 @@ class NPCManager:
         except Exception:
             pass
 
-    def _build_actor(self, npc_id):
+    def _build_actor(self, npc_id, payload, appearance):
+        candidates = []
+        for raw in (
+            (appearance or {}).get("model"),
+            (payload or {}).get("model"),
+            self._default_model,
+        ):
+            path = str(raw or "").strip().replace("\\", "/")
+            if not path:
+                continue
+            if path not in candidates:
+                candidates.append(path)
+
+        anim_map = self._base_anims
+        raw_anims = (appearance or {}).get("animations")
+        if not isinstance(raw_anims, dict):
+            raw_anims = (payload or {}).get("animations")
+        if isinstance(raw_anims, dict) and raw_anims:
+            anim_map = {str(k): str(v) for k, v in raw_anims.items() if str(k).strip() and str(v).strip()}
+            if not anim_map:
+                anim_map = self._base_anims
+
+        for model_path in candidates:
+            actor = self._try_build_actor(model_path, anim_map)
+            if actor:
+                return actor
+            static_model = self._try_build_static_model(model_path)
+            if static_model:
+                logger.warning(
+                    f"[NPCManager] Using static model fallback for NPC '{npc_id}': {model_path}"
+                )
+                return static_model
+
+        # Last-resort procedural actor keeps the game running if all model paths are broken.
         try:
-            actor = Actor("assets/models/xbot/Xbot.glb", self._base_anims)
-            return actor
-        except Exception as exc:
-            logger.warning(f"[NPCManager] Failed to build Actor '{npc_id}': {exc}")
-        try:
+            logger.warning(f"[NPCManager] Falling back to procedural NPC for '{npc_id}'")
             node, *_ = create_procedural_actor(self.app.render)
             return node
         except Exception:
             return None
+
+    def _try_build_actor(self, model_path, anim_map):
+        try:
+            if not Path(model_path).exists():
+                return None
+        except Exception:
+            return None
+        try:
+            return Actor(model_path, anim_map)
+        except Exception as exc:
+            logger.warning(f"[NPCManager] Actor load failed '{model_path}': {exc}")
+            return None
+
+    def _try_build_static_model(self, model_path):
+        try:
+            if not Path(model_path).exists():
+                return None
+        except Exception:
+            return None
+        try:
+            model = self.app.loader.loadModel(model_path)
+        except Exception as exc:
+            logger.warning(f"[NPCManager] Static model load failed '{model_path}': {exc}")
+            return None
+        if not model or model.isEmpty():
+            return None
+        return model
 
     def _ground_height(self, x, y, fallback=0.0):
         world = getattr(self.app, "world", None)

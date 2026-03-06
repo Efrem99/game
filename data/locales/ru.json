@@ -67,7 +67,27 @@
     "tutorial_hud_stage_complete": "Завершено",
     "tutorial_core_complete_title": "Базовый курс завершён",
     "tutorial_core_complete_hint": "Доберитесь до тренировочной площадки, чтобы открыть продвинутые упражнения.",
-    "tutorial_keys": "Клавиши"
+    "tutorial_keys": "Клавиши",
+    "tutorial_banner_title": "Обучение завершено",
+    "tutorial_banner_hint": "Откройте журнал и выберите следующий путь.",
+    "opening_tutorial_header": "Полевые заметки",
+    "opening_tutorial_move_title": "Осмотр и движение",
+    "opening_tutorial_move_text": "Сделайте несколько шагов и выровняйте камеру, прежде чем уходить вглубь долины.",
+    "opening_tutorial_codex_title": "Используйте Кодекс",
+    "opening_tutorial_codex_text": "Откройте Журнал, чтобы читать разделы о персонажах, локациях, событиях и фракциях.",
+    "opening_tutorial_interact_title": "Читайте мир",
+    "opening_tutorial_interact_text": "Наведите прицел на NPC или угрозу, чтобы добавить запись в Кодекс.",
+    "journal_chronicle": "Хроника",
+    "journal_codex": "Кодекс",
+    "journal_footer_hint": "Записи мира обновляются автоматически по мере исследования.",
+    "journal_characters": "Персонажи:",
+    "journal_factions": "Фракции:",
+    "journal_locations": "Локации:",
+    "journal_events": "События:",
+    "journal_npc_archive": "Архив NPC:",
+    "journal_enemy_archive": "Архив врагов:",
+    "journal_tutorial_archive": "Архив обучения:",
+    "journal_recent_events": "Недавние события:"
   },
   "stats": {
     "health": "Здоровье",
@@ -118,6 +138,9 @@
     "reach": "Добраться",
     "interact": "Взаимодействие",
     "minimap": "МИНИКАРТА",
-    "no_target": "Нет цели"
+    "no_target": "Нет цели",
+    "target_locked": "ЗАХВАТ",
+    "target_lock_hint": "T: захватить цель",
+    "target_lock_release": "T: снять захват"
   }
 }

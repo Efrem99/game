@@ -319,6 +319,76 @@ class Player(
             return defaults
         return resolved
 
+    def _actor_bounds_metrics(self, actor_np):
+        try:
+            mins, maxs = actor_np.getTightBounds()
+        except Exception:
+            return None
+        if mins is None or maxs is None:
+            return None
+        size = maxs - mins
+        return (
+            abs(float(size.x)),
+            abs(float(size.y)),
+            abs(float(size.z)),
+        )
+
+    def _is_actor_bounds_playable(self, model_path, actor_np):
+        metrics = self._actor_bounds_metrics(actor_np)
+        if metrics is None:
+            return False
+        width, depth, height = metrics
+        if width <= 0.02 or depth <= 0.02 or height <= 0.20:
+            return False
+
+        token = str(model_path or "").replace("\\", "/").lower()
+        # Sherward source can occasionally export as a near-flat ribbon mesh.
+        # Reject this at load-time and continue to the next fallback candidate.
+        if "hero/sherward" in token:
+            if width < 0.45 or depth < 0.16:
+                return False
+        return True
+
+    def _stabilize_actor_bounds(self, model_path):
+        """Apply a conservative shape correction for heavily flattened hero meshes."""
+        if not self.actor:
+            return
+        try:
+            mins, maxs = self.actor.getTightBounds()
+        except Exception:
+            return
+        if mins is None or maxs is None:
+            return
+
+        size = maxs - mins
+        width = abs(float(size.x))
+        depth = abs(float(size.y))
+        height = abs(float(size.z))
+        if width <= 1e-4 or depth <= 1e-4 or height <= 1e-4:
+            return
+
+        # Sherward export can come in overly flattened on Y, making the body nearly invisible
+        # from gameplay camera angles. Keep this correction mild and bounded.
+        is_sherward = "hero/sherward" in str(model_path or "").replace("\\", "/").lower()
+        if not is_sherward:
+            return
+        if depth >= (width * 0.30):
+            return
+
+        target_depth = width * 0.34
+        scale_y_mul = max(1.0, min(6.0, target_depth / max(depth, 1e-4)))
+        if scale_y_mul <= 1.01:
+            return
+
+        try:
+            self.actor.setSy(self.actor.getSy() * scale_y_mul)
+            logger.warning(
+                "[Player] Applied Sherward mesh depth correction: "
+                f"sy*={scale_y_mul:.2f} (w={width:.3f}, d={depth:.3f}, h={height:.3f})"
+            )
+        except Exception:
+            pass
+
     def _build_character(self):
         base_anims = self._resolve_base_anims()
         model_candidates = self._resolve_player_model_candidates()
@@ -330,7 +400,26 @@ class Player(
             for model_path in model_candidates:
                 try:
                     logger.info(f"[Player] Loading actor model: {model_path}")
-                    self.actor = Actor(model_path, base_anims)
+                    candidate = Actor(model_path, base_anims)
+                    if not self._is_actor_bounds_playable(model_path, candidate):
+                        metrics = self._actor_bounds_metrics(candidate)
+                        if hasattr(candidate, "cleanup"):
+                            try:
+                                candidate.cleanup()
+                            except Exception:
+                                pass
+                        try:
+                            candidate.removeNode()
+                        except Exception:
+                            pass
+                        load_errors.append(
+                            f"{model_path}: unusable bounds {metrics or '(none)'}"
+                        )
+                        logger.warning(
+                            f"[Player] Rejected model due to unusable bounds: {model_path} metrics={metrics}"
+                        )
+                        continue
+                    self.actor = candidate
                     loaded_model_path = model_path
                     break
                 except Exception as exc:
@@ -341,6 +430,7 @@ class Player(
                 raise RuntimeError("; ".join(load_errors) if load_errors else "No model candidates available")
 
             self.actor.setScale(player_scale)
+            self._stabilize_actor_bounds(loaded_model_path)
             logger.info(f"[Player] Actor loaded: model={loaded_model_path}, scale={player_scale:.3f}")
             optional_anims = self._collect_optional_animation_sources()
             if optional_anims:

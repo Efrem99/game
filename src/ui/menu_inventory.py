@@ -78,16 +78,7 @@ class InventoryUI:
         )
         self._build_map_panel()
 
-        self.journal_text = OnscreenText(
-            text="Journal empty",
-            pos=(-0.66, 0.35),
-            scale=0.042,
-            font=body_font(self.app),
-            fg=THEME["text_muted"],
-            align=TextNode.ALeft,
-            wordwrap=34,
-            parent=self.content_frame
-        )
+        self._build_journal_book()
         self.inventory_status_text = OnscreenText(
             text="",
             pos=(-0.66, -0.54),
@@ -166,6 +157,94 @@ class InventoryUI:
             mayChange=True,
             parent=self.content_frame,
         )
+
+    def _build_journal_book(self):
+        self.journal_panel = DirectFrame(
+            frameColor=(0.14, 0.12, 0.10, 0.58),
+            frameSize=(-0.70, 0.70, -0.43, 0.43),
+            pos=(0.0, 0.0, -0.02),
+            parent=self.content_frame,
+        )
+        self.journal_left_page = DirectFrame(
+            frameColor=(0.94, 0.88, 0.74, 0.92),
+            frameSize=(-0.67, -0.01, -0.40, 0.40),
+            parent=self.journal_panel,
+        )
+        self.journal_right_page = DirectFrame(
+            frameColor=(0.93, 0.87, 0.73, 0.92),
+            frameSize=(0.01, 0.67, -0.40, 0.40),
+            parent=self.journal_panel,
+        )
+        self.journal_spine = DirectFrame(
+            frameColor=(0.28, 0.22, 0.17, 0.72),
+            frameSize=(-0.012, 0.012, -0.40, 0.40),
+            parent=self.journal_panel,
+        )
+        self.journal_left_title = OnscreenText(
+            text="Chronicle",
+            pos=(-0.34, 0.35),
+            scale=0.036,
+            font=title_font(self.app),
+            fg=(0.28, 0.20, 0.12, 1.0),
+            align=TextNode.ACenter,
+            mayChange=True,
+            parent=self.journal_panel,
+        )
+        self.journal_right_title = OnscreenText(
+            text="Codex",
+            pos=(0.34, 0.35),
+            scale=0.036,
+            font=title_font(self.app),
+            fg=(0.28, 0.20, 0.12, 1.0),
+            align=TextNode.ACenter,
+            mayChange=True,
+            parent=self.journal_panel,
+        )
+        self.journal_left_text = OnscreenText(
+            text="",
+            pos=(-0.65, 0.30),
+            scale=0.025,
+            font=body_font(self.app),
+            fg=(0.22, 0.18, 0.12, 1.0),
+            align=TextNode.ALeft,
+            wordwrap=26,
+            mayChange=True,
+            parent=self.journal_panel,
+        )
+        self.journal_right_text = OnscreenText(
+            text="",
+            pos=(0.03, 0.30),
+            scale=0.025,
+            font=body_font(self.app),
+            fg=(0.22, 0.18, 0.12, 1.0),
+            align=TextNode.ALeft,
+            wordwrap=26,
+            mayChange=True,
+            parent=self.journal_panel,
+        )
+        self.journal_footer_text = OnscreenText(
+            text="",
+            pos=(0.0, -0.37),
+            scale=0.022,
+            font=body_font(self.app),
+            fg=(0.36, 0.28, 0.18, 1.0),
+            align=TextNode.ACenter,
+            mayChange=True,
+            parent=self.journal_panel,
+        )
+
+        # Legacy fallback node kept for compatibility with old code paths.
+        self.journal_text = OnscreenText(
+            text="",
+            pos=(-0.66, 0.35),
+            scale=0.042,
+            font=body_font(self.app),
+            fg=THEME["text_muted"],
+            align=TextNode.ALeft,
+            wordwrap=34,
+            parent=self.content_frame,
+        )
+        self.journal_text.hide()
 
     def _build_tabs(self):
         self.tabs_frame = DirectFrame(
@@ -249,6 +328,7 @@ class InventoryUI:
             self.map_pin_text.hide()
             self.map_text.hide()
             self.journal_text.hide()
+            self.journal_panel.hide()
             self.inventory_status_text.show()
             self._refresh_inventory()
         elif tab_id == "map":
@@ -259,6 +339,7 @@ class InventoryUI:
             self.map_pin_text.show()
             self.map_text.show()
             self.journal_text.hide()
+            self.journal_panel.hide()
             self.inventory_status_text.hide()
             self._refresh_map()
         elif tab_id == "skills":
@@ -270,6 +351,7 @@ class InventoryUI:
             self.map_pin_text.hide()
             self.map_text.hide()
             self.journal_text.hide()
+            self.journal_panel.hide()
             self.inventory_status_text.show()
             self._refresh_skills()
         elif tab_id == "journal":
@@ -280,7 +362,8 @@ class InventoryUI:
             self.map_title.hide()
             self.map_pin_text.hide()
             self.map_text.hide()
-            self.journal_text.show()
+            self.journal_text.hide()
+            self.journal_panel.show()
             self.inventory_status_text.hide()
             self._refresh_journal()
 
@@ -331,14 +414,15 @@ class InventoryUI:
         completed = sorted(
             list(getattr(quest_mgr, "completed_quests", set()) or set())
         ) if quest_mgr else []
-        codex = self._format_journal_codex()
-        lines = []
+        codex = self._profile_codex()
+        left_lines = []
+        right_lines = []
 
-        lines.append(self.app.data_mgr.t("ui.active_quests_header", "Active Quests:"))
+        left_lines.append(self.app.data_mgr.t("ui.active_quests_header", "Active Quests:"))
         if not active:
-            lines.append("- " + self.app.data_mgr.t("ui.no_active_quests", "No active quests."))
+            left_lines.append("- " + self.app.data_mgr.t("ui.no_active_quests", "No active quests."))
         else:
-            for q_id, objective_idx in active.items():
+            for q_id, objective_idx in list(active.items())[:5]:
                 quest = None
                 if quest_mgr and hasattr(quest_mgr, "_find_quest"):
                     try:
@@ -354,25 +438,14 @@ class InventoryUI:
                     or str(q_id)
                 )
                 objectives = quest.get("objectives", []) if isinstance(quest, dict) else []
-                obj_total = len(objectives) if isinstance(objectives, list) else 0
                 try:
                     idx = int(objective_idx)
                 except Exception:
                     idx = -1
-                objective_text = ""
-                if isinstance(objectives, list) and 0 <= idx < len(objectives):
-                    objective = objectives[idx]
-                    if isinstance(objective, dict):
-                        objective_text = (
-                            objective.get("description")
-                            or objective.get("desc")
-                            or objective.get("id")
-                            or ""
-                        )
-                progress = f"[{max(1, idx + 1)}/{max(1, obj_total)}]" if obj_total else ""
-                lines.append(f"- {title} {progress}".strip())
-                if objective_text:
-                    lines.append(f"  {objective_text}")
+                progress = ""
+                if isinstance(objectives, list) and objectives:
+                    progress = f" [{max(1, idx + 1)}/{len(objectives)}]"
+                left_lines.append(f"- {title}{progress}")
 
         if tutorial_mgr and hasattr(tutorial_mgr, "get_journal_lines"):
             try:
@@ -380,17 +453,17 @@ class InventoryUI:
             except Exception:
                 tutorial_lines = []
             if tutorial_lines:
-                lines.append("")
-                for row in tutorial_lines:
+                left_lines.append("")
+                left_lines.append(self.app.data_mgr.t("ui.tutorial_journal_header", "Training Program:"))
+                for row in tutorial_lines[:5]:
                     row_text = str(row or "").strip()
                     if row_text:
-                        lines.append(row_text)
+                        left_lines.append(row_text if row_text.startswith("-") else f"- {row_text}")
 
-        lines.append("")
-        lines.append(self.app.data_mgr.t("ui.completed_quests_header", "Completed Quests:"))
+        left_lines.append("")
+        left_lines.append(self.app.data_mgr.t("ui.completed_quests_header", "Completed Quests:"))
         if completed:
-            shown = completed[-8:]
-            for q_id in shown:
+            for q_id in completed[-6:]:
                 quest = None
                 if quest_mgr and hasattr(quest_mgr, "_find_quest"):
                     try:
@@ -402,17 +475,106 @@ class InventoryUI:
                     or (self.app.data_mgr.quests.get(q_id, {}).get("title") if isinstance(self.app.data_mgr.quests, dict) else None)
                     or str(q_id)
                 )
-                lines.append(f"- {title}")
+                left_lines.append(f"- {title}")
         else:
-            lines.append("- " + self.app.data_mgr.t("ui.no_completed_quests", "No completed quests yet."))
+            left_lines.append("- " + self.app.data_mgr.t("ui.no_completed_quests", "No completed quests yet."))
 
-        if codex:
-            lines.append("")
-            lines.append(codex)
+        static_sections = self._load_static_codex_sections()
+        if static_sections:
+            for title, entries in static_sections[:2]:
+                right_lines.append(f"{title}:")
+                for row in entries[:2]:
+                    txt = str(row or "").strip()
+                    if txt:
+                        right_lines.append(f"- {txt}")
+                right_lines.append("")
 
-        self.journal_text["text"] = "\n".join(lines)
+        right_lines.append(self.app.data_mgr.t("ui.journal_characters", "Characters:"))
+        right_lines.extend(self._format_codex_rows(codex.get("characters", []), limit=4))
+        right_lines.append("")
+        right_lines.append(self.app.data_mgr.t("ui.journal_factions", "Factions:"))
+        right_lines.extend(self._format_codex_rows(codex.get("factions", []), limit=3))
+        right_lines.append("")
+        right_lines.append(self.app.data_mgr.t("ui.journal_locations", "Locations:"))
+        right_lines.extend(self._format_codex_rows(codex.get("locations", []), limit=4))
+        right_lines.append("")
+        right_lines.append(self.app.data_mgr.t("ui.journal_events", "Events:"))
+        right_lines.extend(self._format_codex_rows(codex.get("events", []), limit=4))
+        right_lines.append("")
+        right_lines.append(self.app.data_mgr.t("ui.journal_npc_archive", "NPC Archive:"))
+        right_lines.extend(self._format_codex_rows(codex.get("npcs", []), limit=3))
+        right_lines.append("")
+        right_lines.append(self.app.data_mgr.t("ui.journal_enemy_archive", "Enemy Archive:"))
+        right_lines.extend(self._format_codex_rows(codex.get("enemies", []), limit=3))
+        right_lines.append("")
+        right_lines.append(self.app.data_mgr.t("ui.journal_tutorial_archive", "Training Archive:"))
+        right_lines.extend(self._format_codex_rows(codex.get("tutorial", []), limit=3))
 
-    def _format_journal_codex(self):
+        left_page = self._fit_codex_page(left_lines, max_lines=20, max_chars=720)
+        right_page = self._fit_codex_page(right_lines, max_lines=20, max_chars=720)
+        self.journal_left_title["text"] = self.app.data_mgr.t("ui.journal_chronicle", "Chronicle")
+        self.journal_right_title["text"] = self.app.data_mgr.t("ui.journal_codex", "Codex")
+        self.journal_left_text["text"] = "\n".join(left_page)
+        self.journal_right_text["text"] = "\n".join(right_page)
+        self.journal_footer_text["text"] = self.app.data_mgr.t(
+            "ui.journal_footer_hint",
+            "World records update automatically as you explore.",
+        )
+
+        # Fallback text for any legacy code path expecting plain journal text.
+        merged = left_page + [""] + right_page
+        self.journal_text["text"] = "\n".join(merged)
+
+    def _profile_codex(self):
+        profile = getattr(self.app, "profile", None)
+        if not isinstance(profile, dict):
+            profile = {}
+            self.app.profile = profile
+        codex = profile.get("codex")
+        if not isinstance(codex, dict):
+            codex = {}
+            profile["codex"] = codex
+        for key in ("locations", "characters", "factions", "npcs", "enemies", "tutorial", "events"):
+            if not isinstance(codex.get(key), list):
+                codex[key] = []
+        return codex
+
+    def _format_codex_rows(self, rows, limit=6):
+        if not isinstance(rows, list):
+            return ["- --"]
+        formatted = []
+        subset = rows[-max(1, int(limit)) :]
+        for row in reversed(subset):
+            if not isinstance(row, dict):
+                continue
+            title = str(row.get("title", "") or row.get("id", "")).strip()
+            details = str(row.get("details", "") or "").strip()
+            if not title:
+                continue
+            if details:
+                formatted.append(f"- {title}: {details}")
+            else:
+                formatted.append(f"- {title}")
+        if not formatted:
+            return ["- --"]
+        return formatted
+
+    def _fit_codex_page(self, lines, max_lines=20, max_chars=720):
+        out = []
+        total = 0
+        for row in lines:
+            text = str(row or "").rstrip()
+            if not text and (not out or not out[-1]):
+                continue
+            if len(out) >= max_lines:
+                break
+            if total + len(text) > max_chars:
+                break
+            out.append(text)
+            total += len(text)
+        return out
+
+    def _load_static_codex_sections(self):
         payload = {}
         dm = getattr(self.app, "data_mgr", None)
         if dm and hasattr(dm, "_load_file"):
@@ -421,12 +583,12 @@ class InventoryUI:
             except Exception:
                 payload = {}
         if not isinstance(payload, dict):
-            return ""
+            return []
         sections = payload.get("sections", [])
         if not isinstance(sections, list) or not sections:
-            return ""
+            return []
 
-        lines = []
+        out = []
         for section in sections:
             if not isinstance(section, dict):
                 continue
@@ -434,13 +596,14 @@ class InventoryUI:
             entries = section.get("entries", [])
             if not title or not isinstance(entries, list):
                 continue
-            lines.append(f"{title}:")
+            rows = []
             for item in entries:
                 text = str(item or "").strip()
                 if text:
-                    lines.append(f"- {text}")
-            lines.append("")
-        return "\n".join(lines).strip()
+                    rows.append(text)
+            if rows:
+                out.append((title, rows))
+        return out
 
     def _coerce_vec3(self, value):
         if value is None:

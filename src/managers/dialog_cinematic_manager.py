@@ -342,7 +342,7 @@ class DialogCinematicManager:
         vo_played = self._play_voice(vo_key, volume=voice_volume, rate=voice_rate)
 
         # â”€â”€ Schedule next step â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if isinstance(choices, list) and choices:
+        if self._has_interactive_choices(choices):
             # Interactive: show choices after subtitle has settled
             self._can_advance = False
             self.app.taskMgr.doMethodLater(
@@ -618,6 +618,9 @@ class DialogCinematicManager:
     # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _find_single_next(self, node: dict) -> str | None:
+        direct_next = str(node.get("next_node", "") or "").strip()
+        if direct_next:
+            return direct_next
         choices = node.get("choices", [])
         if not isinstance(choices, list) or not choices:
             return None
@@ -627,6 +630,17 @@ class DialogCinematicManager:
                 if self._check_condition(ch.get("condition")):
                     return nxt
         return "end"
+
+    def _has_interactive_choices(self, choices) -> bool:
+        if not isinstance(choices, list):
+            return False
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            # Choice text is the signal for interactive branching.
+            if str(choice.get("text", "") or "").strip():
+                return True
+        return False
 
     def _check_condition(self, condition) -> bool:
         if not condition:

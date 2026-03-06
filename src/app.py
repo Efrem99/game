@@ -204,7 +204,17 @@ class XBotApp(ShowBase):
             "items": {},
             "skills": {"points": 4, "unlocked": {}},
             "skill_points": 4,
+            "codex": {
+                "locations": [],
+                "characters": [],
+                "factions": [],
+                "npcs": [],
+                "enemies": [],
+                "tutorial": [],
+                "events": [],
+            },
         }
+        self._ensure_codex_profile()
         self.state_mgr = StateManager(self)
         self.quest_mgr = QuestManager(self, self.data_mgr.quests)
         self.preload_mgr = PreloadManager(self)
@@ -217,9 +227,24 @@ class XBotApp(ShowBase):
         self._tutorial_quest_id = "movement_tutorial"
         self._tutorial_core_complete_sent = False
         self._tutorial_full_complete_sent = False
+        self._tutorial_flow_blocked_by_opening = False
+        self._opening_memory_pkg = {}
+        self._opening_memory_started = False
+        self._opening_memory_finished = False
+        self._opening_banner_queue = []
+        self._opening_banner_cursor = 0
+        self._opening_banner_delay_left = 0.0
+        self._opening_banner_time_left = 0.0
+        self._opening_banner_elapsed = 0.0
+        self._opening_banner_current = None
+        self._opening_banner_active = False
         self._autosave_interval = 45.0
         self._last_autosave_time = 0.0
         self._autosave_flash_until = 0.0
+        self._aim_target_info = None
+        self._lock_target_kind = ""
+        self._lock_target_id = ""
+        self._last_codex_location = ""
 
         # -- UI --
         self.main_menu = MainMenu(self)
@@ -601,6 +626,7 @@ class XBotApp(ShowBase):
         self.hud.set_autosave(False)
         self.render.clearColorScale()
         self.aspect2d.clearColorScale()
+        self.state_mgr.set_state(self.GameState.MAIN_MENU)
         self.aspect2d.show()
         self.main_menu.show()
 
@@ -869,6 +895,247 @@ class XBotApp(ShowBase):
             f"progress={new_snap.get('required_done', 0)}/{new_snap.get('required_total', 0)}"
         )
 
+    def _load_opening_memory_package(self):
+        package = getattr(self, "_opening_memory_pkg", None)
+        if isinstance(package, dict) and package:
+            return package
+        dm = getattr(self, "data_mgr", None)
+        if not dm or not hasattr(dm, "_load_file"):
+            return {}
+        try:
+            package = dm._load_file("story/opening_memory_package.json")
+        except Exception:
+            package = {}
+        if isinstance(package, dict):
+            self._opening_memory_pkg = dict(package)
+            return self._opening_memory_pkg
+        return {}
+
+    def _normalize_opening_banner(self, row, index):
+        if not isinstance(row, dict):
+            return None
+        entry_id = str(row.get("id", f"opening_{index + 1}") or f"opening_{index + 1}").strip().lower()
+        if not entry_id:
+            return None
+        try:
+            delay = max(0.0, float(row.get("delay", 0.0) or 0.0))
+        except Exception:
+            delay = 0.0
+        try:
+            duration = max(1.25, float(row.get("duration", 4.5) or 4.5))
+        except Exception:
+            duration = 4.5
+        keys = row.get("keys", [])
+        if not isinstance(keys, list):
+            keys = []
+        return {
+            "id": entry_id,
+            "delay": delay,
+            "duration": duration,
+            "header_key": str(row.get("header_key", "") or "").strip(),
+            "header_default": str(row.get("header_default", "Field Notes") or "Field Notes"),
+            "title_key": str(row.get("title_key", "") or "").strip(),
+            "title_default": str(row.get("title_default", entry_id.replace("_", " ").title()) or ""),
+            "text_key": str(row.get("text_key", "") or "").strip(),
+            "text_default": str(row.get("text_default", "") or "").strip(),
+            "keys": [str(token or "").strip().upper() for token in keys if str(token or "").strip()],
+            "index": int(index),
+        }
+
+    def _seed_opening_codex(self, package):
+        if not isinstance(package, dict):
+            return
+        seed = package.get("codex_seed", {})
+        if not isinstance(seed, dict):
+            return
+        for section, rows in seed.items():
+            section_key = str(section or "").strip().lower()
+            if not isinstance(rows, list):
+                continue
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                token = str(row.get("id", "") or "").strip()
+                title = str(row.get("title", token) or token).strip()
+                details = str(row.get("details", "") or "").strip()
+                self._codex_mark(section_key, token or title, title, details)
+
+    def _start_opening_memory_sequence(self):
+        if self._norm_test_mode():
+            return False
+        if bool(getattr(self, "_opening_memory_started", False)):
+            return False
+
+        package = self._load_opening_memory_package()
+        if not isinstance(package, dict) or not package:
+            return False
+
+        self._opening_memory_started = True
+        self._opening_memory_finished = False
+        self._tutorial_flow_blocked_by_opening = True
+
+        phase = str(package.get("phase", "morning_argument_with_father") or "morning_argument_with_father").strip()
+        lead = str(package.get("lead", "sherward") or "sherward").strip()
+        self._emit_cutscene_event(
+            "opening_memory_started",
+            {
+                "context": "new_game",
+                "lead": lead,
+                "phase": phase,
+            },
+        )
+        self._seed_opening_codex(package)
+        self._codex_mark(
+            "events",
+            "opening_memory_sherward_morning",
+            "Opening memory: Sherward morning argument",
+            "Initial pre-game recollection before full player control.",
+        )
+
+        dialogue_asset = str(package.get("dialogue_asset", "") or "").strip().replace("\\", "/")
+        dialogue_data = {}
+        dm = getattr(self, "data_mgr", None)
+        if dialogue_asset and dm and hasattr(dm, "_load_file"):
+            try:
+                dialogue_data = dm._load_file(dialogue_asset)
+            except Exception:
+                dialogue_data = {}
+
+        dialog_mgr = getattr(self, "dialog_cinematic", None)
+        if dialog_mgr and isinstance(dialogue_data, dict) and isinstance(dialogue_data.get("dialogue_tree"), dict):
+            try:
+                if dialog_mgr.start_dialogue(
+                    npc_id=str(package.get("id", "opening_memory") or "opening_memory"),
+                    dialogue_data=dialogue_data,
+                    npc_actor=None,
+                    on_end=self._on_opening_memory_finished,
+                ):
+                    return True
+            except Exception as exc:
+                logger.warning(f"[OpeningMemory] Failed to start cinematic dialogue: {exc}")
+
+        # Fallback path if dialogue failed to start: keep tutorial gate, run banners directly.
+        self._on_opening_memory_finished()
+        return bool(getattr(self, "_opening_banner_active", False))
+
+    def _on_opening_memory_finished(self):
+        if bool(getattr(self, "_opening_memory_finished", False)):
+            return
+        self._opening_memory_finished = True
+        self._emit_cutscene_event(
+            "opening_memory_finished",
+            {
+                "context": "new_game",
+                "lead": "sherward",
+            },
+        )
+
+        package = self._load_opening_memory_package()
+        banners = package.get("tutorial_banners", []) if isinstance(package, dict) else []
+        cleaned = []
+        if isinstance(banners, list):
+            for idx, row in enumerate(banners):
+                normalized = self._normalize_opening_banner(row, idx)
+                if normalized:
+                    cleaned.append(normalized)
+        self._opening_banner_queue = cleaned
+        self._opening_banner_cursor = 0
+        self._opening_banner_current = None
+        self._opening_banner_elapsed = 0.0
+        self._opening_banner_time_left = 0.0
+        if cleaned:
+            self._opening_banner_delay_left = float(cleaned[0].get("delay", 0.0) or 0.0)
+            self._opening_banner_active = True
+            self._emit_cutscene_event(
+                "opening_tutorial_banners_started",
+                {"count": len(cleaned)},
+            )
+            return
+        self._opening_banner_delay_left = 0.0
+        self._opening_banner_active = False
+        self._finalize_opening_tutorial_gate()
+
+    def _finalize_opening_tutorial_gate(self):
+        if not bool(getattr(self, "_tutorial_flow_blocked_by_opening", False)):
+            return
+        self._tutorial_flow_blocked_by_opening = False
+        self._setup_main_game_tutorial()
+
+    def _compose_opening_banner_state(self):
+        row = getattr(self, "_opening_banner_current", None)
+        if not isinstance(row, dict):
+            return None
+        t = getattr(getattr(self, "data_mgr", None), "t", None)
+        if not callable(t):
+            return None
+        header = t(row.get("header_key", ""), row.get("header_default", "Field Notes"))
+        title = t(row.get("title_key", ""), row.get("title_default", "Guidance"))
+        text = t(row.get("text_key", ""), row.get("text_default", ""))
+        total = max(1, len(getattr(self, "_opening_banner_queue", [])))
+        idx = int(row.get("index", 0)) + 1
+        progress_label = f"{idx}/{total}"
+        progress_ratio = max(0.0, min(1.0, float(idx - 1) / float(total)))
+        return {
+            "visible": True,
+            "phase": "opening",
+            "display_mode": "banner",
+            "header": str(header or "Field Notes"),
+            "title": str(title or "Guidance"),
+            "text": str(text or ""),
+            "progress_label": progress_label,
+            "progress_ratio": progress_ratio,
+            "keys": list(row.get("keys", [])),
+            "flash": bool(self._opening_banner_elapsed <= 0.25),
+            "step_id": str(row.get("id", "")),
+        }
+
+    def _update_opening_banner_queue(self, dt):
+        if not bool(getattr(self, "_opening_banner_active", False)):
+            return None
+
+        queue = getattr(self, "_opening_banner_queue", [])
+        if not isinstance(queue, list) or not queue:
+            self._opening_banner_active = False
+            self._finalize_opening_tutorial_gate()
+            return None
+
+        if not isinstance(getattr(self, "_opening_banner_current", None), dict):
+            cursor = int(getattr(self, "_opening_banner_cursor", 0))
+            if cursor >= len(queue):
+                self._opening_banner_active = False
+                self._emit_cutscene_event("opening_tutorial_banners_completed", {"count": len(queue)})
+                self._finalize_opening_tutorial_gate()
+                return None
+            delay_left = max(0.0, float(getattr(self, "_opening_banner_delay_left", 0.0) or 0.0) - max(0.0, float(dt or 0.0)))
+            self._opening_banner_delay_left = delay_left
+            if delay_left > 0.0:
+                return None
+            self._opening_banner_current = dict(queue[cursor])
+            self._opening_banner_cursor = cursor + 1
+            self._opening_banner_elapsed = 0.0
+            self._opening_banner_time_left = max(1.0, float(self._opening_banner_current.get("duration", 4.5) or 4.5))
+            self._emit_cutscene_event(
+                "opening_tutorial_banner_shown",
+                {"id": self._opening_banner_current.get("id", ""), "index": self._opening_banner_cursor},
+            )
+
+        self._opening_banner_elapsed += max(0.0, float(dt or 0.0))
+        self._opening_banner_time_left -= max(0.0, float(dt or 0.0))
+        payload = self._compose_opening_banner_state()
+
+        if self._opening_banner_time_left <= 0.0:
+            self._opening_banner_current = None
+            cursor = int(getattr(self, "_opening_banner_cursor", 0))
+            if cursor < len(queue):
+                next_row = queue[cursor]
+                self._opening_banner_delay_left = max(0.0, float(next_row.get("delay", 0.0) or 0.0))
+            else:
+                self._opening_banner_delay_left = 0.0
+                self._opening_banner_active = False
+                self._emit_cutscene_event("opening_tutorial_banners_completed", {"count": len(queue)})
+                self._finalize_opening_tutorial_gate()
+        return payload
+
     def _norm_test_mode(self):
         return str(getattr(self, "_test_profile", "") or "").strip().lower()
 
@@ -987,6 +1254,11 @@ class XBotApp(ShowBase):
         if not tutorial:
             return
 
+        if bool(getattr(self, "_tutorial_flow_blocked_by_opening", False)):
+            tutorial.disable()
+            self._sync_tutorial_completion_flags()
+            return
+
         profile = self._norm_test_mode()
         if profile == "movement":
             return
@@ -1103,6 +1375,7 @@ class XBotApp(ShowBase):
     def start_play(self, load_save=False, slot_index=None):
         logger.info(f"Preparing to start game. Load save: {load_save}, Slot: {slot_index}")
         self._hide_all_menus()
+        self._reset_opening_memory_runtime()
 
         # We can't actually load yet because the world doesn't exist.
         # Save the intent, then start loading the world.
@@ -1113,6 +1386,18 @@ class XBotApp(ShowBase):
 
         self.start_game_loading()
         return True
+
+    def _reset_opening_memory_runtime(self):
+        self._tutorial_flow_blocked_by_opening = False
+        self._opening_memory_started = False
+        self._opening_memory_finished = False
+        self._opening_banner_queue = []
+        self._opening_banner_cursor = 0
+        self._opening_banner_delay_left = 0.0
+        self._opening_banner_time_left = 0.0
+        self._opening_banner_elapsed = 0.0
+        self._opening_banner_current = None
+        self._opening_banner_active = False
 
     def _save_slot_hotkey(self, slot_index):
         if not self.state_mgr.is_playing() or not self.player:
@@ -1264,8 +1549,10 @@ class XBotApp(ShowBase):
 
         # Start game state immediately
         self.state_mgr.set_state(self.GameState.PLAYING)
+        pending_save = getattr(self, "pending_save_load", None)
+        should_run_opening = False
 
-        if getattr(self, 'pending_save_load', None):
+        if pending_save:
             slot_idx = self.pending_save_load.get("slot_index")
             logger.info("Deferred save load triggering now...")
             if slot_idx is None:
@@ -1273,9 +1560,16 @@ class XBotApp(ShowBase):
             else:
                 self.save_mgr.load_slot(slot_idx)
             self.pending_save_load = None
+        else:
+            # Opening memory should run only on fresh starts, never on loaded saves.
+            should_run_opening = True
 
         self._apply_test_profile()
-        self._setup_main_game_tutorial()
+        opening_started = False
+        if should_run_opening:
+            opening_started = bool(self._start_opening_memory_sequence())
+        if not opening_started:
+            self._setup_main_game_tutorial()
         try:
             audit_node_visual_health(
                 self.render,
@@ -1417,6 +1711,380 @@ class XBotApp(ShowBase):
                 },
             )
 
+    def _ensure_codex_profile(self):
+        profile = getattr(self, "profile", None)
+        if not isinstance(profile, dict):
+            profile = {}
+            self.profile = profile
+        codex = profile.get("codex")
+        if not isinstance(codex, dict):
+            codex = {}
+            profile["codex"] = codex
+        for key in ("locations", "characters", "factions", "npcs", "enemies", "tutorial", "events"):
+            rows = codex.get(key)
+            if not isinstance(rows, list):
+                codex[key] = []
+        return codex
+
+    def _codex_mark(self, section, token, title="", details=""):
+        section_key = str(section or "").strip().lower()
+        if section_key not in {"locations", "characters", "factions", "npcs", "enemies", "tutorial", "events"}:
+            return False
+        entry_id = str(token or "").strip().lower()
+        if not entry_id:
+            return False
+
+        codex = self._ensure_codex_profile()
+        rows = codex.get(section_key, [])
+        if not isinstance(rows, list):
+            rows = []
+            codex[section_key] = rows
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if str(row.get("id", "")).strip().lower() == entry_id:
+                return False
+
+        row = {"id": entry_id}
+        clean_title = str(title or "").strip()
+        clean_details = str(details or "").strip()
+        if clean_title:
+            row["title"] = clean_title
+        if clean_details:
+            row["details"] = clean_details
+        rows.append(row)
+        if len(rows) > 72:
+            codex[section_key] = rows[-72:]
+        return True
+
+    def _node_world_pos(self, node):
+        if not node:
+            return None
+        try:
+            if hasattr(node, "isEmpty") and node.isEmpty():
+                return None
+            return node.getPos(self.render)
+        except Exception:
+            return None
+
+    def _build_target_candidate(self, kind, token, name, node, cam_pos, cam_fwd, max_dist=46.0, min_dot=0.955):
+        pos = self._node_world_pos(node)
+        if pos is None:
+            return None
+
+        if kind in {"enemy", "npc"}:
+            pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 1.4)
+        elif kind == "vehicle":
+            pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 1.0)
+
+        to_target = pos - cam_pos
+        dist = float(to_target.length())
+        if dist <= 0.001 or dist > float(max_dist):
+            return None
+        try:
+            dir_norm = Vec3(to_target)
+            dir_norm.normalize()
+            dot = float(dir_norm.dot(cam_fwd))
+        except Exception:
+            return None
+        if dot < float(min_dot):
+            return None
+
+        score = (dot * 1.35) - (dist / max(1.0, float(max_dist)))
+        return {
+            "kind": str(kind),
+            "id": str(token or ""),
+            "name": str(name or token or kind),
+            "node": node,
+            "position": pos,
+            "distance": dist,
+            "dot": dot,
+            "score": score,
+            "locked": False,
+        }
+
+    def _lookup_locked_target(self, cam_pos, cam_fwd):
+        kind = str(getattr(self, "_lock_target_kind", "") or "").strip().lower()
+        token = str(getattr(self, "_lock_target_id", "") or "").strip()
+        if not kind or not token:
+            return None
+
+        if kind == "enemy":
+            manager = getattr(self, "boss_manager", None)
+            for unit in getattr(manager, "units", []) if manager else []:
+                unit_id = str(getattr(unit, "id", "")).strip()
+                if unit_id != token:
+                    continue
+                if hasattr(unit, "is_alive") and not bool(getattr(unit, "is_alive", True)):
+                    return None
+                node = getattr(unit, "root", None)
+                name = getattr(unit, "name", unit_id)
+                return self._build_target_candidate(
+                    "enemy",
+                    unit_id,
+                    name,
+                    node,
+                    cam_pos,
+                    cam_fwd,
+                    max_dist=78.0,
+                    min_dot=0.50,
+                )
+            return None
+
+        if kind == "npc":
+            manager = getattr(self, "npc_mgr", None)
+            for unit in getattr(manager, "units", []) if manager else []:
+                if not isinstance(unit, dict):
+                    continue
+                unit_id = str(unit.get("id", "")).strip()
+                if unit_id != token:
+                    continue
+                return self._build_target_candidate(
+                    "npc",
+                    unit_id,
+                    str(unit.get("name", unit_id)),
+                    unit.get("actor"),
+                    cam_pos,
+                    cam_fwd,
+                    max_dist=52.0,
+                    min_dot=0.40,
+                )
+            return None
+
+        if kind == "vehicle":
+            manager = getattr(self, "vehicle_mgr", None)
+            row = manager._vehicles_by_id.get(token) if manager and hasattr(manager, "_vehicles_by_id") else None
+            if not isinstance(row, dict):
+                return None
+            return self._build_target_candidate(
+                "vehicle",
+                token,
+                str(row.get("kind", token)),
+                row.get("node"),
+                cam_pos,
+                cam_fwd,
+                max_dist=64.0,
+                min_dot=0.35,
+            )
+        return None
+
+    def _scan_aim_target(self):
+        if not self.player or not getattr(self.player, "actor", None):
+            return None
+        if not self.camera:
+            return None
+        try:
+            cam_pos = self.camera.getPos(self.render)
+            cam_fwd = self.render.getRelativeVector(self.camera, Vec3(0, 1, 0))
+            cam_fwd.normalize()
+        except Exception:
+            return None
+
+        candidates = []
+
+        npc_mgr = getattr(self, "npc_mgr", None)
+        for unit in getattr(npc_mgr, "units", []) if npc_mgr else []:
+            if not isinstance(unit, dict):
+                continue
+            cand = self._build_target_candidate(
+                "npc",
+                unit.get("id", ""),
+                unit.get("name", unit.get("id", "NPC")),
+                unit.get("actor"),
+                cam_pos,
+                cam_fwd,
+                max_dist=22.0,
+                min_dot=0.965,
+            )
+            if cand:
+                cand["score"] += 0.03
+                candidates.append(cand)
+
+        roster = getattr(self, "boss_manager", None)
+        for unit in getattr(roster, "units", []) if roster else []:
+            node = getattr(unit, "root", None)
+            if not node:
+                continue
+            if hasattr(unit, "is_alive") and not bool(getattr(unit, "is_alive", True)):
+                continue
+            cand = self._build_target_candidate(
+                "enemy",
+                getattr(unit, "id", ""),
+                getattr(unit, "name", getattr(unit, "id", "Enemy")),
+                node,
+                cam_pos,
+                cam_fwd,
+                max_dist=58.0,
+                min_dot=0.96,
+            )
+            if cand:
+                cand["score"] += 0.11
+                candidates.append(cand)
+
+        vehicle_mgr = getattr(self, "vehicle_mgr", None)
+        for vehicle in getattr(vehicle_mgr, "vehicles", []) if vehicle_mgr else []:
+            if not isinstance(vehicle, dict):
+                continue
+            cand = self._build_target_candidate(
+                "vehicle",
+                vehicle.get("id", ""),
+                vehicle.get("kind", "Vehicle"),
+                vehicle.get("node"),
+                cam_pos,
+                cam_fwd,
+                max_dist=18.0,
+                min_dot=0.97,
+            )
+            if cand:
+                candidates.append(cand)
+
+        if not candidates:
+            return None
+        candidates.sort(key=lambda row: float(row.get("score", 0.0)), reverse=True)
+        return candidates[0]
+
+    def _clear_target_lock(self):
+        self._lock_target_kind = ""
+        self._lock_target_id = ""
+
+    def _update_aim_and_lock(self, dt):
+        _ = dt
+        candidate = self._scan_aim_target()
+        if self.player and hasattr(self.player, "_once_action") and self.player._once_action("target_lock"):
+            if self._lock_target_id:
+                self._clear_target_lock()
+                self._codex_mark("events", "target_lock_off", "Target lock released")
+            elif isinstance(candidate, dict):
+                self._lock_target_kind = str(candidate.get("kind", "")).strip().lower()
+                self._lock_target_id = str(candidate.get("id", "")).strip()
+                if self._lock_target_id:
+                    candidate["locked"] = True
+                    self._codex_mark(
+                        "events",
+                        f"target_lock:{self._lock_target_kind}:{self._lock_target_id}",
+                        "Target lock engaged",
+                        str(candidate.get("name", "")),
+                    )
+
+        if self._lock_target_id:
+            try:
+                cam_pos = self.camera.getPos(self.render)
+                cam_fwd = self.render.getRelativeVector(self.camera, Vec3(0, 1, 0))
+                cam_fwd.normalize()
+            except Exception:
+                cam_pos = None
+                cam_fwd = None
+            locked = self._lookup_locked_target(cam_pos, cam_fwd) if (cam_pos is not None and cam_fwd is not None) else None
+            if isinstance(locked, dict):
+                locked["locked"] = True
+                self._aim_target_info = locked
+                return locked
+            self._clear_target_lock()
+
+        self._aim_target_info = candidate
+        return candidate
+
+    def _update_codex_runtime(self, player_pos, tutorial_state=None, target_info=None):
+        self._ensure_codex_profile()
+        world = getattr(self, "world", None)
+        active_location = str(getattr(world, "active_location", "") or "").strip()
+        if active_location and active_location != self._last_codex_location:
+            self._last_codex_location = active_location
+            self._codex_mark(
+                "locations",
+                active_location,
+                active_location,
+                "Visited",
+            )
+
+        if isinstance(target_info, dict):
+            kind = str(target_info.get("kind", "")).strip().lower()
+            token = str(target_info.get("id", "")).strip()
+            name = str(target_info.get("name", token)).strip()
+            if kind == "npc":
+                self._codex_mark("npcs", token or name, name)
+                self._codex_mark("characters", token or name, name)
+            elif kind == "enemy":
+                self._codex_mark("enemies", token or name, name)
+
+        p_vec = None
+        try:
+            p_vec = Vec3(float(player_pos.x), float(player_pos.y), float(player_pos.z))
+        except Exception:
+            p_vec = None
+        if p_vec is not None:
+            npc_mgr = getattr(self, "npc_mgr", None)
+            for unit in getattr(npc_mgr, "units", []) if npc_mgr else []:
+                if not isinstance(unit, dict):
+                    continue
+                pos = self._node_world_pos(unit.get("actor"))
+                if pos is None:
+                    continue
+                if (pos - p_vec).length() <= 6.5:
+                    uid = str(unit.get("id", "")).strip()
+                    self._codex_mark("npcs", uid or str(unit.get("name", "npc")), str(unit.get("name", uid)))
+                    self._codex_mark("characters", uid or str(unit.get("name", "npc")), str(unit.get("name", uid)))
+
+            roster = getattr(self, "boss_manager", None)
+            for enemy in getattr(roster, "units", []) if roster else []:
+                if hasattr(enemy, "is_alive") and not bool(getattr(enemy, "is_alive", True)):
+                    continue
+                pos = self._node_world_pos(getattr(enemy, "root", None))
+                if pos is None:
+                    continue
+                if (pos - p_vec).length() <= 18.0:
+                    eid = str(getattr(enemy, "id", "")).strip()
+                    self._codex_mark("enemies", eid or str(getattr(enemy, "name", "enemy")), str(getattr(enemy, "name", eid)))
+
+        if isinstance(tutorial_state, dict):
+            step_id = str(tutorial_state.get("step_id", "") or "").strip().lower()
+            if step_id:
+                self._codex_mark(
+                    "tutorial",
+                    step_id,
+                    step_id.replace("_", " ").title(),
+                    str(tutorial_state.get("title", "") or "").strip(),
+                )
+            phase = str(tutorial_state.get("phase", "")).strip().lower()
+            if phase == "complete":
+                self._codex_mark("events", "tutorial_complete", "Tutorial completed")
+
+    def _apply_target_lock_camera(self, center, dt, manual_look=False, shot_active=False):
+        if manual_look or shot_active:
+            return
+        target = getattr(self, "_aim_target_info", None)
+        if not isinstance(target, dict) or not bool(target.get("locked", False)):
+            return
+        node = target.get("node")
+        if node:
+            pos = self._node_world_pos(node)
+            if pos is not None:
+                if str(target.get("kind", "")).strip().lower() in {"npc", "enemy"}:
+                    pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 1.4)
+                elif str(target.get("kind", "")).strip().lower() == "vehicle":
+                    pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 1.0)
+                target["position"] = pos
+        pos = target.get("position")
+        if pos is None:
+            return
+
+        dx = float(pos.x) - float(center.x)
+        dy = float(pos.y) - float(center.y)
+        dz = float(pos.z) - (float(center.z) + 1.6)
+        h_dist = math.sqrt((dx * dx) + (dy * dy))
+        if h_dist <= 0.001:
+            return
+
+        desired_yaw = math.degrees(math.atan2(dx, dy))
+        desired_pitch = -math.degrees(math.atan2(dz, max(0.001, h_dist)))
+        yaw_delta = ((desired_yaw - self._cam_yaw + 180.0) % 360.0) - 180.0
+        yaw_rate = 195.0
+        pitch_rate = 150.0
+        self._cam_yaw += max(-yaw_rate * dt, min(yaw_rate * dt, yaw_delta))
+        pitch_delta = desired_pitch - self._cam_pitch
+        self._cam_pitch += max(-pitch_rate * dt, min(pitch_rate * dt, pitch_delta))
+        self._cam_pitch = max(-80.0, min(80.0, self._cam_pitch))
+
     def _update(self, task):
         dt_real = globalClock.getDt()
         dt_real = min(dt_real, 0.05) # Cap delta time
@@ -1543,6 +2211,8 @@ class XBotApp(ShowBase):
         combat_event = None
         tutorial_message = ""
         tutorial_state = None
+        opening_tutorial_state = None
+        target_info = None
         spell_labels = []
         active_skill_idx = 0
         ultimate_skill_idx = 0
@@ -1581,6 +2251,27 @@ class XBotApp(ShowBase):
                             continue
                         filtered.append(entry)
                     quest_data = [tutorial_cp] + filtered
+        try:
+            opening_tutorial_state = self._update_opening_banner_queue(dt_world)
+        except Exception as exc:
+            logger.debug(f"[OpeningMemory] Tutorial banner update failed: {exc}")
+            opening_tutorial_state = None
+        if isinstance(opening_tutorial_state, dict):
+            tutorial_state = opening_tutorial_state
+            tutorial_message = ""
+        try:
+            target_info = self._update_aim_and_lock(dt_real)
+        except Exception as exc:
+            logger.debug(f"[Targeting] Update failed: {exc}")
+            target_info = None
+        try:
+            self._update_codex_runtime(
+                player_pos=player_pos,
+                tutorial_state=tutorial_state,
+                target_info=target_info,
+            )
+        except Exception as exc:
+            logger.debug(f"[Codex] Runtime update failed: {exc}")
         self.hud.update(
             dt_real,
             self.char_state,
@@ -1594,6 +2285,7 @@ class XBotApp(ShowBase):
             player_pos,
             tutorial_message=tutorial_message,
             tutorial_state=tutorial_state,
+            target_info=target_info,
         )
 
         self._follow_camera(dt_real)
@@ -1608,6 +2300,11 @@ class XBotApp(ShowBase):
                 self.state_mgr.is_playing()
                 and self.mouseWatcherNode
                 and self.mouseWatcherNode.isButtonDown(MouseButton.three())
+            )
+            shot_active = bool(
+                director
+                and hasattr(director, "is_cutscene_active")
+                and director.is_cutscene_active()
             )
             if director:
                 try:
@@ -1631,7 +2328,6 @@ class XBotApp(ShowBase):
             if self.mouseWatcherNode.hasMouse():
                 mouse_x = self.mouseWatcherNode.getMouseX()
                 mouse_y = self.mouseWatcherNode.getMouseY()
-                shot_active = bool(director and hasattr(director, "is_cutscene_active") and director.is_cutscene_active())
 
                 # Apply rotation based on mouse delta from center
                 # We don't recenter here to allow simple UI interaction, just relative drag
@@ -1646,6 +2342,13 @@ class XBotApp(ShowBase):
 
                 self._last_mouse_x = mouse_x
                 self._last_mouse_y = mouse_y
+
+            self._apply_target_lock_camera(
+                center=center,
+                dt=max(0.0, float(dt or 0.0)),
+                manual_look=manual_look,
+                shot_active=shot_active,
+            )
 
             angles = (self._cam_yaw, self._cam_pitch)
             if angles != self._cam_angles_cache:

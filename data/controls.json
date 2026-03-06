@@ -50,6 +50,7 @@
         "attack_light": "mouse1",
         "attack_heavy": "e",
         "attack_thrust": "q",
+        "target_lock": "t",
         "skill_wheel": "tab",
         "block": "f",
         "roll": "r",

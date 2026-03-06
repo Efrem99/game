@@ -1,6 +1,7 @@
 """Runtime tutorial flow used by both test demos and main game."""
 
 import math
+import os
 
 
 class MovementTutorialManager:
@@ -149,7 +150,23 @@ class MovementTutorialManager:
         self._step_flash_ttl = 0.0
         self._completion_banner_ttl = 0.0
         self._last_completion_text = ""
-        self._last_announced_step = ""
+        self._last_completed_step = ""
+        self._last_focused_step = ""
+        self._voice_root = "data/audio/voices/tutorial"
+        self._step_focus_sfx = {
+            "move": ("ui_hover", 0.22, 0.96),
+            "sprint": ("ui_hover", 0.24, 1.01),
+            "jump": ("jump", 0.22, 1.06),
+            "interact": ("ui_hover", 0.24, 1.0),
+            "dodge": ("ui_click", 0.26, 1.08),
+            "attack": ("ui_click", 0.28, 1.12),
+            "skill_wheel": ("ui_hover", 0.24, 1.02),
+            "cast": ("spell_cast", 0.24, 1.0),
+            "parkour": ("ui_hover", 0.24, 1.04),
+            "swim": ("footstep_water", 0.24, 0.96),
+            "fly": ("spell_arcane", 0.24, 1.02),
+            "mount": ("ui_click", 0.26, 0.98),
+        }
 
     def set_mode(self, mode, reset=False):
         token = str(mode or "main").strip().lower()
@@ -162,7 +179,8 @@ class MovementTutorialManager:
             self._step_flash_ttl = 0.0
             self._completion_banner_ttl = 0.0
             self._last_completion_text = ""
-            self._last_announced_step = ""
+            self._last_completed_step = ""
+            self._last_focused_step = ""
 
     def enable(self, reset=True, mode=None):
         if mode is not None:
@@ -173,7 +191,8 @@ class MovementTutorialManager:
             self._step_flash_ttl = 0.0
             self._completion_banner_ttl = 0.0
             self._last_completion_text = ""
-            self._last_announced_step = ""
+            self._last_completed_step = ""
+            self._last_focused_step = ""
         self.enabled = True
 
     def disable(self):
@@ -303,7 +322,7 @@ class MovementTutorialManager:
         step_title = t(step.get("title_key", ""), step.get("title_default", step_id))
         self._last_completion_text = f"{self._step_phase_label(phase)}: {step_title}"
         self._step_flash_ttl = 1.25
-        self._last_announced_step = f"{phase}:{step_id}:{index}"
+        self._last_completed_step = f"{phase}:{step_id}:{index}"
 
         self._emit_event(
             "tutorial.step.completed",
@@ -366,6 +385,70 @@ class MovementTutorialManager:
                 "direction_deg": 0.0,
             },
         )
+
+    def _try_play_step_voice(self, phase, step_id):
+        phase_token = str(phase or "core").strip().lower()
+        step_token = str(step_id or "").strip().lower()
+        if not step_token:
+            return
+
+        # Tutorial voice files are optional. If they are absent we just skip voice playback.
+        root = os.path.join(self.app.project_root, self._voice_root.replace("/", os.sep))
+        for ext in (".ogg", ".mp3", ".wav"):
+            rel = f"{self._voice_root}/{phase_token}_{step_token}{ext}"
+            abs_path = os.path.join(root, f"{phase_token}_{step_token}{ext}")
+            if os.path.exists(abs_path):
+                self._emit_event(
+                    "audio.voice.play",
+                    {
+                        "path": rel.replace("\\", "/"),
+                        "volume": 0.78,
+                        "rate": 1.0,
+                    },
+                )
+                break
+
+    def _on_step_focused(self, step, phase, index, total):
+        if not isinstance(step, dict):
+            return
+        step_id = str(step.get("id", "") or "").strip().lower()
+        if not step_id:
+            return
+
+        self._emit_event(
+            "tutorial.step.focused",
+            {
+                "step_id": step_id,
+                "phase": str(phase or "core"),
+                "index": int(index),
+                "total": int(total),
+            },
+        )
+        sfx_key, volume, rate = self._step_focus_sfx.get(step_id, ("ui_hover", 0.22, 1.0))
+        self._emit_event(
+            "audio.sfx.play",
+            {
+                "key": sfx_key,
+                "volume": float(volume),
+                "rate": float(rate),
+            },
+        )
+        self._try_play_step_voice(phase, step_id)
+
+    def _announce_active_step(self):
+        step, phase, idx, total = self._active_step()
+        if not isinstance(step, dict):
+            return
+        step_id = str(step.get("id", "") or "").strip().lower()
+        if not step_id:
+            return
+
+        # Signature-based dedupe prevents repeated intro pings while staying on one step.
+        signature = f"{phase}:{step_id}:{idx}:{total}"
+        if signature == self._last_focused_step:
+            return
+        self._last_focused_step = signature
+        self._on_step_focused(step, phase, idx, total)
 
     def _binding_label(self, action_name):
         token = str(action_name or "").strip().lower()
@@ -437,6 +520,9 @@ class MovementTutorialManager:
                 self.enabled = False
                 self._on_tutorial_completed()
 
+        if self.enabled:
+            self._announce_active_step()
+
     def _active_step(self):
         if not self.is_required_complete():
             if 0 <= self._required_index < len(self._core_steps):
@@ -458,6 +544,7 @@ class MovementTutorialManager:
             return {
                 "visible": True,
                 "phase": "complete",
+                "display_mode": "banner",
                 "header": header,
                 "title": t("ui.tutorial_hud_stage_complete", "Complete"),
                 "text": self._last_completion_text or t("ui.tutorial_complete", "Tutorial complete"),
@@ -465,6 +552,7 @@ class MovementTutorialManager:
                 "progress_ratio": 1.0,
                 "keys": [],
                 "flash": bool(self._step_flash_ttl > 0.0),
+                "completion_ttl": float(self._completion_banner_ttl),
             }
 
         step, phase, idx, total = self._active_step()
@@ -473,6 +561,7 @@ class MovementTutorialManager:
             return {
                 "visible": True,
                 "phase": "await_advanced",
+                "display_mode": "banner",
                 "header": header,
                 "title": t("ui.tutorial_core_complete_title", "Core training complete"),
                 "text": t("ui.tutorial_core_complete_hint", "Reach the Training Grounds to unlock advanced drills."),
@@ -486,6 +575,7 @@ class MovementTutorialManager:
             return {
                 "visible": True,
                 "phase": "complete",
+                "display_mode": "banner",
                 "header": t("ui.tutorial_header_advanced", "Advanced Training"),
                 "title": t("ui.tutorial_hud_stage_complete", "Complete"),
                 "text": t("ui.tutorial_complete", "Tutorial complete"),
@@ -493,6 +583,7 @@ class MovementTutorialManager:
                 "progress_ratio": 1.0,
                 "keys": [],
                 "flash": bool(self._step_flash_ttl > 0.0),
+                "completion_ttl": float(self._completion_banner_ttl),
             }
 
         if not isinstance(step, dict):
@@ -509,6 +600,7 @@ class MovementTutorialManager:
         return {
             "visible": True,
             "phase": phase,
+            "display_mode": "banner",
             "header": header,
             "title": title,
             "text": text,
@@ -669,3 +761,5 @@ class MovementTutorialManager:
         except Exception:
             self._bonus_index = 0
         self.enabled = bool(payload.get("enabled", self.enabled))
+        self._last_completed_step = ""
+        self._last_focused_step = ""

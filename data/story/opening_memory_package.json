@@ -1,0 +1,143 @@
+{
+  "id": "opening_memory_sherward_morning",
+  "phase": "morning_argument_with_father",
+  "lead": "sherward",
+  "dialogue_asset": "dialogues/opening_memory_sherward_morning.json",
+  "voice_keys": [
+    {
+      "id": "narrator_intro",
+      "key": "opening_memory/narrator_intro",
+      "speaker": "Narrator",
+      "text": "Morning in Sherward's memory was not quiet."
+    },
+    {
+      "id": "sebastian_line_01",
+      "key": "opening_memory/sebastian_line_01",
+      "speaker": "Sebastian",
+      "text": "You leave this house as my son, not as a runaway chasing legends."
+    },
+    {
+      "id": "sherward_line_01",
+      "key": "opening_memory/sherward_line_01",
+      "speaker": "Sherward",
+      "text": "I will not spend my life hiding while Krimora takes more from us."
+    },
+    {
+      "id": "sebastian_line_02",
+      "key": "opening_memory/sebastian_line_02",
+      "speaker": "Sebastian",
+      "text": "Pride is quick to speak and slow to bury the dead."
+    },
+    {
+      "id": "sherward_line_02",
+      "key": "opening_memory/sherward_line_02",
+      "speaker": "Sherward",
+      "text": "I leave at dawn, and I return only when fear no longer rules us."
+    },
+    {
+      "id": "narrator_outro",
+      "key": "opening_memory/narrator_outro",
+      "speaker": "Narrator",
+      "text": "The memory breaks. The world returns."
+    }
+  ],
+  "tutorial_banners": [
+    {
+      "id": "movement_basics",
+      "delay": 0.8,
+      "duration": 5.8,
+      "header_key": "ui.opening_tutorial_header",
+      "header_default": "Field Notes",
+      "title_key": "ui.opening_tutorial_move_title",
+      "title_default": "Move and Observe",
+      "text_key": "ui.opening_tutorial_move_text",
+      "text_default": "Walk a few steps and center the camera before pushing deeper into the valley.",
+      "keys": [
+        "W",
+        "A",
+        "S",
+        "D",
+        "RMB"
+      ]
+    },
+    {
+      "id": "codex_prompt",
+      "delay": 0.9,
+      "duration": 5.4,
+      "header_key": "ui.opening_tutorial_header",
+      "header_default": "Field Notes",
+      "title_key": "ui.opening_tutorial_codex_title",
+      "title_default": "Use the Codex",
+      "text_key": "ui.opening_tutorial_codex_text",
+      "text_default": "Open the Journal to read Characters, Locations, Events, and Factions as they unlock.",
+      "keys": [
+        "I"
+      ]
+    },
+    {
+      "id": "interaction_prompt",
+      "delay": 0.8,
+      "duration": 5.2,
+      "header_key": "ui.opening_tutorial_header",
+      "header_default": "Field Notes",
+      "title_key": "ui.opening_tutorial_interact_title",
+      "title_default": "Read the World",
+      "text_key": "ui.opening_tutorial_interact_text",
+      "text_default": "Look at NPCs or threats in your reticle to register them in the Codex.",
+      "keys": [
+        "X",
+        "T"
+      ]
+    }
+  ],
+  "codex_seed": {
+    "events": [
+      {
+        "id": "opening_memory_sherward_morning",
+        "title": "Opening Memory: Morning Argument",
+        "details": "Sherward remembers his dawn conflict with his father Sebastian before setting out."
+      }
+    ],
+    "characters": [
+      {
+        "id": "sherward",
+        "title": "Sherward",
+        "details": "Protagonist whose journey begins with a vow to leave home and face Krimora."
+      },
+      {
+        "id": "sebastian",
+        "title": "Sebastian",
+        "details": "Sherward's father. Stern, protective, and marked by older losses."
+      },
+      {
+        "id": "adalin",
+        "title": "Adalin",
+        "details": "Core narrative figure tied to Sherward's main arc."
+      }
+    ],
+    "locations": [
+      {
+        "id": "sherward_home",
+        "title": "Sherward Homestead",
+        "details": "The household where the opening memory takes place."
+      },
+      {
+        "id": "krimora_borderlands",
+        "title": "Krimora Borderlands",
+        "details": "A feared region whose pressure shapes Sherward's resolve."
+      }
+    ],
+    "factions": [
+      {
+        "id": "house_sherward",
+        "title": "House Sherward",
+        "details": "Family line carrying duty, grief, and contested expectations."
+      },
+      {
+        "id": "krimora_forces",
+        "title": "Krimora Forces",
+        "details": "Hostile influence driving unrest across nearby lands."
+      }
+    ]
+  }
+}

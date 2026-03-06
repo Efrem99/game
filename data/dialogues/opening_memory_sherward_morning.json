@@ -1,0 +1,53 @@
+{
+  "npc_id": "opening_memory",
+  "npc_name": "Memory",
+  "dialogue_tree": {
+    "start": {
+      "speaker": "Narrator",
+      "text": "Morning in Sherward's memory was not quiet. It began with steel in his voice and frost in the air.",
+      "camera": "wide",
+      "voice": "opening_memory/narrator_intro",
+      "duration": 4.2,
+      "next_node": "father_call"
+    },
+    "father_call": {
+      "speaker": "Sebastian",
+      "text": "You leave this house as my son, not as a runaway chasing legends.",
+      "camera": "npc",
+      "voice": "opening_memory/sebastian_line_01",
+      "duration": 3.8,
+      "next_node": "sherward_reply"
+    },
+    "sherward_reply": {
+      "speaker": "Sherward",
+      "text": "Then hear me now. I will not spend my life hiding while Krimora takes more from us.",
+      "camera": "player",
+      "voice": "opening_memory/sherward_line_01",
+      "duration": 4.0,
+      "next_node": "father_warning"
+    },
+    "father_warning": {
+      "speaker": "Sebastian",
+      "text": "Pride is quick to speak and slow to bury the dead. The road will test more than your blade.",
+      "camera": "npc",
+      "voice": "opening_memory/sebastian_line_02",
+      "duration": 4.4,
+      "next_node": "sherward_vow"
+    },
+    "sherward_vow": {
+      "speaker": "Sherward",
+      "text": "Let it test me. I leave at dawn, and I return only when this fear no longer rules us.",
+      "camera": "player",
+      "voice": "opening_memory/sherward_line_02",
+      "duration": 4.1,
+      "next_node": "memory_fade"
+    },
+    "memory_fade": {
+      "speaker": "Narrator",
+      "text": "The memory breaks. The world returns. Sherward takes his first step into the day.",
+      "camera": "wide",
+      "voice": "opening_memory/narrator_outro",
+      "duration": 3.8
+    }
+  }
+}

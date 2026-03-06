@@ -2,11 +2,28 @@ import bpy
 import math
 import os
 import glob
+from pathlib import Path
 
 # --- CONFIGURATION ---
-XBOT_PATH = r"C:\xampp\htdocs\test\models\Xbot.glb"
-ANIM_DIR = r"C:\xampp\htdocs\models\animations"
-OUTPUT_PATH = r"C:\xampp\htdocs\models\xbot_customized.blend"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _pick_existing_path(*candidates: Path) -> Path:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[0]
+
+
+XBOT_PATH = str(
+    _pick_existing_path(
+        PROJECT_ROOT / "assets" / "models" / "xbot" / "Xbot.glb",
+        PROJECT_ROOT / "test" / "models" / "Xbot.glb",
+        PROJECT_ROOT / "models" / "Xbot.glb",
+    )
+)
+ANIM_DIR = str(PROJECT_ROOT / "models" / "animations")
+OUTPUT_PATH = str(PROJECT_ROOT / "models" / "xbot_customized.blend")
 
 # Bone Mapping (Mixamo -> Blender Bone Name)
 BONES = {
