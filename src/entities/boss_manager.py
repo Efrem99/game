@@ -76,6 +76,13 @@ class EnemyUnit:
         self._last_hp_seen = self.hp
         self.armor = max(0.0, self._stat("armor", 2.0))
         self._telegraph_fx = self._parse_telegraph_fx()
+        self._phase_rules = self._parse_phase_rules()
+        self._phase_cursor = 0
+        self._phase_damage_mul = 1.0
+        self._phase_speed_mul = 1.0
+        self._phase_telegraph_mul = 1.0
+        self._phase_cooldown_mul = 1.0
+        self._phase_anim_rate_mul = 1.0
 
         self.spawn()
 
@@ -118,6 +125,22 @@ class EnemyUnit:
                 pass
         return Vec3(x, y, z)
 
+    def _apply_python_only_visual_fallback(self, node, debug_label="enemy"):
+        if HAS_CORE or node is None:
+            return
+        try:
+            node.setShaderOff(1002)
+        except Exception:
+            pass
+        try:
+            node.setColorScale(1.0, 1.0, 1.0, 1.0)
+        except Exception:
+            pass
+        try:
+            node.setTwoSided(True)
+        except Exception:
+            pass
+
     def _piece(self, name, parent, model, scale, pos, color):
         np = self.loader.loadModel(model)
         np.reparentTo(parent)
@@ -126,6 +149,7 @@ class EnemyUnit:
         np.setPos(*pos)
         np.setColor(LColor(*color))
         ensure_model_visual_defaults(np, apply_skin=False, force_two_sided=True, debug_label=f"enemy:{self.id}:{name}")
+        self._apply_python_only_visual_fallback(np, debug_label=f"enemy:{self.id}:{name}")
         return np
 
     def _build_external_model(self):
@@ -152,6 +176,7 @@ class EnemyUnit:
                     force_two_sided=True,
                     debug_label=f"enemy_actor:{self.id}",
                 )
+                self._apply_python_only_visual_fallback(actor, debug_label=f"enemy_actor:{self.id}")
                 self.actor = actor
                 self._anim_map = self._build_actor_anim_map(actor)
                 self.fire_origin = actor.attachNewNode("origin")
@@ -176,6 +201,7 @@ class EnemyUnit:
             force_two_sided=True,
             debug_label=f"enemy_model:{self.id}",
         )
+        self._apply_python_only_visual_fallback(model, debug_label=f"enemy_model:{self.id}")
         self.fire_origin = model.attachNewNode("origin")
         self.fire_origin.setPos(0.0, 1.0 * sc, 1.1 * sc)
         self.nodes = {"model": model}
@@ -248,7 +274,10 @@ class EnemyUnit:
             "hit": 1.0,
             "dead": 1.0,
         }
-        return float(defaults.get(state_key, 1.0))
+        value = float(defaults.get(state_key, 1.0))
+        if state_key in {"chase", "telegraph", "attack"}:
+            value *= self._phase_anim_rate_mul
+        return _clamp(value, 0.4, 2.2)
 
     def _sync_actor_animation(self):
         if not self.actor or not self._anim_map:
@@ -349,6 +378,7 @@ class EnemyUnit:
                 self._build_goblin()
         self._build_telegraph_ring()
         ensure_model_visual_defaults(self.root, apply_skin=False, force_two_sided=True, debug_label=f"enemy_root:{self.id}")
+        self._apply_python_only_visual_fallback(self.root, debug_label=f"enemy_root:{self.id}")
         self._ensure_proxy()
         logger.info(f"[Enemy] Spawned '{self.name}' kind='{self.kind}' boss={self.is_boss}")
 
@@ -371,6 +401,7 @@ class EnemyUnit:
             force_two_sided=True,
             debug_label=f"enemy:{self.id}:telegraph",
         )
+        self._apply_python_only_visual_fallback(ring, debug_label=f"enemy:{self.id}:telegraph")
         self.nodes["telegraph"] = ring
 
     def _apply_visual_state(self, dt):
@@ -551,7 +582,85 @@ class EnemyUnit:
         return "ranged" if self.kind in {"fire_elemental", "shadow"} else "melee"
 
     def _phase_time(self, key, default):
-        return _clamp(self._ai(key, default), 0.02, 8.0)
+        value = _clamp(self._ai(key, default), 0.02, 8.0)
+        if key == "telegraph_duration":
+            value *= self._phase_telegraph_mul
+        if key == "attack_cooldown":
+            value *= self._phase_cooldown_mul
+        return _clamp(value, 0.02, 8.0)
+
+    def _parse_phase_rules(self):
+        ai = self.cfg.get("ai", {})
+        rows = ai.get("phase_transitions", []) if isinstance(ai, dict) else []
+        if not isinstance(rows, list):
+            return []
+        out = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            try:
+                threshold = float(row.get("hp_threshold", 0.0))
+            except Exception:
+                continue
+            if threshold <= 0.0 or threshold >= 1.0:
+                continue
+            out.append(dict(row, hp_threshold=threshold))
+        out.sort(key=lambda item: float(item.get("hp_threshold", 0.0)), reverse=True)
+        return out
+
+    def _check_phase_transitions(self):
+        if not self._phase_rules:
+            return
+        hp_ratio = float(self.hp) / max(1.0, float(self.max_hp))
+        while self._phase_cursor < len(self._phase_rules):
+            rule = self._phase_rules[self._phase_cursor]
+            threshold = float(rule.get("hp_threshold", 0.0))
+            if hp_ratio > threshold:
+                break
+            self._phase_cursor += 1
+            self._apply_phase_rule(rule, phase_index=self._phase_cursor)
+
+    def _apply_phase_rule(self, rule, phase_index=1):
+        # Phase progression is additive and data-driven to avoid hardcoded behavior spikes.
+        if bool(rule.get("enrage", False)):
+            self._phase_damage_mul *= 1.18
+            self._phase_speed_mul *= 1.08
+            self._phase_telegraph_mul *= 0.90
+            self._phase_cooldown_mul *= 0.88
+            self._phase_anim_rate_mul *= 1.08
+        try:
+            self._phase_damage_mul *= max(0.5, float(rule.get("damage_mul", 1.0)))
+            self._phase_speed_mul *= max(0.5, float(rule.get("speed_mul", 1.0)))
+            self._phase_telegraph_mul *= max(0.35, float(rule.get("telegraph_mul", 1.0)))
+            self._phase_cooldown_mul *= max(0.35, float(rule.get("cooldown_mul", 1.0)))
+            self._phase_anim_rate_mul *= max(0.35, float(rule.get("anim_rate_mul", 1.0)))
+        except Exception:
+            pass
+
+        rates = self.cfg.get("animation_rates", {})
+        if not isinstance(rates, dict):
+            rates = {}
+        rates["attack"] = _clamp(float(rates.get("attack", 1.0)) * self._phase_anim_rate_mul, 0.45, 2.5)
+        rates["telegraph"] = _clamp(float(rates.get("telegraph", 1.0)) * self._phase_anim_rate_mul, 0.45, 2.5)
+        self.cfg["animation_rates"] = rates
+
+        if self.state not in {"dead", "attack"}:
+            telegraph = self._phase_time("telegraph_duration", self._ai("attack_windup", 0.22))
+            self._attack_windup = telegraph
+            self._change_state("telegraph", lock_duration=telegraph)
+
+        logger.info(
+            f"[EnemyPhase] {self.id} -> phase {int(phase_index)} "
+            f"(hp<={float(rule.get('hp_threshold', 0.0)):.2f}) "
+            f"damage={self._phase_damage_mul:.2f} speed={self._phase_speed_mul:.2f}"
+        )
+
+    def _phase_attack_window(self, start_key, end_key, fallback_start, fallback_end):
+        start = self._phase_time(start_key, fallback_start)
+        end = self._phase_time(end_key, fallback_end)
+        if end < start:
+            end = start
+        return max(0.0, start), max(0.0, end)
 
     def _parse_telegraph_fx(self):
         fx = self.cfg.get("telegraph_fx", {})
@@ -604,6 +713,7 @@ class EnemyUnit:
             self._change_state("dead", lock_duration=0.0, reset_time=False)
             self._sync_proxy_to_core()
             return
+        self._check_phase_transitions()
 
         pos = self.root.getPos(self.render)
         vec = player_pos - pos
@@ -655,7 +765,7 @@ class EnemyUnit:
             m.z = 0.0
             if m.lengthSquared() > 1e-6:
                 m.normalize()
-                speed = self._stat("run_speed", 4.6)
+                speed = self._stat("run_speed", 4.6) * self._phase_speed_mul
                 pos += m * speed * dt
                 world = getattr(self.app, "world", None)
                 if world and hasattr(world, "_th"):
@@ -671,13 +781,23 @@ class EnemyUnit:
 
         if self.state == "attack":
             if self._attack_mode() == "melee":
-                if not self.melee_applied and self.state_time >= self._ai("melee_hit_time", 0.35):
+                hit_at = self._ai("melee_hit_time", 0.35)
+                w_start, w_end = self._phase_attack_window(
+                    "melee_window_start",
+                    "melee_window_end",
+                    hit_at,
+                    hit_at + 0.14,
+                )
+                in_window = w_start <= self.state_time <= w_end
+                if (not self.melee_applied) and in_window:
                     self.melee_applied = True
                     if dist <= self._stat("attack_range", 2.6) + 0.5:
                         cs = getattr(getattr(self.app, "player", None), "cs", None)
                         if cs and hasattr(cs, "health"):
                             try:
-                                cs.health = max(0.0, float(cs.health) - max(1, int(self._ai("melee_damage", self._stat("power", 12.0)))))
+                                damage = max(1.0, float(self._ai("melee_damage", self._stat("power", 12.0))))
+                                damage *= self._phase_damage_mul
+                                cs.health = max(0.0, float(cs.health) - int(round(damage)))
                             except Exception:
                                 pass
             else:
@@ -687,12 +807,16 @@ class EnemyUnit:
                     self._emit_fire_particle()
                 self.fire_tick_acc += dt
                 fire_start = self._phase_time("fire_start_time", 0.08)
-                if self.state_time >= fire_start and self.fire_tick_acc >= 0.30 and dist <= self._stat("attack_range", 6.0):
+                fire_end = self._phase_time("fire_end_time", self._phase_time("attack_duration", 0.82))
+                in_fire_window = fire_start <= self.state_time <= max(fire_start, fire_end)
+                if in_fire_window and self.fire_tick_acc >= 0.30 and dist <= self._stat("attack_range", 6.0):
                     self.fire_tick_acc = 0.0
                     cs = getattr(getattr(self.app, "player", None), "cs", None)
                     if cs and hasattr(cs, "health"):
                         try:
-                            cs.health = max(0.0, float(cs.health) - max(1, int(self._ai("fire_tick_damage", 9.0))))
+                            damage = max(1.0, float(self._ai("fire_tick_damage", 9.0)))
+                            damage *= self._phase_damage_mul
+                            cs.health = max(0.0, float(cs.health) - int(round(damage)))
                         except Exception:
                             pass
                 if now - self.last_fire_sfx >= 0.34:

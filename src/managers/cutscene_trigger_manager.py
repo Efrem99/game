@@ -128,12 +128,15 @@ class CutsceneTriggerManager:
         shot = trigger.get("shot", trigger)
         if not isinstance(shot, dict):
             shot = {}
+        trigger_id = self._trigger_id(trigger, "trigger")
         return {
             "name": str(shot.get("name") or trigger.get("id") or "shot"),
             "duration": self._safe_float(shot.get("duration", 1.25), 1.25),
             "profile": str(shot.get("profile", "exploration") or "exploration"),
             "side": self._safe_float(shot.get("side", 0.0), 0.0),
             "yaw_bias_deg": self._safe_float(shot.get("yaw_bias_deg", 0.0), 0.0),
+            "priority": int(self._safe_float(shot.get("priority", 68), 68)),
+            "owner": str(shot.get("owner") or f"cutscene:{trigger_id}"),
         }
 
     def _play_shot(self, trigger):
@@ -149,6 +152,8 @@ class CutsceneTriggerManager:
                     profile=shot["profile"],
                     side=shot["side"],
                     yaw_bias_deg=shot["yaw_bias_deg"],
+                    priority=shot["priority"],
+                    owner=shot["owner"],
                 )
             )
         except Exception as exc:

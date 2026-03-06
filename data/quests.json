@@ -1,51 +1,61 @@
-[
-    {
-        "id": "q_founder_statue",
-        "title": "Legacy of the Founder",
-        "description": "Visit the Statue of the Founder in the city center.",
+{
+    "forest_patrol": {
+        "id": "forest_patrol",
+        "title": "Clear the Forest Perimeter",
         "objectives": [
             {
-                "type": "reach_location",
-                "target": [
-                    0,
-                    -10,
-                    0
-                ],
-                "radius": 5.0,
-                "description": "Go to the city square."
+                "type": "kill",
+                "target": "goblin",
+                "count": 5,
+                "description": "Defeat 5 monsters near the forest edge."
+            },
+            {
+                "type": "interact",
+                "target": "guard_city",
+                "description": "Return to Guard Captain Marcus."
             }
         ],
         "rewards": {
+            "gold": 50,
             "xp": 100,
             "items": [
                 "health_potion"
             ]
         }
     },
-    {
-        "id": "q_mine_report",
-        "title": "Trouble in the Mines",
-        "description": "Investigate the cave entrance south of the castle.",
+    "dragon_slayer": {
+        "id": "dragon_slayer",
+        "title": "The Ashen Threat",
         "objectives": [
             {
                 "type": "reach_location",
                 "target": [
-                    5,
-                    45,
-                    0
+                    0.0,
+                    150.0,
+                    10.0
                 ],
-                "radius": 8.0,
-                "description": "Reach the mine entrance."
+                "radius": 20.0,
+                "description": "Travel to the Dragon's Peak."
+            },
+            {
+                "type": "kill",
+                "target": "dragon_boss",
+                "count": 1,
+                "description": "Defeat the Ashen Dragon."
             },
             {
                 "type": "interact",
-                "target": "miner0",
-                "description": "Speak with the head miner."
+                "target": "king",
+                "description": "Return to the King with news of your victory."
             }
         ],
         "rewards": {
-            "xp": 250,
-            "gold": 50
+            "gold": 1000,
+            "xp": 5000,
+            "items": [
+                "dragon_scale_armor",
+                "sword_of_light"
+            ]
         }
     }
-]
+}

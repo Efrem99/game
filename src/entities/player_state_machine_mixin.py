@@ -1,20 +1,204 @@
-"""State machine and animation transition helpers for Player."""
+"""State machine and animation transition helpers for Player.
+
+Implements a layered priority FSM:
+  Layer priority (lower = wins):
+    -1 cinematic, 0 death, 1 physics, 2 stability, 3 action, 4 locomotion, 5 modifier
+"""
 
 import math
 import re
 
 from direct.showbase.ShowBaseGlobal import globalClock
 
-from entities.player_animation_config import DEFAULT_STATE_DURATIONS
+from entities.player_animation_config import (
+    DEFAULT_STATE_DURATIONS,
+    INTERRUPT_RULES,
+    LAYER_PRIORITY,
+    STATE_LAYER_MAP,
+    UNINTERRUPTIBLE_STATES,
+)
 
 
 class PlayerStateMachineMixin:
+
+    # ───────────────────────────────────────────────────────────
+    # Queue helpers
+    # ───────────────────────────────────────────────────────────
+
     def _queue_state_trigger(self, trigger):
         token = str(trigger or "").strip().lower()
         if not token:
             return
         if token not in self._queued_state_triggers:
             self._queued_state_triggers.append(token)
+
+    # ───────────────────────────────────────────────────────────
+    # Context Flags  (refreshed every FSM tick)
+    # ───────────────────────────────────────────────────────────
+
+    def _update_context_flags(self):
+        """Build self._context_flags from physics state and environment."""
+        flags: set[str] = set()
+
+        cs = getattr(self, "cs", None)
+        if cs:
+            if getattr(cs, "inWater", False):
+                flags.add("in_water")
+            if getattr(cs, "onWall", False):
+                flags.add("wall_contact")
+
+            # Slope/terrain heuristics from velocity
+            vz = float(getattr(cs.velocity, "z", 0.0) or 0.0)
+            vx = float(getattr(cs.velocity, "x", 0.0) or 0.0)
+            vy = float(getattr(cs.velocity, "y", 0.0) or 0.0)
+            horiz_speed = math.sqrt(vx * vx + vy * vy)
+
+            if getattr(cs, "grounded", True) and horiz_speed > 0.5:
+                slope = abs(vz) / max(horiz_speed, 0.1)
+                if slope > 0.6:
+                    flags.add("steep_slope")
+                elif slope > 0.15:
+                    flags.add("uneven_ground")
+
+        # Wall run → edge_detected
+        if getattr(self, "_was_wallrun", False):
+            flags.add("edge_detected")
+
+        # Let world / app inject surface flags
+        extra = getattr(self, "_env_flags", set())
+        flags.update(extra)
+
+        self._context_flags = flags
+
+    # ───────────────────────────────────────────────────────────
+    # Layer helpers
+    # ───────────────────────────────────────────────────────────
+
+    def _layer_of(self, state_name: str) -> str:
+        key = str(state_name or "").strip().lower()
+        # Check runtime state defs first
+        defs = getattr(self, "_state_defs", {})
+        if isinstance(defs, dict):
+            state_def = defs.get(key, {})
+            if isinstance(state_def, dict) and "layer" in state_def:
+                return str(state_def["layer"]).strip().lower()
+        return STATE_LAYER_MAP.get(key, "locomotion")
+
+    def _priority_of(self, state_name: str) -> int:
+        """Numeric priority of a state (lower = more important)."""
+        layer = self._layer_of(state_name)
+        base = LAYER_PRIORITY.get(layer, 4)
+        # Check for explicit numeric override in _state_defs
+        defs = getattr(self, "_state_defs", {})
+        if isinstance(defs, dict):
+            state_def = defs.get(str(state_name or "").strip().lower(), {})
+            if isinstance(state_def, dict) and "priority" in state_def:
+                try:
+                    return int(state_def["priority"])
+                except Exception:
+                    pass
+        return base
+
+    def _state_priority(self, state_name):
+        """Legacy: returns 100*priority so higher value = higher importance (old usage)."""
+        return self._priority_of(state_name)
+
+    def _state_layer(self, state_name):
+        return self._layer_of(state_name)
+
+    def _rule_priority(self, rule):
+        if not isinstance(rule, dict):
+            return 100
+        try:
+            return int(rule.get("priority", 100))
+        except Exception:
+            return 100
+
+    def _sort_rules(self, rules):
+        if not isinstance(rules, list):
+            return []
+        indexed = list(enumerate(rules))
+        indexed.sort(key=lambda pair: (self._rule_priority(pair[1]), pair[0]))
+        return [pair[1] for pair in indexed]
+
+    # ───────────────────────────────────────────────────────────
+    # Transition permission
+    # ───────────────────────────────────────────────────────────
+
+    def _transition_allowed(self, current_state, target_state, trigger=None, force=False):
+        current = str(current_state or "").strip().lower()
+        target = str(target_state or "").strip().lower()
+        if not target:
+            return False
+        if current == target:
+            return False
+        if force or target in {"dead", "death"}:
+            return True
+
+        target_prio = self._priority_of(target)
+        current_prio = self._priority_of(current)
+        trigger_token = str(trigger or "").strip().lower()
+        current_def = self._state_def(current)
+        state_uninterruptible = bool(
+            current in UNINTERRUPTIBLE_STATES
+            or (isinstance(current_def, dict) and bool(current_def.get("uninterruptible", False)))
+        )
+
+        # Hard-uninterruptible states block everything (except force/death)
+        if state_uninterruptible:
+            if trigger_token == "animation_finished":
+                return True
+            explicit_interruptors = []
+            if isinstance(current_def, dict):
+                raw_interruptors = current_def.get("interruptible_by", [])
+                if isinstance(raw_interruptors, list):
+                    explicit_interruptors = [
+                        str(name or "").strip().lower()
+                        for name in raw_interruptors
+                        if str(name or "").strip()
+                    ]
+            if explicit_interruptors and target in explicit_interruptors:
+                return True
+            # Only lower-numbered priority can break in
+            return target_prio < current_prio
+
+        # Check per-state interrupt whitelist
+        target_layer = self._layer_of(target)
+        allowed_layers = INTERRUPT_RULES.get(current)
+        if allowed_layers is not None:
+            # This state has explicit interrupt rules
+            if target_layer in allowed_layers:
+                return True
+            # Also allow if target_prio is strictly lower (more important)
+            if target_prio < current_prio:
+                return True
+            # animation_finished always unlocks
+            if trigger_token == "animation_finished":
+                return True
+            return False
+
+        # General numeric priority rule
+        if target_prio < current_prio:
+            return True
+        if target_prio == current_prio:
+            return True
+        if trigger_token == "animation_finished":
+            return True
+        if self._layer_of(current) == target_layer:
+            return True
+
+        # Explicit can_transition_to whitelist in state def
+        if isinstance(current_def, dict):
+            explicit = current_def.get("can_transition_to", [])
+            if isinstance(explicit, list):
+                if any(str(v or "").strip().lower() == target for v in explicit):
+                    return True
+
+        return False
+
+    # ───────────────────────────────────────────────────────────
+    # Sync helpers
+    # ───────────────────────────────────────────────────────────
 
     def _sync_block_state_edges(self):
         pressed = bool(self._get_action("block"))
@@ -48,6 +232,10 @@ class PlayerStateMachineMixin:
             self._queue_state_trigger("exit_wallrun")
         self._was_wallrun = in_wallrun
 
+    # ───────────────────────────────────────────────────────────
+    # State def helpers  (data-driven overrides from JSON)
+    # ───────────────────────────────────────────────────────────
+
     def _transition_from_matches(self, current_state, from_states):
         if not isinstance(from_states, list) or not from_states:
             return False
@@ -68,80 +256,9 @@ class PlayerStateMachineMixin:
         value = defs.get(key)
         return value if isinstance(value, dict) else {}
 
-    def _state_layer(self, state_name):
-        state_def = self._state_def(state_name)
-        layer = state_def.get("layer", "locomotion")
-        token = str(layer or "locomotion").strip().lower()
-        return token if token else "locomotion"
-
-    def _state_priority(self, state_name):
-        state_def = self._state_def(state_name)
-        try:
-            return int(state_def.get("priority", 50))
-        except Exception:
-            return 50
-
-    def _rule_priority(self, rule):
-        if not isinstance(rule, dict):
-            return 100
-        try:
-            return int(rule.get("priority", 100))
-        except Exception:
-            return 100
-
-    def _sort_rules(self, rules):
-        if not isinstance(rules, list):
-            return []
-        indexed = list(enumerate(rules))
-        indexed.sort(key=lambda pair: (self._rule_priority(pair[1]), pair[0]))
-        return [pair[1] for pair in indexed]
-
-    def _transition_allowed(self, current_state, target_state, trigger=None, force=False):
-        current = str(current_state or "").strip().lower()
-        target = str(target_state or "").strip().lower()
-        if not target:
-            return False
-        if current == target:
-            return False
-        if force or target == "dead":
-            return True
-
-        current_def = self._state_def(current)
-        target_priority = self._state_priority(target)
-        current_priority = self._state_priority(current)
-        trigger_token = str(trigger or "").strip().lower()
-
-        if bool(current_def.get("uninterruptible", False)):
-            if trigger_token == "animation_finished":
-                return True
-            allowed_by = current_def.get("interruptible_by", [])
-            if isinstance(allowed_by, list):
-                target_layer = self._state_layer(target)
-                for token in allowed_by:
-                    marker = str(token or "").strip().lower()
-                    if marker in {"*", target, target_layer}:
-                        return True
-            if target_priority < current_priority:
-                return True
-            return False
-
-        if target_priority < current_priority:
-            return True
-        if target_priority == current_priority:
-            return True
-
-        if trigger_token == "animation_finished":
-            return True
-        if self._state_layer(current) == self._state_layer(target):
-            return True
-
-        explicit = current_def.get("can_transition_to", [])
-        if isinstance(explicit, list):
-            target_norm = str(target).strip().lower()
-            if any(str(v or "").strip().lower() == target_norm for v in explicit):
-                return True
-
-        return False
+    # ───────────────────────────────────────────────────────────
+    # Context building
+    # ───────────────────────────────────────────────────────────
 
     def _build_state_context(self):
         speed = 0.0
@@ -150,13 +267,15 @@ class PlayerStateMachineMixin:
         shift_pressed = bool(self._get_action("run"))
         mounted = False
         mounted_kind = ""
+        vertical_speed = 0.0
+
         if self.cs:
-            speed = math.sqrt((self.cs.velocity.x**2) + (self.cs.velocity.y**2))
+            vx = float(getattr(self.cs.velocity, "x", 0.0) or 0.0)
+            vy = float(getattr(self.cs.velocity, "y", 0.0) or 0.0)
+            speed = math.sqrt(vx * vx + vy * vy)
             on_ground = bool(getattr(self.cs, "grounded", True))
             hp = float(getattr(self.cs, "health", 100.0) or 0.0)
             vertical_speed = float(getattr(self.cs.velocity, "z", 0.0) or 0.0)
-        else:
-            vertical_speed = 0.0
 
         vehicle_mgr = getattr(self.app, "vehicle_mgr", None)
         if vehicle_mgr and getattr(vehicle_mgr, "is_mounted", False):
@@ -179,7 +298,7 @@ class PlayerStateMachineMixin:
         parkour_action = self._parkour_action_name()
         landing_impact = float(getattr(self, "_last_landing_impact_speed", 0.0) or 0.0)
         grounded_now = bool(on_ground)
-        was_grounded = bool(getattr(self, "_was_grounded", grounded_now))
+
         is_attacking = False
         try:
             if self.combat and hasattr(self.combat, "isAttacking"):
@@ -187,40 +306,62 @@ class PlayerStateMachineMixin:
         except Exception:
             is_attacking = False
 
-        return {
-            "speed": speed,
-            "shift_pressed": shift_pressed,
-            "on_ground": on_ground,
-            "hp": hp,
-            "mounted": mounted,
-            "mounted_kind": resolved_mounted_kind,
-            "in_water": bool(self.cs and getattr(self.cs, "inWater", False)),
-            "is_flying": bool(self._is_flying),
-            "vertical_speed": vertical_speed,
-            "parkour_action": parkour_action,
-            "wall_contact": bool(getattr(self, "_was_wallrun", False)),
-            "landed_hard": bool(landing_impact >= 10.0),
-            "landed_soft": bool(landing_impact >= 3.0),
-            "landing_impact_speed": landing_impact,
-            "was_grounded": was_grounded,
-            "is_attacking": is_attacking,
-            "is_blocking": bool(getattr(self, "_block_pressed", False)),
+        context = {
+            "speed":               speed,
+            "shift_pressed":       shift_pressed,
+            "on_ground":           on_ground,
+            "hp":                  hp,
+            "mounted":             mounted,
+            "mounted_kind":        resolved_mounted_kind,
+            "in_water":            bool(self.cs and getattr(self.cs, "inWater", False)),
+            "is_flying":           bool(self._is_flying),
+            "vertical_speed":      vertical_speed,
+            "parkour_action":      parkour_action,
+            "wall_contact":        bool(getattr(self, "_was_wallrun", False)),
+            "landed_hard":         bool(landing_impact >= 10.0),
+            "landed_soft":         bool(landing_impact >= 3.0),
+            "landing_impact_speed":landing_impact,
+            "was_grounded":        bool(getattr(self, "_was_grounded", grounded_now)),
+            "is_attacking":        is_attacking,
+            "is_blocking":         bool(getattr(self, "_block_pressed", False)),
         }
+        # Merge context flags as individual booleans for eval()
+        for flag in getattr(self, "_context_flags", set()):
+            context[flag] = True
+
+        return context
+
+    # ───────────────────────────────────────────────────────────
+    # Condition evaluation
+    # ───────────────────────────────────────────────────────────
 
     def _eval_transition_condition(self, condition, context):
         if not isinstance(condition, str) or not condition.strip():
             return False
         expr = condition.replace("&&", " and ").replace("||", " or ").strip()
         expr = re.sub(r"!\s*([A-Za-z_][A-Za-z0-9_]*)", r"not \1", expr)
+        safe_ctx = dict(context)
+        # Fill missing flags with False so eval doesn't NameError
+        from entities.player_animation_config import CONTEXT_FLAG_NAMES
+        for fname in CONTEXT_FLAG_NAMES:
+            if fname not in safe_ctx:
+                safe_ctx[fname] = False
         try:
-            return bool(eval(expr, {"__builtins__": {}}, dict(context)))
+            return bool(eval(expr, {"__builtins__": {}}, safe_ctx))
         except Exception:
             return False
+
+    # ───────────────────────────────────────────────────────────
+    # Default state computation (from physics context)
+    # ───────────────────────────────────────────────────────────
 
     def _compute_default_state(self, context):
         speed = float(context.get("speed", 0.0) or 0.0)
         on_ground = bool(context.get("on_ground", True))
         if bool(context.get("mounted", False)):
+            mounted_kind = str(context.get("mounted_kind", "") or "").strip().lower()
+            if mounted_kind in {"ship", "boat"}:
+                return "mounted_ship_move" if speed > 0.2 else "mounted_ship_idle"
             return "mounted_move" if speed > 0.15 else "mounted_idle"
         if bool(context.get("is_flying", False)):
             return "flying"
@@ -235,27 +376,73 @@ class PlayerStateMachineMixin:
             return "walking"
         return "idle"
 
+    # ───────────────────────────────────────────────────────────
+    # State entry
+    # ───────────────────────────────────────────────────────────
+
     def _enter_state(self, state_name):
         target = str(state_name or "idle").strip().lower()
         if not target:
             return False
 
-        state_def = self._state_defs.get(target, {})
+        resolved_clip, _, _ = self._resolve_anim_clip(
+            target,
+            include_state_fallback=True,
+            include_global_fallback=True,
+            with_meta=True,
+        )
+        state_def = self._state_defs.get(target, {}) if isinstance(self._state_defs, dict) else {}
         duration = 0.0
         try:
-            duration = float(state_def.get("duration", 0.0) or 0.0)
+            duration = float((state_def or {}).get("duration", 0.0) or 0.0)
         except Exception:
             duration = 0.0
         if duration <= 0.0:
             duration = float(DEFAULT_STATE_DURATIONS.get(target, 0.0))
-        loop = duration <= 0.0
-        force_restart = duration > 0.0
-        changed = self._set_anim(target, loop=loop, force=force_restart)
+
+        blend_time = None
+        if isinstance(state_def, dict) and "blend_time" in state_def:
+            try:
+                blend_time = float(state_def.get("blend_time"))
+            except Exception:
+                blend_time = None
+            if blend_time is not None:
+                blend_time = max(0.02, min(1.2, blend_time))
+
+        loop_override = state_def.get("loop") if isinstance(state_def, dict) else None
+        loop_hint = self._state_loop_hint(target, resolved_clip=resolved_clip)
+
+        if isinstance(loop_override, bool):
+            loop = loop_override
+        elif isinstance(loop_hint, bool):
+            loop = loop_hint
+        else:
+            loop = duration <= 0.0
+
+        if not loop and duration <= 0.0:
+            clip_duration = self._resolved_clip_duration(resolved_clip)
+            if clip_duration > 0.0:
+                duration = clip_duration
+            else:
+                duration = max(0.25, float(DEFAULT_STATE_DURATIONS.get(target, 0.35) or 0.35))
+
+        force_restart = (not loop) or (duration > 0.0)
+        changed = self._set_anim(
+            target,
+            loop=loop,
+            blend_time=blend_time,
+            force=force_restart,
+        )
         if not changed:
             return False
+
         now = globalClock.getFrameTime()
-        self._state_lock_until = (now + duration) if duration > 0.0 else 0.0
+        self._state_lock_until = (now + duration) if (duration > 0.0 and not loop) else 0.0
         return True
+
+    # ───────────────────────────────────────────────────────────
+    # Rule application
+    # ───────────────────────────────────────────────────────────
 
     def _apply_runtime_rules(self, current_state, context, triggers):
         rules = self._sort_rules(getattr(self, "_state_rules", []))
@@ -280,19 +467,21 @@ class PlayerStateMachineMixin:
                     continue
 
             force = bool(rule.get("force", False))
-            if not self._transition_allowed(
-                current_state,
-                target,
-                trigger=required_trigger,
-                force=force,
-            ):
+            if not self._transition_allowed(current_state, target, trigger=required_trigger, force=force):
                 continue
 
             if self._enter_state(target):
                 return True
         return False
 
+    # ───────────────────────────────────────────────────────────
+    # Main FSM tick
+    # ───────────────────────────────────────────────────────────
+
     def _run_animation_state_machine(self):
+        # Refresh context flags every tick
+        self._update_context_flags()
+
         if not self._state_transitions:
             self._enter_state(self._compute_default_state(self._build_state_context()))
             return
@@ -312,22 +501,19 @@ class PlayerStateMachineMixin:
         if self._apply_runtime_rules(current, context, triggers):
             return
 
+        # Trigger-based transitions
         for trigger in triggers:
             for rule in self._sort_rules(self._state_transitions):
                 if rule.get("trigger") != trigger:
                     continue
                 if not self._transition_from_matches(current, rule.get("from", [])):
                     continue
-                if not self._transition_allowed(
-                    current,
-                    rule.get("to"),
-                    trigger=trigger,
-                    force=bool(rule.get("force", False)),
-                ):
+                if not self._transition_allowed(current, rule.get("to"), trigger=trigger, force=bool(rule.get("force", False))):
                     continue
                 if self._enter_state(rule.get("to")):
                     return
 
+        # Condition-based transitions
         for rule in self._sort_rules(self._state_transitions):
             condition = rule.get("condition")
             if not condition:
@@ -335,29 +521,21 @@ class PlayerStateMachineMixin:
             if not self._transition_from_matches(current, rule.get("from", [])):
                 continue
             if self._eval_transition_condition(condition, context):
-                if not self._transition_allowed(
-                    current,
-                    rule.get("to"),
-                    trigger=rule.get("trigger"),
-                    force=bool(rule.get("force", False)),
-                ):
+                if not self._transition_allowed(current, rule.get("to"), trigger=rule.get("trigger"), force=bool(rule.get("force", False))):
                     continue
                 if self._enter_state(rule.get("to")):
                     return
 
+        # Fallback to locomotion default
         fallback = self._compute_default_state(context)
-        locomotion = {
-            "idle",
-            "walking",
-            "running",
-            "jumping",
-            "falling",
-            "landing",
-            "mounted_idle",
-            "mounted_move",
-            "swim",
-            "flying",
-            "fly",
+        locomotion_states = {
+            "idle", "idle_relaxed", "idle_combat",
+            "walking", "walk", "running", "run", "sprinting", "sprint",
+            "jumping", "jump", "in_air",
+            "falling", "landing", "land_soft",
+            "mounted_idle", "mounted_move", "mounted_ship_idle", "mounted_ship_move",
+            "swim", "swim_surface", "swim_dive", "swim_underwater",
+            "flying", "fly", "flight_hover", "flight_glide",
         }
-        if current in locomotion and fallback != current:
+        if current in locomotion_states and fallback != current:
             self._enter_state(fallback)

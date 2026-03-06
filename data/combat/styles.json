@@ -1,0 +1,54 @@
+{
+  "styles": {
+    "unarmed": {
+      "combo_window": 0.72,
+      "max_chain": 5,
+      "damage_scale": 1.0
+    },
+    "sword": {
+      "combo_window": 0.74,
+      "max_chain": 8,
+      "damage_scale": 1.06
+    },
+    "axe": {
+      "combo_window": 0.62,
+      "max_chain": 6,
+      "damage_scale": 1.18
+    },
+    "mace": {
+      "combo_window": 0.60,
+      "max_chain": 6,
+      "damage_scale": 1.20
+    },
+    "bow": {
+      "combo_window": 0.96,
+      "max_chain": 6,
+      "damage_scale": 1.04
+    },
+    "crossbow": {
+      "combo_window": 1.04,
+      "max_chain": 5,
+      "damage_scale": 1.14
+    },
+    "staff": {
+      "combo_window": 0.82,
+      "max_chain": 7,
+      "damage_scale": 1.08
+    },
+    "magic": {
+      "combo_window": 1.05,
+      "max_chain": 9,
+      "damage_scale": 1.10
+    },
+    "aerial_magic": {
+      "combo_window": 1.12,
+      "max_chain": 10,
+      "damage_scale": 1.16
+    },
+    "aerial_melee": {
+      "combo_window": 0.68,
+      "max_chain": 7,
+      "damage_scale": 1.14
+    }
+  }
+}

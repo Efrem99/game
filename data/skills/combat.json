@@ -1,0 +1,54 @@
+{
+  "id": "combat",
+  "name": "Combat",
+  "nodes": [
+    {
+      "id": "guard_stance",
+      "name": "Guard Stance",
+      "cost": 1,
+      "requires": [],
+      "unlock": [
+        "power_strike"
+      ],
+      "icon": "skills/guard_stance.png",
+      "description": "Lower stamina loss while blocking and recovering from hits."
+    },
+    {
+      "id": "power_strike",
+      "name": "Power Strike",
+      "cost": 2,
+      "requires": [
+        "guard_stance"
+      ],
+      "unlock": [
+        "whirlwind"
+      ],
+      "icon": "skills/power_strike.png",
+      "description": "Heavy opener with stronger hit reaction window."
+    },
+    {
+      "id": "whirlwind",
+      "name": "Whirlwind",
+      "cost": 2,
+      "requires": [
+        "power_strike"
+      ],
+      "unlock": [
+        "executioner"
+      ],
+      "icon": "skills/whirlwind.png",
+      "description": "Wide combo follow-up that is safer against multiple enemies."
+    },
+    {
+      "id": "executioner",
+      "name": "Executioner",
+      "cost": 3,
+      "requires": [
+        "whirlwind"
+      ],
+      "unlock": [],
+      "icon": "skills/executioner.png",
+      "description": "High-risk finisher with improved stagger chance."
+    }
+  ]
+}

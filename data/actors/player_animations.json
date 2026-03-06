@@ -13,8 +13,23 @@
                 "loop": true
             },
             {
+                "key": "falling_hard",
+                "path": "assets/anims/dismounting_horse.fbx",
+                "loop": false
+            },
+            {
                 "key": "landing",
                 "path": "assets/anims/land_recover.fbx",
+                "loop": false
+            },
+            {
+                "key": "staggered",
+                "path": "models/animations/StopTwoHand2.fbx",
+                "loop": false
+            },
+            {
+                "key": "recovering",
+                "path": "models/animations/StopOneHand1.fbx",
                 "loop": false
             },
             {
@@ -25,6 +40,11 @@
             {
                 "key": "dodging",
                 "path": "assets/anims/dodge_roll.fbx",
+                "loop": false
+            },
+            {
+                "key": "sliding",
+                "path": "models/animations/GoAwayQuickly.fbx",
                 "loop": false
             },
             {
@@ -190,20 +210,16 @@
             "wallrun"
         ],
         "sliding": [
-            "dodging",
-            "landing"
+            "sliding"
         ],
         "staggered": [
-            "landing",
-            "idle"
+            "staggered"
         ],
         "falling_hard": [
-            "falling",
-            "jumping"
+            "falling_hard"
         ],
         "recovering": [
-            "landing",
-            "idle"
+            "recovering"
         ],
         "swim": [
             "swim"

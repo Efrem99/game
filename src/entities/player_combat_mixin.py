@@ -173,6 +173,130 @@ class PlayerCombatMixin:
             "until": globalClock.getFrameTime() + 1.5,
         }
 
+    def _combat_style_config(self, style_name):
+        getter = getattr(self.data_mgr, "get_combat_style", None)
+        if callable(getter):
+            try:
+                payload = getter(style_name)
+                if isinstance(payload, dict):
+                    return payload
+            except Exception:
+                pass
+        return {}
+
+    def _weapon_combo_style(self):
+        item = {}
+        if hasattr(self, "_equipment_state") and isinstance(self._equipment_state, dict):
+            token = str(self._equipment_state.get("weapon_main", "") or "").strip()
+            if token:
+                payload = self.data_mgr.get_item(token) if hasattr(self, "data_mgr") else {}
+                if isinstance(payload, dict):
+                    item = payload
+
+        raw_class = ""
+        if isinstance(item, dict):
+            raw_class = str(item.get("weapon_class", "") or item.get("weapon_type", "")).strip().lower()
+            if not raw_class:
+                visual = item.get("equip_visual", {})
+                if isinstance(visual, dict):
+                    raw_class = str(visual.get("style", "") or "").strip().lower()
+            if not raw_class:
+                name = str(item.get("name", "") or "").strip().lower()
+                if "axe" in name:
+                    raw_class = "axe"
+                elif "mace" in name or "hammer" in name:
+                    raw_class = "mace"
+                elif "bow" in name:
+                    raw_class = "bow"
+                elif "crossbow" in name:
+                    raw_class = "crossbow"
+                elif "staff" in name:
+                    raw_class = "staff"
+                elif "sword" in name or "blade" in name:
+                    raw_class = "sword"
+
+        alias = {
+            "blade": "sword",
+            "unarmed": "unarmed",
+            "sword": "sword",
+            "axe": "axe",
+            "mace": "mace",
+            "bow": "bow",
+            "crossbow": "crossbow",
+            "staff": "staff",
+        }
+        return alias.get(raw_class, "unarmed")
+
+    def _resolve_combo_style(self, kind):
+        token = str(kind or "melee").strip().lower()
+        airborne = False
+        if hasattr(self, "cs") and self.cs:
+            airborne = not bool(getattr(self.cs, "grounded", True))
+        if token == "magic":
+            return "aerial_magic" if airborne else "magic"
+        base = self._weapon_combo_style()
+        if airborne:
+            return "aerial_melee"
+        return base
+
+    def _decay_combo_chain(self):
+        now = globalClock.getFrameTime()
+        if now <= float(getattr(self, "_combo_deadline", 0.0) or 0.0):
+            return
+        if int(getattr(self, "_combo_chain", 0) or 0) <= 0:
+            return
+        self._combo_chain = 0
+        self._combo_kind = "melee"
+        self._combo_style = "unarmed"
+        cs = getattr(self, "cs", None)
+        if cs and hasattr(cs, "comboCount"):
+            try:
+                cs.comboCount = 0
+            except Exception:
+                pass
+
+    def _register_combo_step(self, kind, amount=1):
+        self._decay_combo_chain()
+        style = self._resolve_combo_style(kind)
+        cfg = self._combat_style_config(style)
+        window = self._safe_float(cfg.get("combo_window", 0.72), default=0.72)
+        max_chain = int(self._safe_float(cfg.get("max_chain", 7), default=7))
+        now = globalClock.getFrameTime()
+        if now <= float(getattr(self, "_combo_deadline", 0.0) or 0.0):
+            self._combo_chain = int(getattr(self, "_combo_chain", 0) or 0) + int(max(1, amount))
+        else:
+            self._combo_chain = int(max(1, amount))
+        self._combo_chain = max(0, min(max_chain, int(self._combo_chain)))
+        self._combo_deadline = now + max(0.15, min(2.0, window))
+        self._combo_style = style
+        self._combo_kind = str(kind or "melee")
+
+        cs = getattr(self, "cs", None)
+        if cs and hasattr(cs, "comboCount"):
+            try:
+                cs.comboCount = int(self._combo_chain)
+            except Exception:
+                pass
+
+        director = getattr(getattr(self, "app", None), "camera_director", None)
+        if director and hasattr(director, "emit_impact"):
+            try:
+                if self._combo_chain >= 5:
+                    director.emit_impact("critical", intensity=0.9)
+                elif self._combo_chain >= 3:
+                    director.emit_impact("hit", intensity=0.35)
+            except Exception:
+                pass
+        time_fx = getattr(getattr(self, "app", None), "time_fx", None)
+        if time_fx and hasattr(time_fx, "trigger"):
+            try:
+                if self._combo_chain >= 5:
+                    time_fx.trigger("combo_tick", duration=0.16)
+                elif self._combo_chain >= 3:
+                    time_fx.trigger("micro_hit", duration=0.10)
+            except Exception:
+                pass
+
     def _spell_damage_type(self, spell_key, spell_data):
         if isinstance(spell_data, dict):
             dt = spell_data.get("damage_type")
@@ -221,25 +345,85 @@ class PlayerCombatMixin:
         if not spell_type:
             return False
 
-        effect = self.magic.castSpell(self.cs, spell_type, self.cs.facingDir, self.enemies)
-        self._on_spell_effect(effect)
         if runtime.get("cast_sfx"):
             self._play_sfx(runtime["cast_sfx"], volume=0.9)
+
+        if runtime["cast_time"] > 0.0:
+            self._spell_cast_lock_until = now + runtime["cast_time"]
+            delay = max(0.1, runtime["cast_time"] * 0.4)
+        else:
+            delay = 0.0
+
+        self._pending_spell = {
+            "type": spell_type,
+            "key": spell_key,
+            "data": spell_data,
+            "runtime": runtime,
+        }
+        self._pending_spell_release_time = now + delay
+
+        self._set_weapon_drawn(True)
+        self._queue_state_trigger(runtime.get("anim_trigger", "cast_spell"))
+        return True
+
+    def _update_spell_casting(self):
+        pending = getattr(self, "_pending_spell", None)
+        if not pending:
+            return
+
+        now = globalClock.getFrameTime()
+        if now >= getattr(self, "_pending_spell_release_time", 0.0):
+            self._release_pending_spell()
+
+    def _cancel_pending_spell(self):
+        self._pending_spell = None
+        self._pending_spell_release_time = 0.0
+
+    def _release_pending_spell(self):
+        pending = getattr(self, "_pending_spell", None)
+        if not pending:
+            return
+
+        spell_type = pending["type"]
+        spell_key = pending["key"]
+        spell_data = pending["data"]
+        runtime = pending["runtime"]
+        self._pending_spell = None
+
+        effect = self.magic.castSpell(self.cs, spell_type, self.cs.facingDir, self.enemies)
+        self._on_spell_effect(effect)
+        self._register_combo_step("magic", amount=1)
+
+        # Reactive Static Layer (World Influences)
+        if hasattr(self.app, "influence_mgr") and self.app.influence_mgr and effect:
+            radius = max(3.0, float(getattr(effect, "radius", 5.0)))
+            strength = 1.0
+            duration = 1.5
+            fx_type = "force"
+
+            if "fire" in spell_key:
+                fx_type = "fire"
+                duration = 2.5
+            elif "ice" in spell_key or "blizzard" in spell_key:
+                fx_type = "ice"
+                duration = 4.0
+
+            pos = effect.destination if hasattr(effect, "destination") else effect.pos
+            self.app.influence_mgr.add_influence(fx_type, pos, radius, strength, duration)
 
         damage_val = 0
         if isinstance(spell_data, dict):
             damage_val = int(spell_data.get("damage", spell_data.get("heal_value", 0)) or 0)
         dmg_type = runtime.get("damage_type") or self._spell_damage_type(spell_key, spell_data)
+
         if runtime.get("impact_sfx"):
             self._play_sfx(runtime["impact_sfx"], volume=0.95)
+
         self._push_combat_event(dmg_type, damage_val, source_label=runtime.get("label") or spell_key)
-        if runtime["cooldown"] > 0.0:
-            cooldowns[spell_key] = now + runtime["cooldown"]
-        if runtime["cast_time"] > 0.0:
-            self._spell_cast_lock_until = now + runtime["cast_time"]
-        self._set_weapon_drawn(True)
-        self._queue_state_trigger(runtime.get("anim_trigger", "cast_spell"))
-        return True
+
+        cooldowns = getattr(self, "_spell_cooldowns", None)
+        if isinstance(cooldowns, dict) and runtime["cooldown"] > 0.0:
+            cooldowns[spell_key] = globalClock.getFrameTime() + runtime["cooldown"]
 
     def _resolve_spell_type(self, spell_key, spell_data):
         candidates = []
@@ -273,6 +457,19 @@ class PlayerCombatMixin:
                 )
             self._play_sfx("sword_hit", volume=0.9)
             self._play_sfx("enemy_hit", volume=0.8)
+            self._register_combo_step("melee", amount=1)
+            director = getattr(getattr(self, "app", None), "camera_director", None)
+            if director and hasattr(director, "emit_impact"):
+                try:
+                    director.emit_impact("hit", intensity=0.6)
+                except Exception:
+                    pass
+            time_fx = getattr(getattr(self, "app", None), "time_fx", None)
+            if time_fx and hasattr(time_fx, "trigger"):
+                try:
+                    time_fx.trigger("micro_hit", duration=0.10)
+                except Exception:
+                    pass
         if not result:
             return
         amount = 0
@@ -308,6 +505,12 @@ class PlayerCombatMixin:
             "active_spell_idx": int(getattr(self, "_active_spell_idx", 0) or 0),
             "ultimate_spell_idx": int(getattr(self, "_ultimate_spell_idx", 0) or 0),
             "spell_cooldowns": out_cooldowns,
+            "combo_state": {
+                "count": int(getattr(self, "_combo_chain", 0) or 0),
+                "style": str(getattr(self, "_combo_style", "unarmed") or "unarmed"),
+                "kind": str(getattr(self, "_combo_kind", "melee") or "melee"),
+                "remain": max(0.0, float(getattr(self, "_combo_deadline", 0.0) or 0.0) - now),
+            },
         }
 
     def import_combat_runtime_state(self, payload):
@@ -332,3 +535,17 @@ class PlayerCombatMixin:
                 secs = self._safe_float(remain, default=0.0)
                 if secs > 0.0:
                     self._spell_cooldowns[str(key)] = now + secs
+
+        combo_state = payload.get("combo_state", {})
+        if isinstance(combo_state, dict):
+            self._combo_chain = int(self._safe_float(combo_state.get("count", 0), default=0.0))
+            self._combo_style = self._safe_str(combo_state.get("style", "unarmed"), default="unarmed")
+            self._combo_kind = self._safe_str(combo_state.get("kind", "melee"), default="melee")
+            remain = max(0.0, self._safe_float(combo_state.get("remain", 0.0), default=0.0))
+            self._combo_deadline = now + remain
+            cs = getattr(self, "cs", None)
+            if cs and hasattr(cs, "comboCount"):
+                try:
+                    cs.comboCount = int(self._combo_chain)
+                except Exception:
+                    pass

@@ -1,0 +1,91 @@
+{
+  "id": "sherward_realism_v1",
+  "name": "Shervard",
+  "archetype": "human_swordmage",
+  "visual_target": {
+    "style": "realism_dark_fantasy",
+    "mood": "controlled_internal_tension",
+    "notes": [
+      "Mortensen-type presence, but younger and less worn",
+      "No default angry brow expression"
+    ]
+  },
+  "proportions": {
+    "height_cm": 185,
+    "head_to_body_ratio": 7.5,
+    "shoulder_width": "slightly_above_average",
+    "build": "athletic_survivor_non_bodybuilder"
+  },
+  "face": {
+    "shape": "moderately_elongated",
+    "cheekbones": "defined_soft",
+    "jaw": "defined_non_block",
+    "nose": {
+      "shape": "straight",
+      "length": "slightly_long",
+      "asymmetry": "subtle_natural"
+    },
+    "eyes": {
+      "set": "deep",
+      "gaze": "calm_attentive",
+      "color_options": [
+        "dark_green",
+        "gray_brown"
+      ]
+    },
+    "brows": {
+      "default_expression": "neutral"
+    },
+    "stubble": {
+      "density_days": "2_4",
+      "tone_relative_to_hair": "slightly_darker"
+    }
+  },
+  "hair": {
+    "color": "dark_chestnut",
+    "length": "medium",
+    "style": "swept_back_or_partially_tied"
+  },
+  "outfit_peace": {
+    "layers": [
+      "linen_shirt",
+      "matte_leather_doublet",
+      "light_steel_inserts",
+      "knee_length_cloak"
+    ],
+    "weapon": "functional_sword_minimal_ornament",
+    "material_notes": [
+      "matte_leather",
+      "low_gloss_steel",
+      "wear_on_edges_and_elbows"
+    ]
+  },
+  "animation_personality": {
+    "idle": [
+      "balanced_weight_distribution",
+      "subtle_shoulder_motion",
+      "periodic_micro_look_scan"
+    ],
+    "combat_idle": [
+      "small_forward_lean",
+      "lowered_center_of_gravity",
+      "no_nervous_bounce"
+    ]
+  },
+  "rig_requirements": {
+    "bones_or_controls": [
+      "jaw",
+      "eye.L",
+      "eye.R",
+      "brow_controls",
+      "lip_corner_controls"
+    ],
+    "mixamo_compatibility": true,
+    "allow_separate_head_mesh_during_prod": true
+  },
+  "lookdev": {
+    "skin_sss": true,
+    "micro_normals": true,
+    "face_asymmetry_required": true
+  }
+}

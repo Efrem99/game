@@ -7,6 +7,8 @@
             "speaker": "Guard Captain Marcus",
             "text": "Halt! State your business, citizen.",
             "animation": "salute",
+            "camera": "npc",
+            "voice": "guard_city/start",
             "choices": [
                 {
                     "text": "I'm just passing through.",
@@ -31,6 +33,8 @@
             "speaker": "Guard Captain Marcus",
             "text": "Very well. Stay out of trouble, and keep to the main roads after dark. Bandits have been spotted in the woods.",
             "animation": "patrol",
+            "camera": "npc",
+            "voice": "guard_city/passing_through",
             "choices": [
                 {
                     "text": "Thanks for the warning.",
@@ -47,6 +51,8 @@
             "speaker": "Guard Captain Marcus",
             "text": "Where are you headed? The market is to the east, the temple to the north, and the training grounds are south of here.",
             "animation": "idle",
+            "camera": "npc",
+            "voice": "guard_city/directions",
             "choices": [
                 {
                     "text": "How do I get to the castle?",
@@ -63,6 +69,8 @@
             "speaker": "Guard Captain Marcus",
             "text": "The castle? You'll need clearance to enter. Head north past the temple, but the guards won't let you in without proper authorization.",
             "animation": "idle",
+            "camera": "npc",
+            "voice": "guard_city/castle_directions",
             "choices": [
                 {
                     "text": "I understand.",
@@ -75,6 +83,8 @@
             "speaker": "Guard Captain Marcus",
             "text": "Aye, there's been increased monster activity near the forest. We're stretched thin as it is. If you're capable, we could use help clearing them out.",
             "animation": "idle",
+            "camera": "npc",
+            "voice": "guard_city/trouble",
             "choices": [
                 {
                     "text": "I can help with that.",
@@ -92,6 +102,8 @@
             "speaker": "Guard Captain Marcus",
             "text": "Excellent! Clear out at least 5 monsters from the forest perimeter, and I'll make sure you're compensated. Report back when it's done.",
             "animation": "celebrate",
+            "camera": "npc",
+            "voice": "guard_city/accept_patrol",
             "choices": [
                 {
                     "text": "I'll get it done.",
@@ -104,6 +116,8 @@
             "speaker": "Guard Captain Marcus",
             "text": "Stay vigilant, citizen.",
             "animation": "salute",
+            "camera": "npc",
+            "voice": "guard_city/farewell",
             "choices": []
         }
     }

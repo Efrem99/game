@@ -64,6 +64,34 @@ struct CharacterState {
 };
 
 // ───────────────────────────────────────────────
+// Status Effects and Damage Types
+// ───────────────────────────────────────────────
+enum class StatusType { Burn, Freeze, Shock, Slow, Weaken, Stun };
+
+struct StatusInstance {
+    StatusType type;
+    float remaining = 0.f;
+    float tickRate  = 1.f;
+    float tickTimer = 0.f;
+    float magnitude = 0.f;
+    int sourceCasterId = 0;
+};
+
+enum class DamageType { Physical, Fire, Ice, Lightning, Arcane };
+
+struct ResistProfile {
+    float fire      = 0.f;
+    float ice       = 0.f;
+    float lightning = 0.f;
+    float arcane    = 0.f;
+
+    bool immuneFire      = false;
+    bool immuneIce       = false;
+    bool immuneLightning = false;
+    bool immuneArcane    = false;
+};
+
+// ───────────────────────────────────────────────
 // Rigid body (simple verlet integration)
 // ───────────────────────────────────────────────
 struct RigidBody {
@@ -94,6 +122,10 @@ struct Enemy {
     float armor    = 0.f;
     bool  blocking = false;
     bool  alive    = true;
+
+    // Status and Resistances
+    std::vector<StatusInstance> statuses;
+    ResistProfile resist;
 };
 
 // ───────────────────────────────────────────────

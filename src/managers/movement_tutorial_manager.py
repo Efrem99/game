@@ -12,38 +12,144 @@ class MovementTutorialManager:
         self.mode = "main"
 
         self._core_steps = [
-            {"id": "move", "text_key": "ui.tutorial_move", "default": "Move with W/A/S/D"},
-            {"id": "sprint", "text_key": "ui.tutorial_sprint", "default": "Sprint with Shift + movement"},
-            {"id": "jump", "text_key": "ui.tutorial_jump", "default": "Jump with Space"},
-            {"id": "interact", "text_key": "ui.tutorial_interact", "default": "Interact with X near NPC/object"},
-            {"id": "dodge", "text_key": "ui.tutorial_dodge", "default": "Dodge with Z"},
-            {"id": "attack", "text_key": "ui.tutorial_attack", "default": "Use light attack (LMB) or heavy attack (E)"},
-            {"id": "skill_wheel", "text_key": "ui.tutorial_skill_wheel", "default": "Hold TAB and choose a skill with mouse"},
-            {"id": "cast", "text_key": "ui.tutorial_cast", "default": "Cast your selected spell"},
+            {
+                "id": "move",
+                "title_key": "ui.tutorial_step_move_title",
+                "title_default": "Footwork",
+                "text_key": "ui.tutorial_move",
+                "default": "Move with W/A/S/D",
+                "bindings": ["forward", "left", "backward", "right"],
+                "target": (18.0, 24.0, 0.0),
+                "radius": 7.0,
+            },
+            {
+                "id": "sprint",
+                "title_key": "ui.tutorial_step_sprint_title",
+                "title_default": "Momentum",
+                "text_key": "ui.tutorial_sprint",
+                "default": "Sprint with Shift + movement",
+                "bindings": ["run", "forward"],
+                "target": (18.0, 13.0, 0.0),
+                "radius": 6.0,
+            },
+            {
+                "id": "jump",
+                "title_key": "ui.tutorial_step_jump_title",
+                "title_default": "Verticality",
+                "text_key": "ui.tutorial_jump",
+                "default": "Jump with Space",
+                "bindings": ["jump"],
+                "target": (12.5, 30.8, 0.0),
+                "radius": 6.0,
+            },
+            {
+                "id": "interact",
+                "title_key": "ui.tutorial_step_interact_title",
+                "title_default": "Interaction",
+                "text_key": "ui.tutorial_interact",
+                "default": "Interact with X near NPC/object",
+                "bindings": ["interact"],
+                "target": (5.0, 45.0, 0.0),
+                "radius": 6.5,
+            },
+            {
+                "id": "dodge",
+                "title_key": "ui.tutorial_step_dodge_title",
+                "title_default": "Evasion",
+                "text_key": "ui.tutorial_dodge",
+                "default": "Dodge with Z",
+                "bindings": ["dash"],
+                "target": (18.0, 24.0, 0.0),
+                "radius": 6.0,
+            },
+            {
+                "id": "attack",
+                "title_key": "ui.tutorial_step_attack_title",
+                "title_default": "Melee Basics",
+                "text_key": "ui.tutorial_attack",
+                "default": "Use light attack (LMB) or heavy attack (E)",
+                "bindings": ["attack_light", "attack_heavy"],
+                "target": (18.0, 24.0, 0.0),
+                "radius": 6.0,
+            },
+            {
+                "id": "skill_wheel",
+                "title_key": "ui.tutorial_step_skill_wheel_title",
+                "title_default": "Skill Wheel",
+                "text_key": "ui.tutorial_skill_wheel",
+                "default": "Hold TAB and choose a skill with mouse",
+                "bindings": ["skill_wheel"],
+                "target": (18.0, 24.0, 0.0),
+                "radius": 6.0,
+            },
+            {
+                "id": "cast",
+                "title_key": "ui.tutorial_step_cast_title",
+                "title_default": "Spell Casting",
+                "text_key": "ui.tutorial_cast",
+                "default": "Cast your selected spell",
+                "bindings": ["attack_light", "block"],
+                "target": (18.0, 24.0, 0.0),
+                "radius": 6.0,
+            },
         ]
+
         self._advanced_steps = [
-            {"id": "parkour", "text_key": "ui.tutorial_parkour", "default": "Use parkour: vault, climb or wallrun"},
-            {"id": "swim", "text_key": "ui.tutorial_swim", "default": "Enter water to test swimming"},
-            {"id": "fly", "text_key": "ui.tutorial_fly", "default": "Toggle flight and move in air"},
-            {"id": "mount", "text_key": "ui.tutorial_mount", "default": "Mount a horse/carriage/boat with interact"},
+            {
+                "id": "parkour",
+                "title_key": "ui.tutorial_step_parkour_title",
+                "title_default": "Parkour Route",
+                "text_key": "ui.tutorial_parkour",
+                "default": "Use parkour: vault, climb or wallrun",
+                "bindings": ["roll", "jump", "forward"],
+                "target": (29.5, 26.0, 0.0),
+                "radius": 5.0,
+            },
+            {
+                "id": "swim",
+                "title_key": "ui.tutorial_step_swim_title",
+                "title_default": "Water Trial",
+                "text_key": "ui.tutorial_swim",
+                "default": "Enter water to test swimming",
+                "bindings": ["forward", "jump"],
+                "target": (4.0, 36.0, 0.0),
+                "radius": 5.0,
+            },
+            {
+                "id": "fly",
+                "title_key": "ui.tutorial_step_fly_title",
+                "title_default": "Flight Trial",
+                "text_key": "ui.tutorial_fly",
+                "default": "Toggle flight and move in air",
+                "bindings": ["flight_toggle", "flight_up", "flight_down", "run"],
+                "target": (18.0, 24.0, 8.0),
+                "radius": 5.0,
+            },
+            {
+                "id": "mount",
+                "title_key": "ui.tutorial_step_mount_title",
+                "title_default": "Mount Handling",
+                "text_key": "ui.tutorial_mount",
+                "default": "Mount a horse/carriage/boat with interact",
+                "bindings": ["interact", "run", "forward"],
+                "target": (9.0, 6.0, 0.0),
+                "radius": 5.0,
+            },
         ]
+
         self._core_target = (18.0, 24.0, 0.0)
-        self._step_targets = {
-            "move": (18.0, 24.0, 0.0),
-            "sprint": (18.0, 13.0, 0.0),
-            "jump": (12.5, 30.8, 0.0),
-            "interact": (5.0, 45.0, 0.0),
-            "dodge": (18.0, 24.0, 0.0),
-            "attack": (18.0, 24.0, 0.0),
-            "skill_wheel": (18.0, 24.0, 0.0),
-            "cast": (18.0, 24.0, 0.0),
-            "parkour": (29.5, 26.0, 0.0),
-            "swim": (4.0, 36.0, 0.0),
-            "fly": (18.0, 24.0, 8.0),
-            "mount": (9.0, 6.0, 0.0),
-        }
+        self._step_targets = {}
+        self._step_radius = {}
+        for step in self._core_steps + self._advanced_steps:
+            self._step_targets[str(step["id"])] = tuple(step.get("target", self._core_target))
+            self._step_radius[str(step["id"])] = float(step.get("radius", 6.0) or 6.0)
+
         self._required_index = 0
         self._bonus_index = 0
+        self._step_flash_ttl = 0.0
+        self._completion_banner_ttl = 0.0
+        self._last_completion_text = ""
+        self._last_announced_step = ""
 
     def set_mode(self, mode, reset=False):
         token = str(mode or "main").strip().lower()
@@ -53,6 +159,10 @@ class MovementTutorialManager:
         if reset:
             self._required_index = 0
             self._bonus_index = 0
+            self._step_flash_ttl = 0.0
+            self._completion_banner_ttl = 0.0
+            self._last_completion_text = ""
+            self._last_announced_step = ""
 
     def enable(self, reset=True, mode=None):
         if mode is not None:
@@ -60,6 +170,10 @@ class MovementTutorialManager:
         elif reset:
             self._required_index = 0
             self._bonus_index = 0
+            self._step_flash_ttl = 0.0
+            self._completion_banner_ttl = 0.0
+            self._last_completion_text = ""
+            self._last_announced_step = ""
         self.enabled = True
 
     def disable(self):
@@ -164,8 +278,133 @@ class MovementTutorialManager:
             idx += 1
         return idx
 
+    def _emit_event(self, event_name, payload):
+        bus = getattr(self.app, "event_bus", None)
+        if not bus or not hasattr(bus, "emit"):
+            return
+        try:
+            bus.emit(event_name, payload, immediate=False)
+        except Exception:
+            pass
+
+    def _step_phase_label(self, phase):
+        t = self.app.data_mgr.t
+        if phase == "advanced":
+            return t("ui.tutorial_hud_stage_advanced", "Advanced")
+        if phase == "complete":
+            return t("ui.tutorial_hud_stage_complete", "Complete")
+        return t("ui.tutorial_hud_stage_core", "Core")
+
+    def _on_step_completed(self, step, phase, index, total):
+        if not isinstance(step, dict):
+            return
+        t = self.app.data_mgr.t
+        step_id = str(step.get("id", "") or "")
+        step_title = t(step.get("title_key", ""), step.get("title_default", step_id))
+        self._last_completion_text = f"{self._step_phase_label(phase)}: {step_title}"
+        self._step_flash_ttl = 1.25
+        self._last_announced_step = f"{phase}:{step_id}:{index}"
+
+        self._emit_event(
+            "tutorial.step.completed",
+            {
+                "step_id": step_id,
+                "phase": phase,
+                "index": int(index),
+                "total": int(total),
+                "title": step_title,
+            },
+        )
+        self._emit_event(
+            "audio.sfx.play",
+            {
+                "key": "ui_click",
+                "volume": 0.42 if phase == "core" else 0.52,
+                "rate": 1.02 if phase == "core" else 1.08,
+            },
+        )
+        if phase == "advanced" and step_id in {"parkour", "fly", "mount"}:
+            self._emit_event(
+                "camera.shot.request",
+                {
+                    "name": "location",
+                    "duration": 0.62,
+                    "profile": "tutorial",
+                    "side": 1.35,
+                    "yaw_bias_deg": 9.0,
+                    "priority": 57,
+                    "owner": "tutorial",
+                },
+            )
+
+    def _on_tutorial_completed(self):
+        t = self.app.data_mgr.t
+        self._last_completion_text = t("ui.tutorial_complete", "Tutorial complete")
+        self._completion_banner_ttl = 5.0
+        self._step_flash_ttl = 1.4
+        self._emit_event(
+            "tutorial.completed",
+            {
+                "mode": str(self.mode),
+                "required_total": len(self._core_steps),
+                "bonus_total": len(self._advanced_steps),
+            },
+        )
+        self._emit_event(
+            "audio.sfx.play",
+            {
+                "key": "item_pickup",
+                "volume": 0.58,
+                "rate": 1.14,
+            },
+        )
+        self._emit_event(
+            "camera.impact",
+            {
+                "kind": "parry",
+                "intensity": 0.48,
+                "direction_deg": 0.0,
+            },
+        )
+
+    def _binding_label(self, action_name):
+        token = str(action_name or "").strip().lower()
+        if not token:
+            return ""
+        bound = str(getattr(self.app.data_mgr, "get_binding", lambda _a: "")(token) or token).strip().lower()
+        aliases = {
+            "mouse1": "LMB",
+            "mouse2": "RMB",
+            "mouse3": "MMB",
+            "space": "SPACE",
+            "lcontrol": "LCTRL",
+            "rcontrol": "RCTRL",
+            "lshift": "SHIFT",
+            "rshift": "SHIFT",
+            "shift": "SHIFT",
+            "tab": "TAB",
+            "enter": "ENTER",
+            "escape": "ESC",
+            "wheel_up": "MWHEEL+",
+            "wheel_down": "MWHEEL-",
+        }
+        return aliases.get(bound, bound.upper())
+
+    def _step_bindings(self, step):
+        if not isinstance(step, dict):
+            return []
+        out = []
+        for action in step.get("bindings", []):
+            label = self._binding_label(action)
+            if label and label not in out:
+                out.append(label)
+        return out
+
     def update(self, dt):
-        del dt
+        dt = max(0.0, float(dt or 0.0))
+        self._step_flash_ttl = max(0.0, self._step_flash_ttl - dt)
+        self._completion_banner_ttl = max(0.0, self._completion_banner_ttl - dt)
+
         if not self.enabled:
             return
 
@@ -173,40 +412,134 @@ class MovementTutorialManager:
         if not player:
             return
 
+        old_required = int(self._required_index)
+        old_bonus = int(self._bonus_index)
+
         self._required_index = self._advance(self._core_steps, self._required_index, player)
+        if self._required_index > old_required:
+            start = max(0, old_required)
+            end = min(len(self._core_steps), self._required_index)
+            for idx in range(start, end):
+                self._on_step_completed(self._core_steps[idx], "core", idx + 1, len(self._core_steps))
+
         if self._required_index >= len(self._core_steps):
             if self._should_show_bonus():
                 self._bonus_index = self._advance(self._advanced_steps, self._bonus_index, player)
+                if self._bonus_index > old_bonus:
+                    start = max(0, old_bonus)
+                    end = min(len(self._advanced_steps), self._bonus_index)
+                    for idx in range(start, end):
+                        self._on_step_completed(self._advanced_steps[idx], "advanced", idx + 1, len(self._advanced_steps))
                 if self._bonus_index >= len(self._advanced_steps):
                     self.enabled = False
+                    self._on_tutorial_completed()
             elif self.mode == "demo":
                 self.enabled = False
+                self._on_tutorial_completed()
+
+    def _active_step(self):
+        if not self.is_required_complete():
+            if 0 <= self._required_index < len(self._core_steps):
+                return dict(self._core_steps[self._required_index]), "core", self._required_index + 1, len(self._core_steps)
+            return None, "core", 0, len(self._core_steps)
+        if self._should_show_bonus() and self._bonus_index < len(self._advanced_steps):
+            return dict(self._advanced_steps[self._bonus_index]), "advanced", self._bonus_index + 1, len(self._advanced_steps)
+        if self._should_show_bonus():
+            return None, "done", len(self._advanced_steps), len(self._advanced_steps)
+        return None, "await_advanced", len(self._core_steps), len(self._core_steps)
+
+    def get_hud_payload(self):
+        t = self.app.data_mgr.t
+        if not self.enabled and self._completion_banner_ttl <= 0.0:
+            return {"visible": False}
+
+        if not self.enabled and self._completion_banner_ttl > 0.0:
+            header = t("ui.tutorial_header_advanced", "Advanced Training")
+            return {
+                "visible": True,
+                "phase": "complete",
+                "header": header,
+                "title": t("ui.tutorial_hud_stage_complete", "Complete"),
+                "text": self._last_completion_text or t("ui.tutorial_complete", "Tutorial complete"),
+                "progress_label": "100%",
+                "progress_ratio": 1.0,
+                "keys": [],
+                "flash": bool(self._step_flash_ttl > 0.0),
+            }
+
+        step, phase, idx, total = self._active_step()
+        if phase == "await_advanced":
+            header = t("ui.tutorial_header_advanced", "Advanced Training")
+            return {
+                "visible": True,
+                "phase": "await_advanced",
+                "header": header,
+                "title": t("ui.tutorial_core_complete_title", "Core training complete"),
+                "text": t("ui.tutorial_core_complete_hint", "Reach the Training Grounds to unlock advanced drills."),
+                "progress_label": "100%",
+                "progress_ratio": 1.0,
+                "keys": [self._binding_label("inventory"), "F8", "SHIFT+F8"],
+                "flash": bool(self._step_flash_ttl > 0.0),
+            }
+
+        if step is None and phase == "done":
+            return {
+                "visible": True,
+                "phase": "complete",
+                "header": t("ui.tutorial_header_advanced", "Advanced Training"),
+                "title": t("ui.tutorial_hud_stage_complete", "Complete"),
+                "text": t("ui.tutorial_complete", "Tutorial complete"),
+                "progress_label": "100%",
+                "progress_ratio": 1.0,
+                "keys": [],
+                "flash": bool(self._step_flash_ttl > 0.0),
+            }
+
+        if not isinstance(step, dict):
+            return {"visible": False}
+
+        header = t("ui.tutorial_header", "Movement Tutorial") if phase == "core" else t("ui.tutorial_header_advanced", "Advanced Training")
+        title = t(step.get("title_key", ""), step.get("title_default", step.get("id", "Step")))
+        text = t(step.get("text_key", ""), step.get("default", ""))
+        if total <= 0:
+            progress_ratio = 0.0
+        else:
+            progress_ratio = max(0.0, min(1.0, float(idx - 1) / float(total)))
+        progress_label = f"{idx}/{total}" if total > 0 else "--"
+        return {
+            "visible": True,
+            "phase": phase,
+            "header": header,
+            "title": title,
+            "text": text,
+            "progress_label": progress_label,
+            "progress_ratio": progress_ratio,
+            "keys": self._step_bindings(step),
+            "flash": bool(self._step_flash_ttl > 0.0),
+            "step_id": str(step.get("id", "")),
+        }
 
     def get_hud_message(self):
-        if not self.enabled:
+        payload = self.get_hud_payload()
+        if not isinstance(payload, dict) or not payload.get("visible", False):
             return ""
-
-        t = self.app.data_mgr.t
-        if not self.is_required_complete():
-            step = self._core_steps[self._required_index]
-            text = t(step["text_key"], step["default"])
-            header = t("ui.tutorial_header", "Movement Tutorial")
-            total = len(self._core_steps)
-            return f"{header} [{self._required_index + 1}/{total}] {text}"
-
-        if self._should_show_bonus():
-            header = t("ui.tutorial_header_advanced", "Advanced Training")
-            total = len(self._advanced_steps)
-            if self._bonus_index >= total:
-                done = t("ui.tutorial_complete", "Tutorial complete")
-                return f"{header} [{total}/{total}] {done}"
-            step = self._advanced_steps[self._bonus_index]
-            text = t(step["text_key"], step["default"])
-            return f"{header} [{self._bonus_index + 1}/{total}] {text}"
-
-        return ""
+        header = str(payload.get("header", "") or "").strip()
+        title = str(payload.get("title", "") or "").strip()
+        text = str(payload.get("text", "") or "").strip()
+        progress = str(payload.get("progress_label", "") or "").strip()
+        if header and progress:
+            prefix = f"{header} [{progress}]"
+        elif header:
+            prefix = header
+        else:
+            prefix = ""
+        detail = ": ".join(part for part in [title, text] if part)
+        if prefix and detail:
+            return f"{prefix} {detail}"
+        return prefix or detail
 
     def get_status_snapshot(self):
+        step, phase, _, _ = self._active_step()
         return {
             "enabled": bool(self.enabled),
             "mode": str(self.mode),
@@ -216,16 +549,9 @@ class MovementTutorialManager:
             "bonus_total": len(self._advanced_steps),
             "core_complete": self.is_required_complete(),
             "full_complete": self.is_required_complete() and self.is_bonus_complete(),
+            "phase": str(phase),
+            "active_step_id": str(step.get("id", "") if isinstance(step, dict) else ""),
         }
-
-    def _active_step(self):
-        if not self.is_required_complete():
-            if 0 <= self._required_index < len(self._core_steps):
-                return dict(self._core_steps[self._required_index]), "core", self._required_index + 1, len(self._core_steps)
-            return None, "core", 0, len(self._core_steps)
-        if self._should_show_bonus() and self._bonus_index < len(self._advanced_steps):
-            return dict(self._advanced_steps[self._bonus_index]), "advanced", self._bonus_index + 1, len(self._advanced_steps)
-        return None, "done", 0, 0
 
     def _distance_to_target(self, player_pos, target):
         if player_pos is None or target is None:
@@ -249,27 +575,37 @@ class MovementTutorialManager:
         if not self.enabled:
             return None
         step, phase, idx, total = self._active_step()
-        if not step:
-            return None
+        t = self.app.data_mgr.t
+        if phase == "await_advanced":
+            objective_text = t("ui.tutorial_core_complete_hint", "Reach the Training Grounds to unlock advanced drills.")
+            target = self._core_target
+            radius = 12.0
+            objective_total = len(self._core_steps)
+            objective_index = len(self._core_steps)
+        else:
+            if not step:
+                return None
+            step_id = str(step.get("id", "") or "")
+            target = self._step_targets.get(step_id, self._core_target)
+            radius = float(self._step_radius.get(step_id, 6.0))
+            objective_text = t(step.get("text_key", ""), step.get("default", "Objective"))
+            objective_total = int(total)
+            objective_index = int(idx)
 
-        target = self._step_targets.get(step.get("id"), self._core_target)
         if not (isinstance(target, (list, tuple)) and len(target) >= 3):
             return None
-
-        t = self.app.data_mgr.t
-        objective_text = t(step.get("text_key", ""), step.get("default", "Objective"))
         distance = self._distance_to_target(player_pos, target)
         return {
             "quest_id": "movement_tutorial",
             "title": t("ui.tutorial_checkpoint_title", "Training Objective"),
             "objective": objective_text,
             "objective_type": "reach_location",
-            "objective_index": int(idx),
-            "objective_total": int(total),
+            "objective_index": int(objective_index),
+            "objective_total": int(objective_total),
             "status": t("hud.reach", "Reach"),
             "target": [float(target[0]), float(target[1]), float(target[2])],
             "distance": distance,
-            "radius": 6.0 if phase == "core" else 5.0,
+            "radius": float(radius),
         }
 
     def get_journal_lines(self):
@@ -284,6 +620,9 @@ class MovementTutorialManager:
             f"- {t('ui.tutorial_journal_advanced', 'Advanced')} "
             f"[{snap['bonus_done']}/{snap['bonus_total']}]"
         )
+        step_id = str(snap.get("active_step_id", "") or "")
+        if step_id:
+            lines.append(f"- Active Step: {step_id}")
         lines.append(
             "- " + t("ui.tutorial_journal_restart", "F8: restart tutorial, Shift+F8: full training")
         )
@@ -291,7 +630,7 @@ class MovementTutorialManager:
 
     def export_state(self):
         return {
-            "version": 2,
+            "version": 3,
             "mode": str(self.mode),
             "enabled": bool(self.enabled),
             "required_index": int(self._required_index),

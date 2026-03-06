@@ -1,0 +1,196 @@
+{
+    "version": 1,
+    "terrain": {
+        "size": 220.0,
+        "resolution": 84,
+        "castle_hill": {
+            "center": [0.0, 78.0],
+            "height": 30.0,
+            "radius": 32.0,
+            "plateau_radius": 10.0
+        },
+        "sea": {
+            "start_y": -56.0,
+            "slope": 0.64,
+            "level": -1.6
+        },
+        "hills": {
+            "noise_scale": 0.035,
+            "noise_height": 2.3
+        }
+    },
+    "river": {
+        "name": "Alder River",
+        "points": [
+            [34.0, 86.0],
+            [30.0, 74.0],
+            [23.0, 62.0],
+            [16.0, 52.0],
+            [9.0, 43.0],
+            [2.0, 34.0],
+            [-5.0, 24.0],
+            [-10.0, 13.0],
+            [-12.0, 2.0],
+            [-11.0, -12.0],
+            [-7.0, -24.0],
+            [-2.0, -36.0],
+            [3.0, -48.0],
+            [7.0, -58.0],
+            [12.0, -66.0]
+        ],
+        "width_start": 5.4,
+        "width_end": 11.6,
+        "depth": 2.2
+    },
+    "routes": {
+        "serpentine_path": [
+            [2.0, 74.0],
+            [10.0, 66.0],
+            [4.0, 58.0],
+            [12.0, 50.0],
+            [6.0, 42.0],
+            [14.0, 34.0],
+            [8.0, 25.0],
+            [16.0, 16.0],
+            [10.0, 8.0]
+        ],
+        "forest_zone": {
+            "center": [-28.0, 10.0],
+            "radius": 58.0
+        }
+    },
+    "zones": [
+        {
+            "id": "castle_hill",
+            "name": "Castle Hill",
+            "center": [0.0, 78.0, 22.0],
+            "radius": 28.0
+        },
+        {
+            "id": "inner_castle",
+            "name": "Castle Courtyard",
+            "center": [0.0, 78.0, 25.0],
+            "radius": 14.0
+        },
+        {
+            "id": "old_forest",
+            "name": "Old Forest",
+            "center": [-28.0, 10.0, 3.0],
+            "radius": 52.0
+        },
+        {
+            "id": "river_road",
+            "name": "River Road",
+            "center": [-8.0, -22.0, 1.0],
+            "radius": 30.0
+        },
+        {
+            "id": "port_town",
+            "name": "Port Market",
+            "center": [18.0, -62.0, 1.0],
+            "radius": 34.0
+        },
+        {
+            "id": "coastline",
+            "name": "Southern Coast",
+            "center": [0.0, -82.0, -1.0],
+            "radius": 46.0
+        },
+        {
+            "id": "training_grounds",
+            "name": "Training Grounds",
+            "center": [18.0, 24.0, 2.0],
+            "radius": 30.0
+        },
+        {
+            "id": "parkour_grounds",
+            "name": "Forest Parkour Grounds",
+            "center": [42.0, 33.0, 5.0],
+            "radius": 20.0
+        },
+        {
+            "id": "flight_grounds",
+            "name": "Coastal Flight Grounds",
+            "center": [-5.0, 23.0, 8.0],
+            "radius": 24.0
+        }
+    ],
+    "castle": {
+        "keep": [0.0, 78.0],
+        "wall_points": [
+            [-17.0, 95.0],
+            [0.0, 102.0],
+            [17.0, 95.0],
+            [23.0, 74.0],
+            [16.0, 57.0],
+            [0.0, 50.0],
+            [-16.0, 57.0],
+            [-23.0, 74.0],
+            [-17.0, 95.0]
+        ],
+        "inner_buildings": [
+            {"type": "hall", "pos": [-6.0, 72.0]},
+            {"type": "smith", "pos": [7.0, 73.0]},
+            {"type": "barracks", "pos": [-5.0, 84.0]},
+            {"type": "chapel", "pos": [6.0, 86.0]}
+        ]
+    },
+    "port": {
+        "center": [18.0, -62.0],
+        "district_radius": 32.0,
+        "dock_segments": [
+            {"pos": [8.0, -70.0], "size": [5.0, 12.0]},
+            {"pos": [18.0, -72.0], "size": [5.0, 10.0]},
+            {"pos": [28.0, -69.0], "size": [5.0, 13.0]}
+        ],
+        "market_stalls": [
+            {"pos": [11.0, -56.0]},
+            {"pos": [16.0, -54.0]},
+            {"pos": [21.0, -55.0]},
+            {"pos": [26.0, -57.0]}
+        ],
+        "houses": [
+            {"pos": [9.0, -49.0]},
+            {"pos": [15.0, -47.0]},
+            {"pos": [22.0, -48.0]},
+            {"pos": [28.0, -50.0]},
+            {"pos": [32.0, -56.0]}
+        ]
+    },
+    "navigation_zones": [
+        {
+            "id": "coastal_sea",
+            "kinds": ["ship", "boat"],
+            "type": "polygon",
+            "points": [
+                [-108.0, -112.0],
+                [108.0, -112.0],
+                [108.0, -50.0],
+                [42.0, -42.0],
+                [-8.0, -44.0],
+                [-108.0, -58.0]
+            ]
+        },
+        {
+            "id": "river_estuary",
+            "kinds": ["ship", "boat"],
+            "type": "corridor",
+            "points": [
+                [12.0, -68.0],
+                [8.0, -58.0],
+                [2.0, -48.0],
+                [-3.0, -38.0],
+                [-7.0, -28.0],
+                [-10.0, -17.0]
+            ],
+            "width": 8.6
+        }
+    ],
+    "vehicle_spawns": [
+        {"id": "horse_stable_1", "kind": "horse", "pos": [9.0, 61.0], "heading": 194.0},
+        {"id": "horse_stable_2", "kind": "horse", "pos": [13.0, 58.0], "heading": 168.0},
+        {"id": "carriage_market_1", "kind": "carriage", "pos": [12.0, -52.0], "heading": 194.0},
+        {"id": "ship_port_1", "kind": "ship", "pos": [18.0, -78.0], "heading": 180.0, "nav_zone_id": "coastal_sea"},
+        {"id": "ship_estuary_1", "kind": "ship", "pos": [5.0, -60.0], "heading": 168.0, "nav_zone_id": "river_estuary"}
+    ]
+}

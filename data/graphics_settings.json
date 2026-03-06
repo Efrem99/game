@@ -89,5 +89,6 @@
             "ssao": true,
             "dof": true
         }
-    }
+    },
+    "quality": "Ultra"
 }

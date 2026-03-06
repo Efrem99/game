@@ -19,7 +19,12 @@
       "iron_sword",
       "leather_armor"
     ],
-    "model": "assets/models/xbot/Xbot.glb",
+    "model": "assets/models/hero/sherward/sherward.glb",
+    "model_candidates": [
+      "assets/models/hero/sherward/sherward.glb",
+      "assets/models/xbot/Xbot.glb"
+    ],
+    "fallback_model": "assets/models/xbot/Xbot.glb",
     "scale": 1.0,
     "base_anims": {
       "idle": "assets/models/xbot/idle.glb",

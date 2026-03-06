@@ -2,6 +2,19 @@
     "id": "leather_armor",
     "name": "Leather Armor",
     "type": "armor",
+    "slot": "chest",
+    "icon": "assets/textures/items/leather_armor.png",
+    "attach_point": "spine_upper",
+    "equip_visual": {
+        "style": "light",
+        "color": [
+            0.95,
+            0.88,
+            0.78,
+            1.0
+        ],
+        "scale": 1.0
+    },
     "armor": 2,
     "description": "Light leather armor. Good mobility.",
     "visual": {

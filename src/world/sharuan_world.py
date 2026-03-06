@@ -5,6 +5,7 @@ Wires generated geometry into C++ physics.
 """
 import math
 import random
+from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import (
     Vec3, LColor,
     GeomNode, Geom, GeomTriangles, GeomVertexFormat,
@@ -145,8 +146,10 @@ def mk_mat(bc=(0.5,0.5,0.5,1), rough=0.8, metal=0.0):
     m=Material(); m.set_base_color(LColor(*bc)); m.set_roughness(rough); m.set_metallic(metal); return m
 
 class SharuanWorld:
-    RIVER = [(30,65),(25,55),(20,45),(15,38),(10,32),(5,25),(0,18),(-5,10),
-             (-8,2),(-10,-5),(-10,-15),(-8,-25),(-5,-35),(-3,-45),(0,-55),(0,-70)]
+    DEFAULT_RIVER = [
+        (30, 65), (25, 55), (20, 45), (15, 38), (10, 32), (5, 25), (0, 18), (-5, 10),
+        (-8, 2), (-10, -5), (-10, -15), (-8, -25), (-5, -35), (-3, -45), (0, -55), (0, -70)
+    ]
 
     def __init__(self, app):
         self.app = app
@@ -155,9 +158,35 @@ class SharuanWorld:
         self.phys = app.phys if HAS_CORE else None
         self.data_mgr = app.data_mgr
 
-        self.locations = self.data_mgr.world_config.get("locations", [])
+        get_layout = getattr(self.data_mgr, "get_world_layout", None)
+        self.layout = get_layout() if callable(get_layout) else {}
+        if not isinstance(self.layout, dict):
+            self.layout = {}
+
+        terrain_cfg = self.layout.get("terrain", {}) if isinstance(self.layout.get("terrain"), dict) else {}
+        self.terrain_size = float(terrain_cfg.get("size", 200.0) or 200.0)
+        self.terrain_res = int(terrain_cfg.get("resolution", 72) or 72)
+        self.castle_hill_cfg = terrain_cfg.get("castle_hill", {}) if isinstance(terrain_cfg.get("castle_hill"), dict) else {}
+        self.sea_cfg = terrain_cfg.get("sea", {}) if isinstance(terrain_cfg.get("sea"), dict) else {}
+        self.hills_cfg = terrain_cfg.get("hills", {}) if isinstance(terrain_cfg.get("hills"), dict) else {}
+        self.river_cfg = self.layout.get("river", {}) if isinstance(self.layout.get("river"), dict) else {}
+        river_points = self.river_cfg.get("points", [])
+        if isinstance(river_points, list) and len(river_points) >= 2:
+            parsed = []
+            for row in river_points:
+                if isinstance(row, (list, tuple)) and len(row) >= 2:
+                    try:
+                        parsed.append((float(row[0]), float(row[1])))
+                    except Exception:
+                        continue
+            self.RIVER = parsed if len(parsed) >= 2 else list(self.DEFAULT_RIVER)
+        else:
+            self.RIVER = list(self.DEFAULT_RIVER)
+
+        self.locations = self._prepare_locations()
         self.active_location = None
         self.colliders = [] # Python-only fallback AABB list
+        self._water_surfaces = []
 
         try:
             self.terrain_shader = Shader.load(
@@ -173,15 +202,16 @@ class SharuanWorld:
         self.tx = {}
         self._gen_steps = [
             (0.1, self._init_textures, "Generating procedural materials..."),
-            (0.25, self._build_terrain, "Drafting Sharuan terrain..."),
-            (0.35, self._build_sea, "Simulating sea and water bodies..."),
+            (0.24, self._build_terrain, "Drafting Sharuan terrain..."),
+            (0.34, self._build_sea, "Simulating sea and water bodies..."),
             (0.42, self._build_river, "Mapping river paths..."),
-            (0.55, self._build_castle, "Constructing Castle Sharuan..."),
-            (0.65, self._build_city_wall, "Erecting city fortifications..."),
-            (0.75, self._build_districts, "Laying out city districts..."),
-            (0.82, self._build_center, "Designing town center..."),
-            (0.86, self._build_movement_training_ground, "Preparing movement training grounds..."),
-            (0.90, self._build_scenery, "Adding scenery and decorations..."),
+            (0.54, self._build_castle, "Constructing Castle Sharuan..."),
+            (0.63, self._build_city_wall, "Erecting city fortifications..."),
+            (0.72, self._build_districts, "Laying out city districts..."),
+            (0.80, self._build_port_town, "Building port and market district..."),
+            (0.86, self._build_center, "Designing town center..."),
+            (0.90, self._build_movement_training_ground, "Preparing movement training grounds..."),
+            (0.94, self._build_scenery, "Adding scenery and decorations..."),
             (1.0, self._build_flora_fauna, "Populating world flora..."),
         ]
         self._current_step = 0
@@ -205,16 +235,84 @@ class SharuanWorld:
         return progress, status
 
     def update(self, player_pos):
+        self._animate_water(globalClock.getFrameTime())
+        next_location = None
         # Check for location triggers
         for loc in self.locations:
-            lp = loc['pos']
+            lp = loc["pos"]
             dist = (player_pos - Vec3(lp[0], lp[1], lp[2])).length()
-            if dist < loc['radius']:
-                if self.active_location != loc['name']:
-                    self.active_location = loc['name']
-                    print(f"[World] Entered: {self.active_location}")
-                return
-        self.active_location = None
+            if dist < loc["radius"]:
+                next_location = loc["name"]
+                break
+        if self.active_location != next_location and next_location:
+            print(f"[World] Entered: {next_location}")
+        self.active_location = next_location
+
+    def _prepare_locations(self):
+        locations = self.data_mgr.world_config.get("locations", [])
+        zones = self.layout.get("zones", []) if isinstance(self.layout.get("zones"), list) else []
+        if not zones:
+            return locations if isinstance(locations, list) else []
+
+        out = []
+        for zone in zones:
+            if not isinstance(zone, dict):
+                continue
+            center = zone.get("center", [])
+            if not (isinstance(center, list) and len(center) >= 3):
+                continue
+            try:
+                x = float(center[0]); y = float(center[1]); z = float(center[2])
+            except Exception:
+                continue
+            out.append(
+                {
+                    "name": str(zone.get("name", zone.get("id", "Location"))),
+                    "pos": [x, y, z],
+                    "radius": float(zone.get("radius", 20.0) or 20.0),
+                }
+            )
+        return out if out else (locations if isinstance(locations, list) else [])
+
+    def _animate_water(self, t):
+        for row in self._water_surfaces:
+            node = row.get("node")
+            if not node:
+                continue
+            base_z = float(row.get("base_z", 0.0))
+            amp = float(row.get("amp", 0.1))
+            speed = float(row.get("speed", 1.0))
+            phase = float(row.get("phase", 0.0))
+            wobble = math.sin((t * speed) + phase) * amp
+            node.setZ(base_z + wobble)
+
+    def sample_water_height(self, x, y):
+        sea_y = float(self.sea_cfg.get("start_y", -50.0) or -50.0)
+        sea_level = float(self.sea_cfg.get("level", -1.5) or -1.5)
+        best = None
+        if y <= sea_y:
+            best = sea_level
+        for idx in range(len(self.RIVER) - 1):
+            ax, ay = self.RIVER[idx]
+            bx, by = self.RIVER[idx + 1]
+            dx, dy = bx - ax, by - ay
+            ln_sq = (dx * dx) + (dy * dy)
+            if ln_sq <= 1e-6:
+                continue
+            tt = max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / ln_sq))
+            px = ax + (tt * dx)
+            py = ay + (tt * dy)
+            dist = math.sqrt(((x - px) ** 2) + ((y - py) ** 2))
+            w0 = float(self.river_cfg.get("width_start", 3.0) or 3.0)
+            w1 = float(self.river_cfg.get("width_end", 6.0) or 6.0)
+            width = w0 + ((w1 - w0) * (idx / max(1, len(self.RIVER) - 1)))
+            if dist <= width:
+                river_height = float(self._th(px, py)) - 0.25
+                if best is None:
+                    best = river_height
+                else:
+                    best = min(best, river_height)
+        return float(best if best is not None else sea_level)
 
     def _init_textures(self):
         S = 256 # Higher resolution for sharper, less blurry textures
@@ -278,10 +376,22 @@ class SharuanWorld:
         }
 
     def _th(self, x, y):
-        md = math.sqrt(x*x + (y-65)*(y-65))
-        mtn = 26.0 * math.exp(-(md*md) / (2*25*25))
-        if md < 10: mtn = max(mtn, 23.0 + (10-md)*0.1)
-        sea = min(0.0, (y + 50) * 0.5) if y < -50 else 0.0
+        hill_center = self.castle_hill_cfg.get("center", [0.0, 65.0])
+        if not (isinstance(hill_center, list) and len(hill_center) >= 2):
+            hill_center = [0.0, 65.0]
+        hc_x = float(hill_center[0]); hc_y = float(hill_center[1])
+        hill_height = float(self.castle_hill_cfg.get("height", 26.0) or 26.0)
+        hill_radius = max(6.0, float(self.castle_hill_cfg.get("radius", 25.0) or 25.0))
+        plateau_radius = max(2.0, float(self.castle_hill_cfg.get("plateau_radius", 10.0) or 10.0))
+
+        md = math.sqrt(((x - hc_x) * (x - hc_x)) + ((y - hc_y) * (y - hc_y)))
+        mtn = hill_height * math.exp(-(md * md) / (2 * hill_radius * hill_radius))
+        if md < plateau_radius:
+            mtn = max(mtn, (hill_height * 0.85) + ((plateau_radius - md) * 0.1))
+
+        sea_start = float(self.sea_cfg.get("start_y", -50.0) or -50.0)
+        sea_slope = float(self.sea_cfg.get("slope", 0.5) or 0.5)
+        sea = min(0.0, (y - sea_start) * sea_slope) if y < sea_start else 0.0
         rv = 0.0
         for i in range(len(self.RIVER)-1):
             ax,ay = self.RIVER[i]; bx,by = self.RIVER[i+1]
@@ -289,10 +399,16 @@ class SharuanWorld:
             if ln < 0.1: continue
             t = max(0, min(1, ((x-ax)*dx+(y-ay)*dy)/(ln*ln)))
             px,py = ax+t*dx, ay+t*dy; dd = math.sqrt((x-px)**2+(y-py)**2)
-            w = 2.5 + (1.0 - t) * 1.5
-            if dd < w: rv = min(rv, -1.5 * (1.0 - dd/w))
-        noise = _fbm(x*0.05, y*0.05, 3, 100) * 1.2
-        hills = _fbm(x*0.03, y*0.03, 2, 200) * 2.0
+            w0 = float(self.river_cfg.get("width_start", 2.5) or 2.5)
+            w1 = float(self.river_cfg.get("width_end", 4.0) or 4.0)
+            depth = float(self.river_cfg.get("depth", 1.5) or 1.5)
+            w = w0 + ((w1 - w0) * (1.0 - t))
+            if dd < w:
+                rv = min(rv, -depth * (1.0 - (dd / max(0.1, w))))
+        noise_scale = float(self.hills_cfg.get("noise_scale", 0.05) or 0.05)
+        noise_height = float(self.hills_cfg.get("noise_height", 1.2) or 1.2)
+        noise = _fbm(x*noise_scale, y*noise_scale, 3, 100) * noise_height
+        hills = _fbm(x*(noise_scale*0.6), y*(noise_scale*0.6), 2, 200) * (noise_height * 1.7)
         return mtn + sea + rv + noise + hills
 
     def _distance_to_river(self, x, y):
@@ -393,9 +509,10 @@ class SharuanWorld:
         return getattr(self, key)
 
     def _build_terrain(self):
-        t = mk_terrain('terrain', 200, 72, self._th)
+        t = mk_terrain('terrain', self.terrain_size, self.terrain_res, self._th)
         m = mk_mat((0.25,0.45,0.15,1), 1.0, 0.0)
         np = self._pl(t, 0, 0, 0, self.tx['grass'], m, 'Sharuan Plains', is_platform=False)
+        np.set_shader_input("bend_weight", 0.25) # Give it some bend from wind/magic
         # Tile all texture stages for terrain coverage
         for ts in [TextureStage.get_default()]:
             np.set_tex_scale(ts, 10, 10)
@@ -406,28 +523,56 @@ class SharuanWorld:
 
     def _build_sea(self):
         wm = mk_mat((0.15,0.35,0.55,0.85), 0.1, 0.2)
-        sea = mk_plane('sea', 200, 60, 4)
-        np = self._pl(sea, 0, -80, -1.5, None, wm, 'Southern Sea', is_platform=False)
+        sea_y = float(self.sea_cfg.get("start_y", -50.0) or -50.0)
+        sea_level = float(self.sea_cfg.get("level", -1.5) or -1.5)
+        sea = mk_plane('sea', self.terrain_size, 72, 4)
+        np = self._pl(sea, 0, sea_y - 30.0, sea_level, None, wm, 'Southern Sea', is_platform=False)
         np.set_transparency(TransparencyAttrib.M_alpha)
+        np.setColorScale(0.56, 0.74, 0.95, 0.74)
+        self._water_surfaces.append(
+            {
+                "kind": "sea",
+                "node": np,
+                "base_z": sea_level,
+                "amp": 0.14,
+                "speed": 0.72,
+                "phase": 0.0,
+            }
+        )
         if self.phys:
             p = gc.Platform()
-            p.aabb.min = gc.Vec3(-100, -110, -10)
-            p.aabb.max = gc.Vec3(100, -50, -1.5)
+            p.aabb.min = gc.Vec3(-self.terrain_size * 0.5, sea_y - 60.0, -10)
+            p.aabb.max = gc.Vec3(self.terrain_size * 0.5, sea_y + 20.0, sea_level + 0.1)
             p.isWater = True
             self.phys.addPlatform(p)
 
     def _build_river(self):
         wm = mk_mat((0.12,0.30,0.50,0.8), 0.15, 0.15)
+        w0 = float(self.river_cfg.get("width_start", 3.0) or 3.0)
+        w1 = float(self.river_cfg.get("width_end", 6.0) or 6.0)
+        depth = float(self.river_cfg.get("depth", 1.5) or 1.5)
         for i in range(len(self.RIVER)-1):
             ax,ay = self.RIVER[i]; bx,by = self.RIVER[i+1]
             mx,my = (ax+bx)/2, (ay+by)/2
             dx,dy = bx-ax, by-ay; ln = math.sqrt(dx*dx+dy*dy)
             ang = math.degrees(math.atan2(dx, dy))
-            w = 3.0 + i * 0.2
+            seg_t = i / max(1, len(self.RIVER) - 1)
+            w = w0 + ((w1 - w0) * seg_t)
             seg = mk_plane(f'riv{i}', w, ln, 1)
             np = self._pl(seg, mx, my, self._th(mx,my)-0.3, None, wm, 'River Aran', is_platform=False)
             np.set_h(ang)
             np.set_transparency(TransparencyAttrib.M_alpha)
+            np.setColorScale(0.56, 0.78, 0.98, 0.68)
+            self._water_surfaces.append(
+                {
+                    "kind": "river",
+                    "node": np,
+                    "base_z": float(np.getZ()),
+                    "amp": 0.06 + (0.03 * seg_t),
+                    "speed": 1.05 + (0.22 * seg_t),
+                    "phase": i * 0.35,
+                }
+            )
             if self.phys:
                 p = gc.Platform()
                 p.aabb.min = gc.Vec3(mx-w, my-ln*0.5, -5)
@@ -437,7 +582,12 @@ class SharuanWorld:
 
     def _build_castle(self):
         sm = mk_mat((0.6,0.58,0.55,1), 0.9, 0.05)
-        cx, cy = 0, 65; bz = self._th(cx, cy)
+        castle_cfg = self.layout.get("castle", {}) if isinstance(self.layout.get("castle"), dict) else {}
+        keep = castle_cfg.get("keep", [0.0, 65.0])
+        if not (isinstance(keep, list) and len(keep) >= 2):
+            keep = [0.0, 65.0]
+        cx, cy = float(keep[0]), float(keep[1])
+        bz = self._th(cx, cy)
         self._pl(mk_box('keep',6,6,10), cx,cy, bz+4.5, self.tx['stone'], sm, 'Castle Keep')
         for tx,ty in [(-5,-5),(5,-5),(-5,5),(5,5)]:
             tz = self._th(cx+tx, cy+ty)
@@ -445,7 +595,20 @@ class SharuanWorld:
 
     def _build_city_wall(self):
         sm = mk_mat((0.50,0.47,0.43,1), 0.9, 0.05)
-        wall_pts = [(-35, 95), (0, 108), (35, 95), (95, -75), (-95, -75), (-35, 95)]
+        castle_cfg = self.layout.get("castle", {}) if isinstance(self.layout.get("castle"), dict) else {}
+        wall_pts = castle_cfg.get("wall_points", [(-35, 95), (0, 108), (35, 95), (95, -75), (-95, -75), (-35, 95)])
+        parsed = []
+        if isinstance(wall_pts, list):
+            for row in wall_pts:
+                if isinstance(row, (list, tuple)) and len(row) >= 2:
+                    try:
+                        parsed.append((float(row[0]), float(row[1])))
+                    except Exception:
+                        continue
+        if len(parsed) >= 3:
+            wall_pts = parsed
+        else:
+            wall_pts = [(-35, 95), (0, 108), (35, 95), (95, -75), (-95, -75), (-35, 95)]
         for i in range(len(wall_pts) - 1):
             p1, p2 = Vec3(wall_pts[i][0], wall_pts[i][1], 0), Vec3(wall_pts[i+1][0], wall_pts[i+1][1], 0)
             diff = p2 - p1; dist = diff.length()
@@ -461,6 +624,11 @@ class SharuanWorld:
     def _build_districts(self):
         wall_mat = mk_mat((0.56, 0.52, 0.46, 1), 0.82, 0.04)
         roof_mat = mk_mat((0.52, 0.22, 0.18, 1), 0.7, 0.02)
+        castle_cfg = self.layout.get("castle", {}) if isinstance(self.layout.get("castle"), dict) else {}
+        keep = castle_cfg.get("keep", [0.0, 65.0])
+        if not (isinstance(keep, list) and len(keep) >= 2):
+            keep = [0.0, 65.0]
+        keep_x = float(keep[0]); keep_y = float(keep[1])
         district_points = [
             (-22, 22), (-12, 18), (12, 20), (24, 18),
             (-28, 8), (-14, 6), (10, 8), (24, 6),
@@ -482,6 +650,169 @@ class SharuanWorld:
                 x, y, base_z + height + 1.0,
                 self.tx["roof"], roof_mat, "City District", is_platform=False
             )
+
+        inner = castle_cfg.get("inner_buildings", [])
+        if isinstance(inner, list):
+            for idx, row in enumerate(inner):
+                if not isinstance(row, dict):
+                    continue
+                pos = row.get("pos", [])
+                if not (isinstance(pos, list) and len(pos) >= 2):
+                    continue
+                try:
+                    x = float(pos[0]); y = float(pos[1])
+                except Exception:
+                    continue
+                bz = self._th(x, y)
+                bw = 3.8 + (idx % 2) * 0.6
+                bd = 3.2 + ((idx + 1) % 2) * 0.6
+                bh = 3.0 + (idx % 3) * 0.35
+                self._pl(
+                    mk_box(f"castle_inner_{idx}", bw, bd, bh),
+                    x, y, bz + bh * 0.5,
+                    self.tx["stone"], wall_mat, "Castle Courtyard"
+                )
+                self._pl(
+                    mk_cone(f"castle_inner_roof_{idx}", max(bw, bd) * 0.36, 2.2, 10),
+                    x, y, bz + bh + 0.85,
+                    self.tx["roof"], roof_mat, "Castle Courtyard", is_platform=False
+                )
+
+    def _build_port_town(self):
+        port_cfg = self.layout.get("port", {}) if isinstance(self.layout.get("port"), dict) else {}
+        routes_cfg = self.layout.get("routes", {}) if isinstance(self.layout.get("routes"), dict) else {}
+        center = port_cfg.get("center", [18.0, -62.0])
+        if not (isinstance(center, list) and len(center) >= 2):
+            center = [18.0, -62.0]
+        cx, cy = float(center[0]), float(center[1])
+        district_radius = max(10.0, float(port_cfg.get("district_radius", 26.0) or 26.0))
+
+        wood_mat = mk_mat((0.46, 0.33, 0.20, 1), 0.82, 0.03)
+        wall_mat = mk_mat((0.58, 0.53, 0.47, 1), 0.85, 0.02)
+        roof_mat = mk_mat((0.50, 0.22, 0.16, 1), 0.72, 0.02)
+        road_mat = mk_mat((0.44, 0.38, 0.31, 1), 0.90, 0.00)
+
+        # Harbor quay ring at shoreline edge.
+        for idx in range(10):
+            ang = (math.pi * 2.0 * idx) / 10.0
+            px = cx + (math.cos(ang) * district_radius * 0.8)
+            py = cy + (math.sin(ang) * district_radius * 0.42)
+            if py > (cy + 8.0):
+                continue
+            pz = self._th(px, py)
+            self._pl(
+                mk_box(f"port_quay_{idx}", 4.8, 2.2, 0.55),
+                px, py, pz + 0.28,
+                self.tx["stone"], wall_mat, "Port Market"
+            )
+
+        dock_segments = port_cfg.get("dock_segments", [])
+        if isinstance(dock_segments, list):
+            for idx, row in enumerate(dock_segments):
+                if not isinstance(row, dict):
+                    continue
+                pos = row.get("pos", [])
+                size = row.get("size", [4.8, 10.0])
+                if not (isinstance(pos, list) and len(pos) >= 2 and isinstance(size, list) and len(size) >= 2):
+                    continue
+                try:
+                    px = float(pos[0]); py = float(pos[1])
+                    sx = max(2.0, float(size[0])); sy = max(4.0, float(size[1]))
+                except Exception:
+                    continue
+                pz = self._th(px, py)
+                self._pl(
+                    mk_box(f"port_dock_{idx}", sx, sy, 0.38),
+                    px, py, pz + 0.20,
+                    self.tx["bark"], wood_mat, "Port Docks"
+                )
+                for post_i in (-1, 1):
+                    post = self._pl(
+                        mk_cyl(f"port_dock_post_{idx}_{post_i}", 0.12, 1.2, 8),
+                        px + (post_i * ((sx * 0.5) - 0.24)),
+                        py + (sy * 0.5) - 0.35,
+                        pz - 0.15,
+                        self.tx["bark"], wood_mat, "Port Docks", is_platform=False
+                    )
+                    post.setColorScale(0.45, 0.34, 0.22, 1.0)
+
+        houses = port_cfg.get("houses", [])
+        if isinstance(houses, list):
+            for idx, row in enumerate(houses):
+                if not isinstance(row, dict):
+                    continue
+                pos = row.get("pos", [])
+                if not (isinstance(pos, list) and len(pos) >= 2):
+                    continue
+                try:
+                    px = float(pos[0]); py = float(pos[1])
+                except Exception:
+                    continue
+                pz = self._th(px, py)
+                bw = 4.2 + ((idx % 2) * 0.8)
+                bd = 3.4 + (((idx + 1) % 3) * 0.45)
+                bh = 3.1 + ((idx % 3) * 0.35)
+                self._pl(
+                    mk_box(f"port_house_{idx}", bw, bd, bh),
+                    px, py, pz + bh * 0.5,
+                    self.tx["stone"], wall_mat, "Port Market"
+                )
+                self._pl(
+                    mk_cone(f"port_house_roof_{idx}", max(bw, bd) * 0.42, 2.0, 10),
+                    px, py, pz + bh + 0.80,
+                    self.tx["roof"], roof_mat, "Port Market", is_platform=False
+                )
+
+        stalls = port_cfg.get("market_stalls", [])
+        if isinstance(stalls, list):
+            for idx, row in enumerate(stalls):
+                if not isinstance(row, dict):
+                    continue
+                pos = row.get("pos", [])
+                if not (isinstance(pos, list) and len(pos) >= 2):
+                    continue
+                try:
+                    px = float(pos[0]); py = float(pos[1])
+                except Exception:
+                    continue
+                pz = self._th(px, py)
+                self._pl(
+                    mk_box(f"port_stall_table_{idx}", 2.8, 1.4, 0.12),
+                    px, py, pz + 0.95,
+                    self.tx["bark"], wood_mat, "Port Market"
+                )
+                self._pl(
+                    mk_box(f"port_stall_awning_{idx}", 3.0, 1.7, 0.08),
+                    px, py - 0.2, pz + 2.06,
+                    self.tx["roof"], roof_mat, "Port Market", is_platform=False
+                )
+
+        # S-shaped hill-to-forest trail from layout route points.
+        serp = routes_cfg.get("serpentine_path", [])
+        parsed = []
+        if isinstance(serp, list):
+            for row in serp:
+                if isinstance(row, (list, tuple)) and len(row) >= 2:
+                    try:
+                        parsed.append((float(row[0]), float(row[1])))
+                    except Exception:
+                        continue
+        if len(parsed) >= 2:
+            for i in range(len(parsed) - 1):
+                ax, ay = parsed[i]
+                bx, by = parsed[i + 1]
+                mx, my = (ax + bx) * 0.5, (ay + by) * 0.5
+                ln = math.sqrt(((bx - ax) ** 2) + ((by - ay) ** 2))
+                if ln <= 0.25:
+                    continue
+                ang = math.degrees(math.atan2((bx - ax), (by - ay)))
+                pz = self._th(mx, my)
+                seg = self._pl(
+                    mk_plane(f"serpentine_path_{i}", 3.6, ln, 1.6),
+                    mx, my, pz + 0.04,
+                    self.tx["dirt"], road_mat, "Serpentine Trail", is_platform=False
+                )
+                seg.setH(ang)
 
     def _build_scenery(self):
         """Add decorative world detail: boulders, fountain, market stalls, paths."""
@@ -552,6 +883,8 @@ class SharuanWorld:
         stone_mat = mk_mat((0.52, 0.49, 0.45, 1.0), 0.72, 0.02)
         dirt_mat = mk_mat((0.42, 0.35, 0.26, 1.0), 0.88, 0.0)
         water_mat = mk_mat((0.12, 0.30, 0.50, 0.82), 0.15, 0.18)
+        wood_mat = mk_mat((0.32, 0.22, 0.14, 1.0), 0.78, 0.0)
+        accent_mat = mk_mat((0.62, 0.56, 0.40, 1.0), 0.52, 0.04)
 
         # Ground platform / sprint lane base.
         self._pl(
@@ -641,6 +974,162 @@ class SharuanWorld:
             stone_mat,
             "Training Grounds",
         )
+
+        # Decorative perimeter posts so test scenes still feel authored and readable.
+        perimeter_posts = [
+            (tx - 20.0, ty - 14.0),
+            (tx - 20.0, ty + 14.0),
+            (tx + 20.0, ty - 14.0),
+            (tx + 20.0, ty + 14.0),
+        ]
+        for idx, (px, py) in enumerate(perimeter_posts):
+            pz = self._th(px, py)
+            self._pl(
+                mk_cyl(f"training_post_{idx}", 0.16, 2.5, 10),
+                px,
+                py,
+                pz + 1.25,
+                self.tx["bark"],
+                wood_mat,
+                "Training Grounds",
+                is_platform=False,
+            )
+            self._pl(
+                mk_sphere(f"training_post_lantern_{idx}", 0.22, 8, 10),
+                px,
+                py,
+                pz + 2.35,
+                None,
+                accent_mat,
+                "Training Grounds",
+                is_platform=False,
+            )
+
+        # Parkour lane: ruined arches + staggered columns for vault/climb/wallrun flow.
+        pk_x = tx + 24.0
+        pk_y = ty + 9.0
+        pk_z = self._th(pk_x, pk_y)
+        self._pl(
+            mk_plane("parkour_plaza", 18.0, 16.0, 1.9),
+            pk_x,
+            pk_y,
+            pk_z + 0.04,
+            self.tx["stone"],
+            stone_mat,
+            "Forest Parkour Grounds",
+            is_platform=False,
+        )
+        for idx in range(5):
+            cx = pk_x - 6.5 + (idx * 3.1)
+            cy = pk_y - 4.2 + (idx * 1.35)
+            cz = self._th(cx, cy)
+            col_h = 2.0 + (idx * 0.75)
+            self._pl(
+                mk_box(f"parkour_col_{idx}", 1.0, 1.0, col_h),
+                cx,
+                cy,
+                cz + (col_h * 0.5),
+                self.tx["stone"],
+                stone_mat,
+                "Forest Parkour Grounds",
+            )
+            if idx % 2 == 0:
+                self._pl(
+                    mk_box(f"parkour_beam_{idx}", 2.8, 0.42, 0.36),
+                    cx + 1.35,
+                    cy + 1.2,
+                    cz + col_h + 0.18,
+                    self.tx["bark"],
+                    wood_mat,
+                    "Forest Parkour Grounds",
+                )
+
+        arch_specs = [
+            (pk_x - 3.6, pk_y + 5.0, 3.9),
+            (pk_x + 3.0, pk_y + 6.6, 4.5),
+        ]
+        for idx, (ax, ay, ah) in enumerate(arch_specs):
+            az = self._th(ax, ay)
+            self._pl(
+                mk_box(f"parkour_arch_leg_l_{idx}", 0.7, 0.7, ah),
+                ax - 1.4,
+                ay,
+                az + (ah * 0.5),
+                self.tx["stone"],
+                stone_mat,
+                "Forest Parkour Grounds",
+            )
+            self._pl(
+                mk_box(f"parkour_arch_leg_r_{idx}", 0.7, 0.7, ah),
+                ax + 1.4,
+                ay,
+                az + (ah * 0.5),
+                self.tx["stone"],
+                stone_mat,
+                "Forest Parkour Grounds",
+            )
+            self._pl(
+                mk_box(f"parkour_arch_top_{idx}", 3.4, 0.8, 0.5),
+                ax,
+                ay,
+                az + ah + 0.25,
+                self.tx["stone"],
+                stone_mat,
+                "Forest Parkour Grounds",
+            )
+
+        # Flight lane: takeoff platform + floating ring markers for traversal testing.
+        fl_x = tx - 23.0
+        fl_y = ty - 1.0
+        fl_z = self._th(fl_x, fl_y)
+        self._pl(
+            mk_cyl("flight_launch_pad", 4.2, 0.8, 18),
+            fl_x,
+            fl_y,
+            fl_z + 0.4,
+            self.tx["stone"],
+            stone_mat,
+            "Coastal Flight Grounds",
+        )
+        self._pl(
+            mk_box("flight_watch_tower", 2.4, 2.4, 7.8),
+            fl_x - 5.2,
+            fl_y + 0.8,
+            self._th(fl_x - 5.2, fl_y + 0.8) + 3.9,
+            self.tx["stone"],
+            stone_mat,
+            "Coastal Flight Grounds",
+        )
+        self._pl(
+            mk_box("flight_tower_roof", 3.2, 3.2, 0.55),
+            fl_x - 5.2,
+            fl_y + 0.8,
+            self._th(fl_x - 5.2, fl_y + 0.8) + 7.95,
+            self.tx["roof"],
+            wood_mat,
+            "Coastal Flight Grounds",
+        )
+
+        ring_specs = [
+            (fl_x + 5.0, fl_y + 10.0, fl_z + 7.2, 1.6),
+            (fl_x + 12.0, fl_y + 18.0, fl_z + 10.4, 2.0),
+            (fl_x + 20.0, fl_y + 13.0, fl_z + 8.8, 1.8),
+        ]
+        for idx, (rx, ry, rz, rr) in enumerate(ring_specs):
+            for seg in range(10):
+                ang = (math.tau * seg) / 10.0
+                px = rx + (math.cos(ang) * rr)
+                py = ry + (math.sin(ang) * rr)
+                self._pl(
+                    mk_sphere(f"flight_ring_{idx}_{seg}", 0.22, 7, 8),
+                    px,
+                    py,
+                    rz,
+                    None,
+                    accent_mat,
+                    "Coastal Flight Grounds",
+                    is_platform=False,
+                )
 
         # Shallow water pool for swim test.
         pool_x = tx - 14.0

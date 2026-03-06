@@ -1,0 +1,50 @@
+{
+    "_comment": "Boss cinematic dialogue — no choices, pure AutoAdvance sequence. Camera alternates wide ↔ player ↔ boss.",
+    "npc_id": "dragon_boss",
+    "npc_name": "The Ashen Dragon",
+    "dialogue_tree": {
+        "start": {
+            "speaker": "The Ashen Dragon",
+            "text": "You dare enter my domain, little wizard? How… amusing.",
+            "animation": "roar",
+            "camera": "wide",
+            "voice": "dragon_boss/start",
+            "choices": [
+                {
+                    "next_node": "player_reply"
+                }
+            ]
+        },
+        "player_reply": {
+            "speaker": "King Wizard",
+            "text": "Your reign of fire ends today.",
+            "animation": "cast_prepare",
+            "camera": "player",
+            "voice": "player/boss_opener",
+            "choices": [
+                {
+                    "next_node": "boss_laugh"
+                }
+            ]
+        },
+        "boss_laugh": {
+            "speaker": "The Ashen Dragon",
+            "text": "Ha! Centuries of slumber and this is the 'hero' the kingdom sends? Very well — let the flames judge you.",
+            "animation": "idle",
+            "camera": "npc",
+            "voice": "dragon_boss/boss_laugh",
+            "choices": [
+                {
+                    "next_node": "combat_start"
+                }
+            ]
+        },
+        "combat_start": {
+            "speaker": "",
+            "text": "",
+            "animation": "idle",
+            "camera": "wide",
+            "choices": []
+        }
+    }
+}

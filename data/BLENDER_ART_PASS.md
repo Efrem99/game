@@ -3,6 +3,12 @@
 ## Goal
 Create unique-looking characters, mobs, and bosses by upgrading heads/faces, silhouette details, and materials while keeping the existing gameplay rig and animation pipeline stable.
 
+Shervard-specific references:
+- `data/characters/SHERWARD_REALISM_SPEC.md`
+- `data/characters/sherward_profile.json`
+- `models/SHERWARD_BLENDER_PIPELINE.md`
+- `models/refine_sherward_likeness.py`
+
 ## 1) Head Swap Strategy
 Yes, replacing the old head with a generated/sculpted one is a valid production workflow.
 

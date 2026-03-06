@@ -9,6 +9,7 @@ class SaveManager:
     """Persists lightweight runtime state for continue/load flows."""
 
     SLOT_COUNT = 3
+    SAVE_VERSION = 3
 
     def __init__(self, app, save_dir="saves"):
         self.app = app
@@ -102,6 +103,11 @@ class SaveManager:
         payload = self._read_json(path)
         if not isinstance(payload, dict):
             return False
+        payload, migrated = self._migrate_payload(payload)
+        if migrated:
+            self._write_json(path, payload)
+            if path != self.latest_path:
+                self._write_json(self.latest_path, payload)
         self._apply_payload(payload)
         logger.info(f"[SaveManager] Loaded save: {path}")
         return True
@@ -113,6 +119,10 @@ class SaveManager:
         payload = self._read_json(path)
         if not isinstance(payload, dict):
             return False
+        payload, migrated = self._migrate_payload(payload)
+        if migrated:
+            self._write_json(path, payload)
+            self._write_json(self.latest_path, payload)
         self._apply_payload(payload)
         logger.info(f"[SaveManager] Loaded slot {self._normalize_slot_index(slot_index)}: {path}")
         return True
@@ -152,6 +162,12 @@ class SaveManager:
                 combat_state = player.export_combat_runtime_state() or {}
             except Exception:
                 combat_state = {}
+        equipment_state = {}
+        if player and hasattr(player, "export_equipment_state"):
+            try:
+                equipment_state = player.export_equipment_state() or {}
+            except Exception:
+                equipment_state = {}
         vehicles_state = {}
         vehicle_mgr = getattr(self.app, "vehicle_mgr", None)
         if vehicle_mgr and hasattr(vehicle_mgr, "export_state"):
@@ -159,6 +175,13 @@ class SaveManager:
                 vehicles_state = vehicle_mgr.export_state()
             except Exception:
                 vehicles_state = {}
+        ui_map_state = {}
+        inventory_ui = getattr(self.app, "inventory_ui", None)
+        if inventory_ui and hasattr(inventory_ui, "export_map_state"):
+            try:
+                ui_map_state = inventory_ui.export_map_state() or {}
+            except Exception:
+                ui_map_state = {}
         tutorial_state = {}
         tutorial_mgr = getattr(self.app, "movement_tutorial", None)
         if tutorial_mgr and hasattr(tutorial_mgr, "export_state"):
@@ -173,9 +196,24 @@ class SaveManager:
             except Exception:
                 slot_idx = None
 
+        mount_state = {}
+        vehicle_positions = {}
+        vehicle_rows = []
+        mounted_vehicle_id = None
+        if isinstance(vehicles_state, dict):
+            if isinstance(vehicles_state.get("mount_state"), dict):
+                mount_state = dict(vehicles_state.get("mount_state", {}))
+            if isinstance(vehicles_state.get("vehicle_positions"), dict):
+                vehicle_positions = dict(vehicles_state.get("vehicle_positions", {}))
+            if isinstance(vehicles_state.get("vehicles"), list):
+                vehicle_rows = list(vehicles_state.get("vehicles", []))
+            token = vehicles_state.get("mounted_vehicle_id")
+            if isinstance(token, str) and token.strip():
+                mounted_vehicle_id = token.strip()
+
         return {
             "meta": {
-                "version": 1,
+                "version": self.SAVE_VERSION,
                 "saved_at_utc": datetime.now(timezone.utc).isoformat(),
                 "kind": str(save_kind),
                 "slot": slot_idx,
@@ -189,6 +227,7 @@ class SaveManager:
                 "position": player_pos,
                 "state": char_state,
                 "combat": combat_state,
+                "equipment_state": equipment_state,
             },
             "progression": {
                 "profile": profile,
@@ -199,9 +238,127 @@ class SaveManager:
             },
             "world": {
                 "active_location": active_location,
-                "vehicles": vehicles_state,
+                "mounted_vehicle_id": mounted_vehicle_id,
+                "mount_state": mount_state,
+                "vehicle_positions": vehicle_positions,
+                "vehicles": vehicle_rows,
+            },
+            "ui": {
+                "map_state": ui_map_state,
             },
         }
+
+    def _migrate_payload(self, payload):
+        if not isinstance(payload, dict):
+            return {}, False
+
+        migrated = dict(payload)
+        changed = False
+
+        meta = migrated.get("meta", {})
+        if not isinstance(meta, dict):
+            meta = {}
+            changed = True
+        version = self._as_int(meta.get("version", 1), default=1)
+
+        progression = migrated.get("progression", {})
+        if not isinstance(progression, dict):
+            progression = {}
+            changed = True
+        player = migrated.get("player", {})
+        if not isinstance(player, dict):
+            player = {}
+            changed = True
+        world = migrated.get("world", {})
+        if not isinstance(world, dict):
+            world = {}
+            changed = True
+        ui = migrated.get("ui", {})
+        if not isinstance(ui, dict):
+            ui = {}
+            changed = True
+
+        if version < self.SAVE_VERSION:
+            # Migration guardrails: carry forward old save keys into v3 schema.
+            eq_state = player.get("equipment_state")
+            if not isinstance(eq_state, dict):
+                raw = progression.get("equipment_state")
+                if isinstance(raw, dict):
+                    eq_state = dict(raw)
+                else:
+                    profile = progression.get("profile", {})
+                    if isinstance(profile, dict) and isinstance(profile.get("equipment"), dict):
+                        eq_state = dict(profile.get("equipment"))
+            if isinstance(eq_state, dict):
+                if player.get("equipment_state") != eq_state:
+                    player["equipment_state"] = eq_state
+                    changed = True
+
+            legacy_vehicles = world.get("vehicles")
+            if isinstance(legacy_vehicles, dict):
+                mount_state = legacy_vehicles.get("mount_state")
+                if isinstance(mount_state, dict) and not isinstance(world.get("mount_state"), dict):
+                    world["mount_state"] = dict(mount_state)
+                    changed = True
+
+                positions = legacy_vehicles.get("vehicle_positions")
+                if isinstance(positions, dict) and not isinstance(world.get("vehicle_positions"), dict):
+                    world["vehicle_positions"] = dict(positions)
+                    changed = True
+
+                mounted_id = legacy_vehicles.get("mounted_vehicle_id")
+                if isinstance(mounted_id, str) and mounted_id.strip() and not str(world.get("mounted_vehicle_id", "")).strip():
+                    world["mounted_vehicle_id"] = mounted_id.strip()
+                    changed = True
+
+                rows = legacy_vehicles.get("vehicles")
+                if isinstance(rows, list):
+                    world["vehicles"] = list(rows)
+                    changed = True
+                elif not isinstance(world.get("vehicles"), list):
+                    world["vehicles"] = []
+                    changed = True
+            elif isinstance(legacy_vehicles, list):
+                world["vehicles"] = list(legacy_vehicles)
+                changed = True
+            elif not isinstance(world.get("vehicles"), list):
+                world["vehicles"] = []
+                changed = True
+
+            if not isinstance(world.get("mount_state"), dict):
+                world["mount_state"] = {}
+                changed = True
+            if not isinstance(world.get("vehicle_positions"), dict):
+                world["vehicle_positions"] = {}
+                changed = True
+
+            map_state = ui.get("map_state")
+            if not isinstance(map_state, dict):
+                legacy_map = progression.get("ui_map_state")
+                if isinstance(legacy_map, dict):
+                    map_state = dict(legacy_map)
+                else:
+                    map_state = {}
+                ui["map_state"] = map_state
+                changed = True
+
+            if "tab" not in ui.get("map_state", {}):
+                ui.setdefault("map_state", {})["tab"] = "inventory"
+                changed = True
+            if "range" not in ui.get("map_state", {}):
+                ui.setdefault("map_state", {})["range"] = 180.0
+                changed = True
+
+            if version != self.SAVE_VERSION:
+                meta["version"] = self.SAVE_VERSION
+                changed = True
+
+        migrated["meta"] = meta
+        migrated["progression"] = progression
+        migrated["player"] = player
+        migrated["world"] = world
+        migrated["ui"] = ui
+        return migrated, changed
 
     def _normalize_slot_index(self, slot_index):
         idx = int(slot_index)
@@ -252,6 +409,7 @@ class SaveManager:
         return out
 
     def _apply_payload(self, payload):
+        payload, _ = self._migrate_payload(payload)
         progression = payload.get("progression", {})
         profile = progression.get("profile", {})
         if isinstance(profile, dict):
@@ -307,16 +465,46 @@ class SaveManager:
                     p.import_combat_runtime_state(combat)
                 except Exception:
                     pass
+        equipment_state = player.get("equipment_state", {})
+        if isinstance(equipment_state, dict):
+            p = getattr(self.app, "player", None)
+            if p and hasattr(p, "import_equipment_state"):
+                try:
+                    p.import_equipment_state(equipment_state)
+                except Exception as exc:
+                    logger.warning(f"[SaveManager] Equipment state import failed: {exc}")
 
         world_state = payload.get("world", {})
         if isinstance(world_state, dict):
-            vehicles_state = world_state.get("vehicles")
+            vehicles_state = {}
+            if isinstance(world_state.get("vehicles"), list):
+                vehicles_state["vehicles"] = list(world_state.get("vehicles", []))
+            legacy = world_state.get("vehicles")
+            if isinstance(legacy, dict):
+                vehicles_state.update(legacy)
+            if isinstance(world_state.get("mount_state"), dict):
+                vehicles_state["mount_state"] = dict(world_state.get("mount_state", {}))
+            if isinstance(world_state.get("vehicle_positions"), dict):
+                vehicles_state["vehicle_positions"] = dict(world_state.get("vehicle_positions", {}))
+            mounted_vehicle_id = world_state.get("mounted_vehicle_id")
+            if isinstance(mounted_vehicle_id, str) and mounted_vehicle_id.strip():
+                vehicles_state["mounted_vehicle_id"] = mounted_vehicle_id.strip()
             vehicle_mgr = getattr(self.app, "vehicle_mgr", None)
             if isinstance(vehicles_state, dict) and vehicle_mgr and hasattr(vehicle_mgr, "import_state"):
                 try:
                     vehicle_mgr.import_state(vehicles_state, player=getattr(self.app, "player", None))
                 except Exception as exc:
                     logger.warning(f"[SaveManager] Vehicle state import failed: {exc}")
+
+        ui_state = payload.get("ui", {})
+        if isinstance(ui_state, dict):
+            map_state = ui_state.get("map_state")
+            inventory_ui = getattr(self.app, "inventory_ui", None)
+            if isinstance(map_state, dict) and inventory_ui and hasattr(inventory_ui, "import_map_state"):
+                try:
+                    inventory_ui.import_map_state(map_state)
+                except Exception as exc:
+                    logger.warning(f"[SaveManager] UI map state import failed: {exc}")
 
     def _apply_position(self, position):
         x, y, z = float(position[0]), float(position[1]), float(position[2])

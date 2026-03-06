@@ -1,0 +1,54 @@
+{
+  "id": "faith",
+  "name": "Faith",
+  "nodes": [
+    {
+      "id": "ward_aura",
+      "name": "Ward Aura",
+      "cost": 1,
+      "requires": [],
+      "unlock": [
+        "purify"
+      ],
+      "icon": "skills/ward_aura.png",
+      "description": "Strengthens defensive magic timing windows."
+    },
+    {
+      "id": "purify",
+      "name": "Purify",
+      "cost": 2,
+      "requires": [
+        "ward_aura"
+      ],
+      "unlock": [
+        "celestial_lance"
+      ],
+      "icon": "skills/purify.png",
+      "description": "Cleanses corruption effects and stabilizes fear spikes."
+    },
+    {
+      "id": "celestial_lance",
+      "name": "Celestial Lance",
+      "cost": 2,
+      "requires": [
+        "purify"
+      ],
+      "unlock": [
+        "judgement"
+      ],
+      "icon": "skills/celestial_lance.png",
+      "description": "Focused holy cast with better precision at medium range."
+    },
+    {
+      "id": "judgement",
+      "name": "Judgement",
+      "cost": 3,
+      "requires": [
+        "celestial_lance"
+      ],
+      "unlock": [],
+      "icon": "skills/judgement.png",
+      "description": "Late-tier holy burst for high-pressure encounters."
+    }
+  ]
+}

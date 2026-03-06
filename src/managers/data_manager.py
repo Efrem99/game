@@ -17,6 +17,12 @@ class DataManager:
         self.camera_profiles = {}
         self.cutscene_triggers = {}
         self.player_config = {}
+        self.sky_config = {}
+        self.world_layout = {}
+        self.vehicle_configs = {}
+        self.skill_trees = {}
+        self.character_logic = {}
+        self.combat_styles = {}
         self.language = "en"
 
         self.load_all()
@@ -29,6 +35,8 @@ class DataManager:
         self.spells = self._load_recursive(self.data_dir / "spells")
         self.spells.update(self._normalize_spells(self._load_file("spells.json")))
         self.npcs = self._load_recursive(self.data_dir / "npcs")
+        self.vehicle_configs = self._load_recursive(self.data_dir / "vehicles")
+        self.skill_trees = self._load_recursive(self.data_dir / "skills")
         if not self.npcs: # Fallback to npcs.json if its a single file
              self.npcs = self._load_file("npcs.json")
 
@@ -45,6 +53,10 @@ class DataManager:
         self.camera_profiles = self._load_file("camera_profiles.json")
         self.cutscene_triggers = self._load_file("cutscene_triggers.json")
         self.player_config = self._load_file("actors/player.json")
+        self.sky_config = self._load_file("sky_config.json")
+        self.world_layout = self._load_file("world/layout.json")
+        self.character_logic = self._load_file("logic/character_brain.json")
+        self.combat_styles = self._load_file("combat/styles.json")
         self.locales = {
             "en": self._load_file("locales/en.json"),
             "ru": self._load_file("locales/ru.json"),
@@ -57,7 +69,11 @@ class DataManager:
         if self.language not in self.locales or not self.locales.get(self.language):
             self.language = "en"
 
-        print(f"[DataManager] Loaded {len(self.items)} items, {len(self.quests)} quests, {len(self.spells)} spells.")
+        print(
+            f"[DataManager] Loaded {len(self.items)} items, {len(self.quests)} quests, "
+            f"{len(self.spells)} spells, {len(self.vehicle_configs)} vehicle configs, "
+            f"{len(self.skill_trees)} skill trees."
+        )
         print(f"[DataManager] Loaded {len(self.controls.get('bindings', {}))} bindings, {len(self.npcs)} NPCs.")
 
     def _load_recursive(self, directory):
@@ -150,11 +166,32 @@ class DataManager:
         return self.controls.get("movement", {}).get(param)
 
     def get_vehicle_param(self, kind, param, default=None):
+        kind_key = str(kind or "").strip().lower()
+        # Primary source: dedicated data/vehicles/*.json configs.
+        if isinstance(self.vehicle_configs, dict) and self.vehicle_configs:
+            kind_cfg = self.vehicle_configs.get(kind_key, {})
+            default_cfg = self.vehicle_configs.get("default", {})
+            if isinstance(kind_cfg, dict) and param in kind_cfg:
+                return kind_cfg.get(param, default)
+            if isinstance(default_cfg, dict) and param in default_cfg:
+                return default_cfg.get(param, default)
+
+            # Also support nested "tuning" sections in vehicle configs.
+            if isinstance(kind_cfg, dict):
+                tuning = kind_cfg.get("tuning", {})
+                if isinstance(tuning, dict) and param in tuning:
+                    return tuning.get(param, default)
+            if isinstance(default_cfg, dict):
+                tuning = default_cfg.get("tuning", {})
+                if isinstance(tuning, dict) and param in tuning:
+                    return tuning.get(param, default)
+
+        # Backward-compatible source: controls.json vehicles block.
         vehicles_cfg = self.controls.get("vehicles", {})
         if not isinstance(vehicles_cfg, dict):
             return default
 
-        kind_cfg = vehicles_cfg.get(str(kind), {})
+        kind_cfg = vehicles_cfg.get(kind_key, {})
         default_cfg = vehicles_cfg.get("default", {})
 
         if isinstance(kind_cfg, dict) and param in kind_cfg:
@@ -162,6 +199,42 @@ class DataManager:
         if isinstance(default_cfg, dict) and param in default_cfg:
             return default_cfg.get(param, default)
         return default
+
+    def get_vehicle_config(self, kind):
+        token = str(kind or "").strip().lower()
+        if not token:
+            return {}
+        if not isinstance(self.vehicle_configs, dict):
+            return {}
+        payload = self.vehicle_configs.get(token, {})
+        if isinstance(payload, dict):
+            return dict(payload)
+        return {}
+
+    def get_skill_trees(self):
+        payload = self.skill_trees if isinstance(self.skill_trees, dict) else {}
+        out = {}
+        for key, row in payload.items():
+            if isinstance(row, dict):
+                out[str(key)] = dict(row)
+        return out
+
+    def get_world_layout(self):
+        payload = self.world_layout if isinstance(self.world_layout, dict) else {}
+        return dict(payload)
+
+    def get_character_logic_config(self):
+        payload = self.character_logic if isinstance(self.character_logic, dict) else {}
+        return dict(payload)
+
+    def get_combat_style(self, style_name):
+        payload = self.combat_styles if isinstance(self.combat_styles, dict) else {}
+        styles = payload.get("styles", {}) if isinstance(payload, dict) else {}
+        if not isinstance(styles, dict):
+            return {}
+        token = str(style_name or "").strip().lower()
+        row = styles.get(token, {})
+        return dict(row) if isinstance(row, dict) else {}
 
     def get_ui_str(self, section, key):
         fallback = self.ui_strings.get(section, {}).get(key)

@@ -45,8 +45,29 @@
                 "hit_react_duration": 0.23,
                 "attack_cooldown": 2.9,
                 "melee_hit_time": 0.36,
+                "melee_window_start": 0.31,
+                "melee_window_end": 0.48,
                 "melee_damage": 24,
-                "disengage_hold": 8.0
+                "disengage_hold": 8.0,
+                "phase_transitions": [
+                    {
+                        "hp_threshold": 0.66,
+                        "damage_mul": 1.12,
+                        "speed_mul": 1.08,
+                        "telegraph_mul": 0.92,
+                        "cooldown_mul": 0.90,
+                        "anim_rate_mul": 1.05
+                    },
+                    {
+                        "hp_threshold": 0.36,
+                        "enrage": true,
+                        "damage_mul": 1.14,
+                        "speed_mul": 1.10,
+                        "telegraph_mul": 0.88,
+                        "cooldown_mul": 0.84,
+                        "anim_rate_mul": 1.08
+                    }
+                ]
             }
         },
         {
@@ -94,8 +115,37 @@
                 "hit_react_duration": 0.26,
                 "attack_cooldown": 3.25,
                 "melee_hit_time": 0.46,
+                "melee_window_start": 0.40,
+                "melee_window_end": 0.60,
                 "melee_damage": 31,
-                "disengage_hold": 9.0
+                "disengage_hold": 9.0,
+                "phase_transitions": [
+                    {
+                        "hp_threshold": 0.70,
+                        "damage_mul": 1.10,
+                        "speed_mul": 1.06,
+                        "telegraph_mul": 0.94,
+                        "cooldown_mul": 0.92,
+                        "anim_rate_mul": 1.04
+                    },
+                    {
+                        "hp_threshold": 0.40,
+                        "damage_mul": 1.14,
+                        "speed_mul": 1.10,
+                        "telegraph_mul": 0.90,
+                        "cooldown_mul": 0.88,
+                        "anim_rate_mul": 1.06
+                    },
+                    {
+                        "hp_threshold": 0.20,
+                        "enrage": true,
+                        "damage_mul": 1.16,
+                        "speed_mul": 1.12,
+                        "telegraph_mul": 0.86,
+                        "cooldown_mul": 0.80,
+                        "anim_rate_mul": 1.08
+                    }
+                ]
             }
         },
         {
@@ -145,8 +195,27 @@
                 "hit_react_duration": 0.18,
                 "attack_cooldown": 2.2,
                 "fire_start_time": 0.15,
+                "fire_end_time": 0.84,
                 "fire_tick_damage": 11,
-                "disengage_hold": 5.6
+                "disengage_hold": 5.6,
+                "phase_transitions": [
+                    {
+                        "hp_threshold": 0.50,
+                        "damage_mul": 1.10,
+                        "speed_mul": 1.06,
+                        "cooldown_mul": 0.92,
+                        "anim_rate_mul": 1.05
+                    },
+                    {
+                        "hp_threshold": 0.25,
+                        "enrage": true,
+                        "damage_mul": 1.15,
+                        "speed_mul": 1.08,
+                        "telegraph_mul": 0.90,
+                        "cooldown_mul": 0.88,
+                        "anim_rate_mul": 1.07
+                    }
+                ]
             }
         },
         {
@@ -195,8 +264,27 @@
                 "hit_react_duration": 0.14,
                 "attack_cooldown": 1.86,
                 "fire_start_time": 0.08,
+                "fire_end_time": 0.62,
                 "fire_tick_damage": 8,
-                "disengage_hold": 5.0
+                "disengage_hold": 5.0,
+                "phase_transitions": [
+                    {
+                        "hp_threshold": 0.45,
+                        "damage_mul": 1.10,
+                        "speed_mul": 1.12,
+                        "cooldown_mul": 0.90,
+                        "anim_rate_mul": 1.06
+                    },
+                    {
+                        "hp_threshold": 0.20,
+                        "enrage": true,
+                        "damage_mul": 1.14,
+                        "speed_mul": 1.10,
+                        "telegraph_mul": 0.88,
+                        "cooldown_mul": 0.84,
+                        "anim_rate_mul": 1.08
+                    }
+                ]
             }
         },
         {

@@ -1,0 +1,54 @@
+{
+  "id": "mobility",
+  "name": "Mobility",
+  "nodes": [
+    {
+      "id": "focus_step",
+      "name": "Focus Step",
+      "cost": 1,
+      "requires": [],
+      "unlock": [
+        "dash"
+      ],
+      "icon": "skills/focus_step.png",
+      "description": "Stabilized stance. Slightly faster acceleration and cleaner turn recovery."
+    },
+    {
+      "id": "dash",
+      "name": "Dash",
+      "cost": 1,
+      "requires": [
+        "focus_step"
+      ],
+      "unlock": [
+        "phase_step"
+      ],
+      "icon": "skills/dash.png",
+      "description": "Short burst for repositioning and dodging gaps."
+    },
+    {
+      "id": "phase_step",
+      "name": "Phase Step",
+      "cost": 2,
+      "requires": [
+        "dash"
+      ],
+      "unlock": [
+        "aerial_shift"
+      ],
+      "icon": "skills/phase_step.png",
+      "description": "Safer traversal on uncertain terrain and narrow paths."
+    },
+    {
+      "id": "aerial_shift",
+      "name": "Aerial Shift",
+      "cost": 3,
+      "requires": [
+        "phase_step"
+      ],
+      "unlock": [],
+      "icon": "skills/aerial_shift.png",
+      "description": "Improved mid-air correction during jump, glide, and landing windows."
+    }
+  ]
+}

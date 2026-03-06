@@ -9,6 +9,7 @@
 #include "WaterSimulation.h"
 #include "AnimationBlender.h"
 #include "ParticleSystem.h"
+#include "AttentionManager.h"
 
 namespace py = pybind11;
 
@@ -104,6 +105,40 @@ PYBIND11_MODULE(game_core, m) {
         .def_readwrite("staggered",&HitResult::staggered)
         .def_readwrite("effect",   &HitResult::effect);
 
+    // ─── Status and Damage Types ─────────────────────
+    py::enum_<StatusType>(m, "StatusType")
+        .value("Burn",   StatusType::Burn)
+        .value("Freeze", StatusType::Freeze)
+        .value("Shock",  StatusType::Shock)
+        .value("Slow",   StatusType::Slow)
+        .value("Weaken", StatusType::Weaken)
+        .value("Stun",   StatusType::Stun);
+
+    py::enum_<DamageType>(m, "DamageType")
+        .value("Physical", DamageType::Physical)
+        .value("Fire",     DamageType::Fire)
+        .value("Ice",      DamageType::Ice)
+        .value("Lightning",DamageType::Lightning)
+        .value("Arcane",   DamageType::Arcane);
+
+    py::class_<StatusInstance>(m, "StatusInstance")
+        .def(py::init<>())
+        .def_readwrite("type",      &StatusInstance::type)
+        .def_readwrite("remaining", &StatusInstance::remaining)
+        .def_readwrite("tickRate",  &StatusInstance::tickRate)
+        .def_readwrite("magnitude", &StatusInstance::magnitude);
+
+    py::class_<ResistProfile>(m, "ResistProfile")
+        .def(py::init<>())
+        .def_readwrite("fire",      &ResistProfile::fire)
+        .def_readwrite("ice",       &ResistProfile::ice)
+        .def_readwrite("lightning", &ResistProfile::lightning)
+        .def_readwrite("arcane",    &ResistProfile::arcane)
+        .def_readwrite("immuneFire", &ResistProfile::immuneFire)
+        .def_readwrite("immuneIce",  &ResistProfile::immuneIce)
+        .def_readwrite("immuneLightning", &ResistProfile::immuneLightning)
+        .def_readwrite("immuneArcane", &ResistProfile::immuneArcane);
+
     // ─── Enemy ───────────────────────────────────────
     py::class_<Enemy>(m, "Enemy")
         .def(py::init<>())
@@ -113,7 +148,9 @@ PYBIND11_MODULE(game_core, m) {
         .def_readwrite("health",  &Enemy::health)
         .def_readwrite("armor",   &Enemy::armor)
         .def_readwrite("blocking",&Enemy::blocking)
-        .def_readwrite("alive",   &Enemy::alive);
+        .def_readwrite("alive",   &Enemy::alive)
+        .def_readwrite("statuses",&Enemy::statuses)
+        .def_readwrite("resist",  &Enemy::resist);
 
     // ─── CombatSystem ────────────────────────────────
     py::class_<CombatSystem>(m, "CombatSystem")
@@ -167,12 +204,20 @@ PYBIND11_MODULE(game_core, m) {
         .value("ForceWave",    SpellType::ForceWave)
         .value("HealingAura",  SpellType::HealingAura)
         .value("PhaseStep",    SpellType::PhaseStep)
-        .value("MeteorStrike", SpellType::MeteorStrike);
+        .value("MeteorStrike", SpellType::MeteorStrike)
+        .value("ArcaneMissile",SpellType::ArcaneMissile)
+        .value("ChainLightning",SpellType::ChainLightning)
+        .value("Blizzard",     SpellType::Blizzard)
+        .value("BlackHole",    SpellType::BlackHole);
 
     // ─── SpellEffect ─────────────────────────────────
     py::class_<SpellEffect>(m, "SpellEffect")
         .def(py::init<>())
+        .def_readwrite("type",        &SpellEffect::type)
         .def_readwrite("pos",         &SpellEffect::pos)
+        .def_readwrite("destination", &SpellEffect::destination)
+        .def_readwrite("normal",      &SpellEffect::normal)
+        .def_readwrite("scale",       &SpellEffect::scale)
         .def_readwrite("radius",      &SpellEffect::radius)
         .def_readwrite("damage",      &SpellEffect::damage)
         .def_readwrite("particleTag", &SpellEffect::particleTag)
@@ -247,4 +292,51 @@ PYBIND11_MODULE(game_core, m) {
         .def("spawnMagicOrb",      &ParticleSystem::spawnMagicOrb)
         .def("spawnDust",          &ParticleSystem::spawnDust)
         .def("spawnMeteorTail",    &ParticleSystem::spawnMeteorTail);
+
+    // ─── SimTier ──────────────────────────────────────
+    py::enum_<SimTier>(m, "SimTier")
+        .value("Hero",       SimTier::Hero)
+        .value("Active",     SimTier::Active)
+        .value("Simplified", SimTier::Simplified)
+        .value("Frozen",     SimTier::Frozen);
+
+    // ─── ATT_* flag constants ─────────────────────────
+    m.attr("ATT_IN_COMBAT") = ATT_IN_COMBAT;
+    m.attr("ATT_RECENT")    = ATT_RECENT;
+    m.attr("ATT_QUEST")     = ATT_QUEST;
+    m.attr("ATT_IN_AOE")    = ATT_IN_AOE;
+    m.attr("ATT_TARGETED")  = ATT_TARGETED;
+    m.attr("ATT_HOMING")    = ATT_HOMING;
+
+    // ─── AttentionObject ─────────────────────────────
+    py::class_<AttentionObject>(m, "AttentionObject")
+        .def(py::init<>())
+        .def_readwrite("id",              &AttentionObject::id)
+        .def_readwrite("pos",             &AttentionObject::pos)
+        .def_readwrite("radius",          &AttentionObject::radius)
+        .def_readwrite("flags",           &AttentionObject::flags)
+        .def_readwrite("currentTier",     &AttentionObject::currentTier)
+        .def_readwrite("lastChangeTime",  &AttentionObject::lastChangeTime)
+        .def_readwrite("priorityScore",   &AttentionObject::priorityScore);
+
+    // ─── TierBudget ──────────────────────────────────
+    py::class_<TierBudget>(m, "TierBudget")
+        .def(py::init<>())
+        .def_readwrite("maxHero",       &TierBudget::maxHero)
+        .def_readwrite("maxActive",     &TierBudget::maxActive)
+        .def_readwrite("maxSimplified", &TierBudget::maxSimplified);
+
+    // ─── AttentionManager ────────────────────────────
+    py::class_<AttentionManager>(m, "AttentionManager")
+        .def(py::init<float, float, float>(),
+             py::arg("maxDist")    = 120.f,
+             py::arg("dotMin")     = 0.20f,
+             py::arg("hysteresis") = 0.45f)
+        .def("setObjects",      &AttentionManager::setObjects)
+        .def("update",          &AttentionManager::update)
+        .def("getTierChanges",  &AttentionManager::getTierChanges)
+        .def("getPrewarmIds",   &AttentionManager::getPrewarmIds)
+        .def("getObjects",      &AttentionManager::getObjects)
+        .def("setFlags",        &AttentionManager::setFlags)
+        .def("clearFlags",      &AttentionManager::clearFlags);
 }
