@@ -1,4 +1,4 @@
-"""Static smoke checks for core content/config integrity (no game boot)."""
+﻿"""Static smoke checks for core content/config integrity (no game boot)."""
 
 import json
 import sys
@@ -147,19 +147,19 @@ def main():
     )
     missing_required_files = _check_required_files(
         [
-            "launcher_test_dragon.py",
+            "launchers/tests/launcher_test_dragon.py",
             "launcher_test_hub.py",
-            "launcher_test_music.py",
-            "launcher_test_journal.py",
-            "launcher_test_mounts.py",
-            "launcher_test_skills.py",
-            "launcher_test_movement.py",
-            "launcher_test_parkour.py",
-            "launcher_test_flight.py",
-            "launcher_test_manifest.py",
-            "launcher_test_player_anim_runtime.py",
-            "launcher_test_baseline.py",
-            "launcher_test_smoke.py",
+            "launchers/tests/launcher_test_music.py",
+            "launchers/tests/launcher_test_journal.py",
+            "launchers/tests/launcher_test_mounts.py",
+            "launchers/tests/launcher_test_skills.py",
+            "launchers/tests/launcher_test_movement.py",
+            "launchers/tests/launcher_test_parkour.py",
+            "launchers/tests/launcher_test_flight.py",
+            "launchers/tests/launcher_test_manifest.py",
+            "launchers/tests/launcher_test_player_anim_runtime.py",
+            "launchers/tests/launcher_test_baseline.py",
+            "launchers/tests/launcher_test_smoke.py",
             "scripts/validate_player_manifest.py",
             "scripts/player_anim_runtime_report.py",
             "scripts/voice_dialog_report.py",
@@ -204,3 +204,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

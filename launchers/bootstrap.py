@@ -1,4 +1,4 @@
-"""Shared startup helpers for XBot RPG launchers."""
+﻿"""Shared startup helpers for XBot RPG launchers."""
 
 import ctypes
 import os
@@ -57,7 +57,7 @@ def run_app(startup_tag, error_handler=None, pause_on_error=False):
         # that leave orphaned mutexes behind.
         pass
 
-    root = os.path.dirname(os.path.abspath(__file__))
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     try:
         _prepare_runtime(root)
 
@@ -122,3 +122,4 @@ def run_app(startup_tag, error_handler=None, pause_on_error=False):
             return 1
     finally:
         _release_single_instance()
+

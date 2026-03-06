@@ -1,4 +1,4 @@
-# Shervard Blender Pipeline
+﻿# Shervard Blender Pipeline
 
 ## Goal
 Produce a game-ready Shervard hero model with realistic face/body, existing gameplay animation compatibility, and clean runtime export.
@@ -114,10 +114,11 @@ blender --background models/character.blend --python models/blender_head_swap.py
 ## Validation
 Run:
 ```bash
-python launcher_test_sherward_prep.py
-python launcher_test_sherward.py
-python launcher_test_manifest.py
-python launcher_test_smoke.py
+python launchers/tests/launcher_test_sherward_prep.py
+python launchers/tests/launcher_test_sherward.py
+python launchers/tests/launcher_test_manifest.py
+python launchers/tests/launcher_test_smoke.py
 ```
 
-`launcher_test_sherward.py` validates expected files and runtime config wiring before game launch.
+`launchers/tests/launcher_test_sherward.py` validates expected files and runtime config wiring before game launch.
+

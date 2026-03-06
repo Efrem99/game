@@ -1,4 +1,4 @@
-# Python
+﻿# Python
 __pycache__/
 *.py[cod]
 *.pyo
@@ -47,3 +47,5 @@ saves/
 # IDE
 .vscode/
 .idea/
+cache/
+

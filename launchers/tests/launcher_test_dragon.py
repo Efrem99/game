@@ -1,8 +1,16 @@
-"""Launcher for dragon feature testing."""
+﻿"""Launcher for dragon feature testing."""
+
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 
 import os
 
-from launch_bootstrap import run_app
+from launchers.bootstrap import run_app
 
 
 def main():
@@ -16,4 +24,5 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 

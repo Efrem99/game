@@ -1,6 +1,6 @@
-"""Console launcher for XBot RPG."""
+﻿"""Console launcher for XBot RPG."""
 
-from launch_bootstrap import run_app
+from launchers.bootstrap import run_app
 
 
 def main():
@@ -12,3 +12,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

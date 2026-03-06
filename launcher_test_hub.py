@@ -1,4 +1,4 @@
-"""Unified launcher with menu-driven test profile selection."""
+﻿"""Unified launcher with menu-driven test profile selection."""
 
 import argparse
 import os
@@ -6,7 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from launch_bootstrap import run_app
+from launchers.bootstrap import run_app
 
 
 RUNTIME_TESTS = {
@@ -201,3 +201,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

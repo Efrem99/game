@@ -1,12 +1,20 @@
-"""Launcher for static project baseline report (no game boot)."""
+﻿"""Launcher for static project baseline report (no game boot)."""
 
-import subprocess
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+
+import subprocess
+
 
 if __name__ == "__main__":
-    root = Path(__file__).resolve().parent
+    root = ROOT
     script = root / "scripts" / "baseline_report.py"
     result = subprocess.run([sys.executable, str(script)], cwd=str(root))
     raise SystemExit(result.returncode)
+
+

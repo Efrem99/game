@@ -1,6 +1,6 @@
 ﻿"""Pyw wrapper for launcher_test_hub.py."""
 
-from launcher_pyw_bootstrap import run_launcher_script
+from launchers.pyw_bootstrap import run_launcher_script
 
 
 if __name__ == "__main__":

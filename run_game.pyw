@@ -1,6 +1,6 @@
-"""Alternative silent launcher used by start_game.bat."""
+﻿"""Alternative silent launcher used by start_game.bat."""
 
-from launch_bootstrap import run_app, show_messagebox_error
+from launchers.bootstrap import run_app, show_messagebox_error
 
 
 def main():
@@ -12,3 +12,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

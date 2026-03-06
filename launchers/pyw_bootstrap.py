@@ -1,4 +1,4 @@
-"""Helpers for .pyw wrappers around launcher scripts."""
+﻿"""Helpers for .pyw wrappers around launcher scripts."""
 
 import os
 import runpy
@@ -6,7 +6,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from launch_bootstrap import show_messagebox_error
+from launchers.bootstrap import show_messagebox_error
 
 
 def _normalize_exit_code(raw_code):
@@ -23,7 +23,7 @@ def _normalize_exit_code(raw_code):
 
 
 def run_launcher_script(script_name, *, window_title="XBot Launcher Error"):
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parents[1]
     os.chdir(root)
     src_dir = root / "src"
     src_dir_str = str(src_dir)
@@ -53,3 +53,5 @@ def run_launcher_script(script_name, *, window_title="XBot Launcher Error"):
         except Exception:
             pass
         return 1
+
+

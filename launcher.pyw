@@ -1,6 +1,6 @@
-"""Silent launcher for XBot RPG (.pyw)."""
+﻿"""Silent launcher for XBot RPG (.pyw)."""
 
-from launch_bootstrap import run_app, show_messagebox_error
+from launchers.bootstrap import run_app, show_messagebox_error
 
 
 def main():
@@ -12,3 +12,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
