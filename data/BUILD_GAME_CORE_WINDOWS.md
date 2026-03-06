@@ -1,4 +1,4 @@
-# Build `game_core.pyd` (Windows)
+﻿# Build `game_core.pyd` (Windows)
 
 ## Quick command
 
@@ -11,7 +11,7 @@ python scripts/build_game_core.py
 Or:
 
 ```powershell
-build.bat
+tools/ops/build.bat
 ```
 
 ## Requirements
@@ -30,4 +30,5 @@ File appears in project root:
 After that, startup warning
 `game_core.pyd not found. Running in Python-only mode`
 should disappear.
+
 
