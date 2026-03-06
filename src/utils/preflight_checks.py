@@ -240,18 +240,126 @@ def run_visual_asset_preflight(project_root):
     return report
 
 
+def run_player_model_preflight(project_root):
+    root = Path(project_root)
+    cfg_path = root / "data" / "actors" / "player.json"
+    payload = _safe_read_json(cfg_path)
+    player = payload.get("player", payload) if isinstance(payload, dict) else {}
+    if not isinstance(player, dict):
+        player = {}
+
+    def _norm(token):
+        return str(token or "").strip().replace("\\", "/")
+
+    def _as_path(token):
+        raw = _norm(token)
+        if not raw:
+            return None
+        p = Path(raw)
+        if p.is_absolute():
+            return p
+        return (root / raw).resolve()
+
+    primary = _norm(player.get("model"))
+    fallback = _norm(player.get("fallback_model"))
+    raw_candidates = player.get("model_candidates")
+
+    candidates = []
+
+    def _push(item):
+        tok = _norm(item)
+        if tok and tok not in candidates:
+            candidates.append(tok)
+
+    if isinstance(raw_candidates, list):
+        for item in raw_candidates:
+            _push(item)
+    if primary:
+        if primary in candidates:
+            candidates.remove(primary)
+        candidates.insert(0, primary)
+    if fallback:
+        _push(fallback)
+
+    existing = []
+    missing = []
+    for token in candidates:
+        p = _as_path(token)
+        if p is not None and p.exists():
+            existing.append(token)
+        else:
+            missing.append(token)
+
+    errors = []
+    warnings = []
+    if not candidates:
+        errors.append("Player model config has no candidates (model/model_candidates are empty).")
+    if primary and primary in missing:
+        warnings.append(f"Primary player model is missing: {primary}. Runtime will use fallback candidate.")
+    if fallback and fallback in missing:
+        warnings.append(f"Fallback player model is missing: {fallback}.")
+    if candidates and not existing:
+        errors.append("No existing player model candidate found on disk.")
+
+    report = {
+        "ok": len(errors) == 0,
+        "errors": errors,
+        "warnings": warnings,
+        "primary_model": primary,
+        "fallback_model": fallback,
+        "candidate_count": len(candidates),
+        "existing_candidates": existing,
+        "missing_candidates": missing,
+    }
+
+    report_md = [
+        "# Player Model Preflight",
+        "",
+        f"- OK: `{report['ok']}`",
+        f"- Candidate count: `{report['candidate_count']}`",
+        f"- Existing candidates: `{len(existing)}`",
+        f"- Missing candidates: `{len(missing)}`",
+        f"- Primary: `{primary or '-'}`",
+        f"- Fallback: `{fallback or '-'}`",
+        "",
+        "## Errors",
+    ]
+    if errors:
+        report_md.extend([f"- {item}" for item in errors])
+    else:
+        report_md.append("- None")
+    report_md.extend(["", "## Warnings"])
+    if warnings:
+        report_md.extend([f"- {item}" for item in warnings])
+    else:
+        report_md.append("- None")
+    if existing:
+        report_md.extend(["", "## Existing Candidates"])
+        report_md.extend([f"- `{item}`" for item in existing[:40]])
+    if missing:
+        report_md.extend(["", "## Missing Candidates"])
+        report_md.extend([f"- `{item}`" for item in missing[:40]])
+
+    _safe_write_text(root / "logs" / "player_model_preflight.json", json.dumps(report, ensure_ascii=False, indent=2))
+    _safe_write_text(root / "logs" / "player_model_preflight.md", "\n".join(report_md))
+    return report
+
+
 def run_startup_preflight(project_root, logger=None, strict=False):
     root = Path(project_root)
     started = datetime.now(timezone.utc).isoformat()
     animation = run_animation_preflight(root)
     visuals = run_visual_asset_preflight(root)
+    player_model = run_player_model_preflight(root)
 
     errors = []
     errors.extend(animation.get("errors", []))
     errors.extend(visuals.get("errors", []))
+    errors.extend(player_model.get("errors", []))
     warnings = []
     warnings.extend(animation.get("warnings", []))
     warnings.extend(visuals.get("warnings", []))
+    warnings.extend(player_model.get("warnings", []))
 
     report = {
         "ok": len(errors) == 0,
@@ -259,6 +367,7 @@ def run_startup_preflight(project_root, logger=None, strict=False):
         "started_at_utc": started,
         "animation": animation,
         "visuals": visuals,
+        "player_model": player_model,
         "error_count": len(errors),
         "warning_count": len(warnings),
     }
@@ -268,6 +377,7 @@ def run_startup_preflight(project_root, logger=None, strict=False):
     if logger:
         logger.info(
             f"[Preflight] animation_ok={animation.get('ok')} visuals_ok={visuals.get('ok')} "
+            f"player_model_ok={player_model.get('ok')} "
             f"errors={len(errors)} warnings={len(warnings)}"
         )
         if warnings:

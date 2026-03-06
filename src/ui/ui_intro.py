@@ -30,9 +30,9 @@ from utils.logger import logger
 # ─────────────────────────────────────────────────────────────────────
 # Easing helpers via Panda3D blend type strings
 # ─────────────────────────────────────────────────────────────────────
-_EASE_IN_OUT = "ease_in_out"   # smoothstep - standard
-_EASE_OUT    = "ease_out"      # decelerate
-_EASE_IN     = "ease_in"       # accelerate
+_EASE_IN_OUT = "easeInOut"   # Panda3D blendType (valid)
+_EASE_OUT    = "easeOut"     # Panda3D blendType (valid)
+_EASE_IN     = "easeIn"      # Panda3D blendType (valid)
 
 
 def _fade_in(node, duration, start_alpha=0.0, end_alpha=1.0, blend=_EASE_IN_OUT):

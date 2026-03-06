@@ -34,6 +34,17 @@ class HUDOverlay:
         self._minimap_range = 120.0
         self._xp_label_text = self.app.data_mgr.t("stats.xp", "XP")
         self._gold_label_text = self.app.data_mgr.t("stats.gold", "Gold")
+        self._npc_scene_debug_entries = []
+        npc_cfg = {}
+        dm = getattr(self.app, "data_mgr", None)
+        if dm and isinstance(getattr(dm, "sound_config", None), dict):
+            npc_cfg = dm.sound_config.get("npc_activity", {}) if isinstance(dm.sound_config.get("npc_activity"), dict) else {}
+        self._npc_scene_debug_enabled = bool(npc_cfg.get("debug_overlay", True))
+        try:
+            self._npc_scene_debug_max = max(1, int(npc_cfg.get("debug_lines", 5) or 5))
+        except Exception:
+            self._npc_scene_debug_max = 5
+        self._npc_scene_debug_ttl = 9.0
 
         self.root = DirectFrame(
             frameColor=(0, 0, 0, 0),
@@ -53,12 +64,14 @@ class HUDOverlay:
         self._create_mount_hint()
         self._create_skill_wheel()
         self._create_autosave_badge()
+        self._create_npc_scene_debug()
         self._refresh_profile_text()
 
         self.root.hide()
 
     def _create_vignette(self):
-        alpha = 0.20
+        # Keep vignette subtle; strong edges looked like a giant UI rectangle in gameplay.
+        alpha = 0.055
         self.vig_top = DirectFrame(
             frameColor=(0, 0, 0, alpha),
             frameSize=(-2, 2, 0.76, 1.0),
@@ -70,17 +83,31 @@ class HUDOverlay:
             parent=self.root,
         )
         self.vig_left = DirectFrame(
-            frameColor=(0, 0, 0, alpha * 0.85),
+            frameColor=(0, 0, 0, alpha * 0.55),
             frameSize=(-2, -1.55, -1.0, 1.0),
             parent=self.root,
         )
         self.vig_right = DirectFrame(
-            frameColor=(0, 0, 0, alpha * 0.85),
+            frameColor=(0, 0, 0, alpha * 0.55),
             frameSize=(1.55, 2, -1.0, 1.0),
             parent=self.root,
         )
         for node in (self.vig_top, self.vig_bottom, self.vig_left, self.vig_right):
             place_ui_on_top(node, 80)
+
+    def _apply_context_vignette(self, boost=0.0, fear=0.0, damage=0.0):
+        b = max(0.0, min(1.0, float(boost or 0.0)))
+        fear = max(0.0, min(1.0, float(fear or 0.0)))
+        damage = max(0.0, min(1.0, float(damage or 0.0)))
+        top_alpha = 0.055 + (0.10 * b) + (0.05 * damage)
+        side_alpha = 0.03 + (0.06 * b) + (0.03 * fear)
+        damage_tint = 0.18 * damage
+        fear_tint = 0.10 * fear
+
+        self.vig_top["frameColor"] = (damage_tint, 0.0, fear_tint, min(0.85, top_alpha))
+        self.vig_bottom["frameColor"] = (damage_tint, 0.0, fear_tint, min(0.85, top_alpha))
+        self.vig_left["frameColor"] = (damage_tint, 0.0, fear_tint, min(0.75, side_alpha))
+        self.vig_right["frameColor"] = (damage_tint, 0.0, fear_tint, min(0.75, side_alpha))
 
     def _create_bar(self, y, color):
         bg = DirectFrame(
@@ -494,6 +521,92 @@ class HUDOverlay:
         place_ui_on_top(self.mount_hint_text, 84)
 
     def _create_tutorial_hint(self):
+        self.tutorial_panel = DirectFrame(
+            frameColor=(0.10, 0.09, 0.08, 0.78),
+            frameSize=(0.0, 0.66, -0.21, 0.0),
+            pos=(-1.34, 0, 0.79),
+            parent=self.root,
+        )
+        self.tutorial_panel_border = DirectFrame(
+            frameColor=(0.82, 0.70, 0.42, 0.72),
+            frameSize=(0.002, 0.658, -0.208, -0.002),
+            parent=self.tutorial_panel,
+        )
+        self.tutorial_panel_inset = DirectFrame(
+            frameColor=(0.03, 0.03, 0.03, 0.24),
+            frameSize=(0.010, 0.650, -0.201, -0.010),
+            parent=self.tutorial_panel,
+        )
+        self.tutorial_header_text = OnscreenText(
+            text="",
+            pos=(0.03, -0.032),
+            scale=0.022,
+            fg=THEME["text_muted"],
+            shadow=(0, 0, 0, 0.82),
+            align=TextNode.ALeft,
+            parent=self.tutorial_panel,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        self.tutorial_progress_text = OnscreenText(
+            text="",
+            pos=(0.63, -0.032),
+            scale=0.022,
+            fg=THEME["gold_soft"],
+            shadow=(0, 0, 0, 0.82),
+            align=TextNode.ARight,
+            parent=self.tutorial_panel,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        self.tutorial_title_text = OnscreenText(
+            text="",
+            pos=(0.03, -0.078),
+            scale=0.033,
+            fg=THEME["gold_soft"],
+            shadow=(0, 0, 0, 0.88),
+            align=TextNode.ALeft,
+            parent=self.tutorial_panel,
+            mayChange=True,
+            font=title_font(self.app),
+        )
+        self.tutorial_body_text = OnscreenText(
+            text="",
+            pos=(0.03, -0.126),
+            scale=0.022,
+            fg=THEME["text_main"],
+            shadow=(0, 0, 0, 0.82),
+            align=TextNode.ALeft,
+            parent=self.tutorial_panel,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        self.tutorial_keys_text = OnscreenText(
+            text="",
+            pos=(0.03, -0.172),
+            scale=0.021,
+            fg=THEME["text_muted"],
+            shadow=(0, 0, 0, 0.78),
+            align=TextNode.ALeft,
+            parent=self.tutorial_panel,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        self.tutorial_progress_bg = DirectFrame(
+            frameColor=(0.10, 0.10, 0.12, 0.92),
+            frameSize=(0.03, 0.63, -0.198, -0.186),
+            parent=self.tutorial_panel,
+        )
+        self.tutorial_progress_fill = DirectFrame(
+            frameColor=(0.84, 0.72, 0.36, 0.94),
+            frameSize=(0.03, 0.03, -0.198, -0.186),
+            parent=self.tutorial_panel,
+        )
+        self._tutorial_progress_left = 0.03
+        self._tutorial_progress_width = 0.60
+        self._tutorial_flash_time = 0.0
+
+        # Legacy fallback for any systems still using plain tutorial text.
         self.tutorial_text = OnscreenText(
             text="",
             pos=(-1.36, 0.74),
@@ -505,7 +618,146 @@ class HUDOverlay:
             mayChange=True,
             font=body_font(self.app),
         )
-        place_ui_on_top(self.tutorial_text, 84)
+        self.tutorial_text.hide()
+
+        for node in (
+            self.tutorial_panel,
+            self.tutorial_panel_border,
+            self.tutorial_panel_inset,
+            self.tutorial_header_text,
+            self.tutorial_progress_text,
+            self.tutorial_title_text,
+            self.tutorial_body_text,
+            self.tutorial_keys_text,
+            self.tutorial_progress_bg,
+            self.tutorial_progress_fill,
+            self.tutorial_text,
+        ):
+            place_ui_on_top(node, 84)
+
+    def _set_tutorial_progress(self, ratio):
+        pct = max(0.0, min(1.0, float(ratio or 0.0)))
+        right = self._tutorial_progress_left + (self._tutorial_progress_width * pct)
+        self.tutorial_progress_fill["frameSize"] = (
+            self._tutorial_progress_left,
+            max(self._tutorial_progress_left, right),
+            -0.198,
+            -0.186,
+        )
+
+    def _apply_tutorial_phase_style(self, phase, flash=False):
+        phase_key = str(phase or "core").strip().lower()
+        schemes = {
+            "core": {
+                "panel": (0.10, 0.09, 0.08, 0.78),
+                "border": (0.82, 0.70, 0.42, 0.72),
+                "title": THEME["gold_soft"],
+                "keys": THEME["text_muted"],
+                "fill": (0.84, 0.72, 0.36, 0.94),
+            },
+            "advanced": {
+                "panel": (0.07, 0.09, 0.11, 0.80),
+                "border": (0.42, 0.72, 0.90, 0.74),
+                "title": (0.68, 0.86, 1.0, 1.0),
+                "keys": (0.64, 0.82, 0.95, 1.0),
+                "fill": (0.42, 0.74, 1.0, 0.95),
+            },
+            "await_advanced": {
+                "panel": (0.11, 0.08, 0.06, 0.82),
+                "border": (0.94, 0.70, 0.30, 0.76),
+                "title": (1.00, 0.84, 0.48, 1.0),
+                "keys": (0.95, 0.83, 0.64, 1.0),
+                "fill": (0.95, 0.68, 0.28, 0.95),
+            },
+            "complete": {
+                "panel": (0.06, 0.11, 0.08, 0.82),
+                "border": (0.42, 0.82, 0.56, 0.74),
+                "title": (0.72, 0.98, 0.80, 1.0),
+                "keys": (0.70, 0.90, 0.78, 1.0),
+                "fill": (0.44, 0.84, 0.56, 0.95),
+            },
+        }
+        style = schemes.get(phase_key, schemes["core"])
+        border = style["border"]
+        if flash:
+            # Flash is short-lived and only boosts the border for step completion feedback.
+            border = (
+                min(1.0, border[0] + 0.22),
+                min(1.0, border[1] + 0.18),
+                min(1.0, border[2] + 0.18),
+                min(1.0, border[3] + 0.16),
+            )
+        self.tutorial_panel["frameColor"] = style["panel"]
+        self.tutorial_panel_border["frameColor"] = border
+        self.tutorial_title_text.setFg(style["title"])
+        self.tutorial_keys_text.setFg(style["keys"])
+        self.tutorial_progress_fill["frameColor"] = style["fill"]
+
+    def _format_tutorial_keys(self, keys):
+        if not isinstance(keys, list):
+            return ""
+        pretty = []
+        for key in keys:
+            token = str(key or "").strip().upper()
+            if token and token not in pretty:
+                pretty.append(token)
+        if not pretty:
+            return ""
+        keys_label = self.app.data_mgr.t("ui.tutorial_keys", "Keys")
+        chips = "  ".join(f"[{token}]" for token in pretty[:6])
+        return f"{keys_label}: {chips}"
+
+    def _clear_tutorial_hint(self):
+        self.tutorial_header_text.setText("")
+        self.tutorial_progress_text.setText("")
+        self.tutorial_title_text.setText("")
+        self.tutorial_body_text.setText("")
+        self.tutorial_keys_text.setText("")
+        self._set_tutorial_progress(0.0)
+        self.tutorial_panel.hide()
+        self.tutorial_text.setText("")
+        self.tutorial_text.hide()
+
+    def _update_tutorial_hint(self, dt, tutorial_state=None, tutorial_message=None):
+        self._tutorial_flash_time = max(0.0, self._tutorial_flash_time - max(0.0, float(dt or 0.0)))
+
+        if isinstance(tutorial_state, dict) and tutorial_state.get("visible", False):
+            header = str(tutorial_state.get("header", "") or "").strip()
+            title = str(tutorial_state.get("title", "") or "").strip()
+            text = str(tutorial_state.get("text", "") or "").strip()
+            progress_label = str(tutorial_state.get("progress_label", "") or "").strip()
+            keys_line = self._format_tutorial_keys(tutorial_state.get("keys"))
+            phase = str(tutorial_state.get("phase", "core") or "core")
+            ratio = tutorial_state.get("progress_ratio", 0.0)
+            if bool(tutorial_state.get("flash", False)):
+                self._tutorial_flash_time = max(self._tutorial_flash_time, 0.24)
+
+            self.tutorial_panel.show()
+            self.tutorial_header_text.setText(header)
+            self.tutorial_progress_text.setText(progress_label)
+            self.tutorial_title_text.setText(title)
+            self.tutorial_body_text.setText(text)
+            self.tutorial_keys_text.setText(keys_line)
+            self._set_tutorial_progress(ratio)
+            self._apply_tutorial_phase_style(phase, flash=self._tutorial_flash_time > 0.0)
+            self.tutorial_text.setText("")
+            self.tutorial_text.hide()
+            return
+
+        if isinstance(tutorial_message, str) and tutorial_message.strip():
+            self.tutorial_panel.show()
+            self.tutorial_header_text.setText(self.app.data_mgr.t("ui.tutorial_header", "Movement Tutorial"))
+            self.tutorial_progress_text.setText("")
+            self.tutorial_title_text.setText("")
+            self.tutorial_body_text.setText(tutorial_message.strip())
+            self.tutorial_keys_text.setText("")
+            self._set_tutorial_progress(0.0)
+            self._apply_tutorial_phase_style("core", flash=False)
+            self.tutorial_text.setText("")
+            self.tutorial_text.hide()
+            return
+
+        self._clear_tutorial_hint()
 
     def _create_skill_wheel(self):
         self.skill_slots = []
@@ -934,6 +1186,72 @@ class HUDOverlay:
         )
         place_ui_on_top(self.autosave_text, 84)
 
+    def _create_npc_scene_debug(self):
+        self.npc_scene_debug_text = OnscreenText(
+            text="",
+            pos=(-1.36, 0.64),
+            scale=0.024,
+            fg=THEME["text_muted"],
+            shadow=(0, 0, 0, 0.80),
+            align=TextNode.ALeft,
+            parent=self.root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        place_ui_on_top(self.npc_scene_debug_text, 84)
+        if not self._npc_scene_debug_enabled:
+            self.npc_scene_debug_text.hide()
+            return
+        bus = getattr(self.app, "event_bus", None)
+        if bus and hasattr(bus, "subscribe"):
+            try:
+                bus.subscribe("npc.micro_scene.started", self._on_npc_scene_started, priority=8)
+            except Exception:
+                pass
+
+    def _on_npc_scene_started(self, event_name, payload):
+        _ = event_name
+        if not self._npc_scene_debug_enabled:
+            return
+        if not isinstance(payload, dict):
+            return
+        npc_id = str(payload.get("npc_id", "npc")).strip()
+        activity = str(payload.get("activity", "idle")).strip()
+        profile = str(payload.get("profile", "default")).strip()
+        anchor = str(payload.get("anchor_id", "")).strip()
+        intensity = payload.get("intensity", 0.0)
+        try:
+            intensity = float(intensity)
+        except Exception:
+            intensity = 0.0
+        suffix = f" @ {anchor}" if anchor else ""
+        line = f"[{profile}] {npc_id}: {activity}{suffix} ({intensity:.2f})"
+        self._npc_scene_debug_entries.append({"line": line, "ttl": float(self._npc_scene_debug_ttl)})
+        if len(self._npc_scene_debug_entries) > self._npc_scene_debug_max:
+            self._npc_scene_debug_entries = self._npc_scene_debug_entries[-self._npc_scene_debug_max :]
+
+    def _update_npc_scene_debug(self, dt):
+        if not self._npc_scene_debug_enabled:
+            self.npc_scene_debug_text.hide()
+            return
+        self.npc_scene_debug_text.show()
+        kept = []
+        lines = []
+        for row in self._npc_scene_debug_entries:
+            if not isinstance(row, dict):
+                continue
+            ttl = float(row.get("ttl", 0.0) or 0.0) - max(0.0, float(dt))
+            if ttl <= 0.0:
+                continue
+            row["ttl"] = ttl
+            kept.append(row)
+            lines.append(str(row.get("line", "")))
+        self._npc_scene_debug_entries = kept[-self._npc_scene_debug_max :]
+        if lines:
+            self.npc_scene_debug_text.setText("NPC SCENES\n" + "\n".join(lines[-self._npc_scene_debug_max :]))
+        else:
+            self.npc_scene_debug_text.setText("")
+
     def show(self):
         self.root.show()
 
@@ -943,7 +1261,8 @@ class HUDOverlay:
         self._hide_breadcrumbs()
         self.minimap_pin.hide()
         self.minimap_hint.setText("")
-        self.tutorial_text.setText("")
+        self._clear_tutorial_hint()
+        self.npc_scene_debug_text.setText("")
 
     def refresh_locale(self):
         self.hp_label.setText(self.app.data_mgr.t("stats.health", "Health"))
@@ -1051,6 +1370,7 @@ class HUDOverlay:
         ultimate_skill_idx=0,
         player_pos=None,
         tutorial_message=None,
+        tutorial_state=None,
     ):
         if not isinstance(profile, dict):
             profile = getattr(self.app, "profile", {})
@@ -1070,6 +1390,19 @@ class HUDOverlay:
 
         self.set_skill_wheel(spell_labels or [], active_skill_idx, ultimate_skill_idx)
 
+        camera_fx = {}
+        director = getattr(self.app, "camera_director", None)
+        if director and hasattr(director, "get_screen_effect_state"):
+            try:
+                camera_fx = director.get_screen_effect_state() or {}
+            except Exception:
+                camera_fx = {}
+        self._apply_context_vignette(
+            boost=camera_fx.get("vignette_boost", 0.0) if isinstance(camera_fx, dict) else 0.0,
+            fear=camera_fx.get("fear_tint", 0.0) if isinstance(camera_fx, dict) else 0.0,
+            damage=camera_fx.get("damage_tint", 0.0) if isinstance(camera_fx, dict) else 0.0,
+        )
+
         if not char_state:
             if self._autosave_on and self.autosave_logo:
                 self._logo_spin = (self._logo_spin + dt * 100.0) % 360.0
@@ -1081,7 +1414,7 @@ class HUDOverlay:
             self._hide_breadcrumbs()
             self.minimap_pin.hide()
             self.minimap_hint.setText("")
-            self.tutorial_text.setText("")
+            self._clear_tutorial_hint()
             return
         self._set_fill(self.hp_fill, char_state.health / max(1.0, char_state.maxHealth))
         self._set_fill(self.sp_fill, char_state.stamina / max(1.0, char_state.maxStamina))
@@ -1121,10 +1454,8 @@ class HUDOverlay:
         else:
             self.mount_hint_text.setText("")
 
-        if isinstance(tutorial_message, str):
-            self.tutorial_text.setText(tutorial_message)
-        else:
-            self.tutorial_text.setText("")
+        self._update_tutorial_hint(dt, tutorial_state=tutorial_state, tutorial_message=tutorial_message)
+        self._update_npc_scene_debug(dt)
 
         if isinstance(combat_event, dict):
             amount = int(combat_event.get("amount", 0) or 0)

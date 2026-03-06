@@ -2,6 +2,19 @@
     "id": "royal_armor",
     "name": "Royal Plate",
     "type": "armor",
+    "slot": "chest",
+    "icon": "assets/textures/items/royal_armor.png",
+    "attach_point": "spine_upper",
+    "equip_visual": {
+        "style": "heavy",
+        "color": [
+            0.92,
+            0.92,
+            1.0,
+            1.0
+        ],
+        "scale": 1.06
+    },
     "armor": 5,
     "description": "Heavy plate armor worn by royal guards.",
     "visual": {

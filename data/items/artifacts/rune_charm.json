@@ -2,6 +2,19 @@
     "id": "rune_charm",
     "name": "Rune Charm",
     "type": "artifact",
+    "slot": "trinket",
+    "icon": "assets/textures/items/rune_charm.png",
+    "attach_point": "spine_upper",
+    "equip_visual": {
+        "style": "charm",
+        "color": [
+            0.9,
+            0.9,
+            0.95,
+            1.0
+        ],
+        "scale": 0.55
+    },
     "spell": 2,
     "description": "A mystical charm that enhances magical abilities.",
     "visual": {

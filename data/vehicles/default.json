@@ -1,0 +1,11 @@
+{
+    "id": "default",
+    "kind": "default",
+    "speed": 6.0,
+    "run_speed": 9.5,
+    "accel": 7.5,
+    "decel": 9.0,
+    "turn_rate": 120.0,
+    "mount_offset": [0.0, 0.0, 1.0],
+    "dismount_offset": [1.4, -0.4, 0.0]
+}

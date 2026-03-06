@@ -42,14 +42,19 @@ from managers.data_manager import DataManager
 from managers.audio_director import AudioDirector
 from managers.camera_director import CameraDirector
 from managers.cutscene_trigger_manager import CutsceneTriggerManager
+from managers.event_bus import EventBus
+from managers.npc_activity_director import NPCActivityDirector
 from managers.state_manager import StateManager, GameState
 from managers.quest_manager import QuestManager
 from managers.save_manager import SaveManager
+from managers.sky_manager import SkyManager
+from managers.time_fx_manager import TimeFxManager
 from managers.vehicle_manager import VehicleManager
 from managers.npc_manager import NPCManager
 from managers.movement_tutorial_manager import MovementTutorialManager
 from managers.dialog_cinematic_manager import DialogCinematicManager
 from managers.npc_interaction_manager import NPCInteractionManager
+from managers.skill_tree_manager import SkillTreeManager
 from render.model_visuals import ensure_model_visual_defaults, audit_node_visual_health
 from ui.menu_main import MainMenu
 from ui.menu_pause import PauseMenu
@@ -170,10 +175,12 @@ class XBotApp(ShowBase):
 
         # -- Managers --
         self.data_mgr = DataManager()
+        self.event_bus = EventBus()
         self.apply_graphics_quality(
             self.data_mgr.graphics_settings.get("quality", "High"),
             persist=False,
         )
+        self.sky_mgr = SkyManager(self)
 
         # Apply Saved Audio Settings Early
         try:
@@ -186,16 +193,26 @@ class XBotApp(ShowBase):
             logger.debug(f"Could not apply startup audio settings: {e}")
 
         self.audio = AudioDirector(self)
+        self.audio_director = self.audio  # Compatibility alias for managers that use explicit name.
         self.camera_director = CameraDirector(self)
+        self.time_fx = TimeFxManager(self)
         self.cutscene_triggers = CutsceneTriggerManager(self)
 
-        self.profile = {"xp": 0, "gold": 0, "items": {}}
+        self.profile = {
+            "xp": 0,
+            "gold": 0,
+            "items": {},
+            "skills": {"points": 4, "unlocked": {}},
+            "skill_points": 4,
+        }
         self.state_mgr = StateManager(self)
         self.quest_mgr = QuestManager(self, self.data_mgr.quests)
         self.preload_mgr = PreloadManager(self)
         self.save_mgr = SaveManager(self)
         self.vehicle_mgr = VehicleManager(self)
         self.npc_mgr = NPCManager(self)
+        self.npc_activity_director = NPCActivityDirector(self)
+        self.skill_tree_mgr = SkillTreeManager(self)
         self.movement_tutorial = MovementTutorialManager(self)
         self._tutorial_quest_id = "movement_tutorial"
         self._tutorial_core_complete_sent = False
@@ -208,7 +225,6 @@ class XBotApp(ShowBase):
         self.main_menu = MainMenu(self)
         self.pause_menu = PauseMenu(self)
         self.inventory_ui = InventoryUI(self)
-        self.accept("i", self.inventory_ui.toggle)
         self.loading_screen = LoadingScreen(self)
         self.hud = HUDOverlay(self)
         self.hud.hide()
@@ -518,7 +534,23 @@ class XBotApp(ShowBase):
     def _on_escape_pressed(self):
         state = self.state_mgr.current_state
 
+        if state == self.GameState.DIALOG:
+            dialog = getattr(self, "dialog_cinematic", None)
+            if dialog and hasattr(dialog, "is_active") and dialog.is_active():
+                try:
+                    dialog.finish()
+                except Exception:
+                    pass
+            return
+
         if state == self.GameState.PLAYING:
+            director = getattr(self, "camera_director", None)
+            if director and hasattr(director, "is_cutscene_active"):
+                try:
+                    if director.is_cutscene_active():
+                        return
+                except Exception:
+                    pass
             self.state_mgr.set_state(self.GameState.PAUSED)
             self.aspect2d.show() # Make UI layer visible
             self.pause_menu.set_loading(False)
@@ -572,16 +604,69 @@ class XBotApp(ShowBase):
         self.aspect2d.show()
         self.main_menu.show()
 
-    def start_game_loading(self):
-        logger.info("Starting Game - Queueing heavy assets for preloading...")
-        self.loading_screen.show()
-        self.hud.set_autosave(True)
-        self.preload_mgr.preload_assets([
+    def _collect_startup_preload_assets(self):
+        candidates = [
+            "assets/models/hero/sherward/sherward.glb",
             "assets/models/xbot/Xbot.glb",
             "assets/models/xbot/idle.glb",
             "assets/models/xbot/walk.glb",
             "assets/models/xbot/run.glb",
-        ])
+            "assets/models/enemies/golem_boss.glb",
+            "assets/models/bosses/dragon_evolved.glb",
+        ]
+
+        player_cfg = {}
+        payload = getattr(self.data_mgr, "player_config", None)
+        if isinstance(payload, dict):
+            row = payload.get("player")
+            if isinstance(row, dict):
+                player_cfg = row
+
+        for key in ("model", "fallback_model"):
+            value = player_cfg.get(key)
+            if isinstance(value, str) and value.strip():
+                candidates.append(value.strip())
+        model_candidates = player_cfg.get("model_candidates", [])
+        if isinstance(model_candidates, list):
+            for value in model_candidates:
+                if isinstance(value, str) and value.strip():
+                    candidates.append(value.strip())
+        base_anims = player_cfg.get("base_anims", {})
+        if isinstance(base_anims, dict):
+            for value in base_anims.values():
+                if isinstance(value, str) and value.strip():
+                    candidates.append(value.strip())
+
+        out = []
+        seen = set()
+        for raw in candidates:
+            token = str(raw or "").strip().replace("\\", "/")
+            if not token or token in seen:
+                continue
+            seen.add(token)
+            abs_path = os.path.join(self.project_root, token)
+            if os.path.exists(abs_path):
+                out.append(token)
+        return out
+
+    def start_game_loading(self):
+        logger.info("Starting Game - Queueing heavy assets for preloading...")
+        self.loading_screen.show()
+        self.hud.set_autosave(True)
+        preload_targets = self._collect_startup_preload_assets()
+        if hasattr(self.preload_mgr, "merge_with_cached"):
+            try:
+                preload_targets = self.preload_mgr.merge_with_cached(preload_targets, limit=56)
+            except Exception as exc:
+                logger.debug(f"[PreloadManager] cache merge failed: {exc}")
+        self.preload_mgr.preload_assets(preload_targets)
+
+        if hasattr(self.audio, "warmup_cache"):
+            try:
+                warmed = int(self.audio.warmup_cache(include_sfx=True, sfx_limit=12))
+                logger.info(f"[Audio] Warmed audio cache entries: {warmed}")
+            except Exception as exc:
+                logger.debug(f"[Audio] Warmup skipped: {exc}")
 
         # -- World Generation --
         self.world = SharuanWorld(self)
@@ -630,6 +715,8 @@ class XBotApp(ShowBase):
             "boats": Vec3(0.0, -77.0, 0.0),
             "training": Vec3(18.0, 24.0, 0.0),
             "training_grounds": Vec3(18.0, 24.0, 0.0),
+            "parkour": Vec3(30.0, 28.0, 0.0),
+            "flight": Vec3(18.0, 24.0, 0.0),
         }
         if raw in presets:
             pos = Vec3(presets[raw])
@@ -680,13 +767,25 @@ class XBotApp(ShowBase):
             self._bootstrap_quests()
 
     def _emit_cutscene_event(self, event_name, payload=None):
+        payload = payload or {}
         mgr = getattr(self, "cutscene_triggers", None)
         if not mgr or not hasattr(mgr, "emit"):
+            mgr_ok = False
+        else:
+            mgr_ok = True
+            try:
+                mgr.emit(event_name, payload)
+            except Exception as exc:
+                logger.debug(f"[CutsceneTriggers] emit failed '{event_name}': {exc}")
+        bus = getattr(self, "event_bus", None)
+        if bus and hasattr(bus, "emit"):
+            try:
+                bus.emit(f"game.{str(event_name or '').strip().lower()}", payload, immediate=False)
+                bus.emit("game.event", {"name": str(event_name), "payload": dict(payload)}, immediate=False)
+            except Exception as exc:
+                logger.debug(f"[EventBus] emit failed '{event_name}': {exc}")
+        if not mgr_ok:
             return
-        try:
-            mgr.emit(event_name, payload or {})
-        except Exception as exc:
-            logger.debug(f"[CutsceneTriggers] emit failed '{event_name}': {exc}")
 
     def on_quest_started(self, quest_id, quest):
         del quest
@@ -773,6 +872,27 @@ class XBotApp(ShowBase):
     def _norm_test_mode(self):
         return str(getattr(self, "_test_profile", "") or "").strip().lower()
 
+    def _apply_test_profile_visuals(self, profile):
+        sky = getattr(self, "sky_mgr", None)
+        if not sky:
+            return
+        presets = {
+            "dragon": ("dusk", "stormy"),
+            "music": ("afternoon", "partly_cloudy"),
+            "journal": ("noon", "clear"),
+            "mounts": ("afternoon", "clear"),
+            "skills": ("dusk", "overcast"),
+            "movement": ("morning", "clear"),
+            "parkour": ("afternoon", "partly_cloudy"),
+            "flight": ("dawn", "clear"),
+        }
+        time_key, weather_key = presets.get(profile, ("noon", "clear"))
+        try:
+            sky.set_time_preset(time_key)
+            sky.set_weather_preset(weather_key)
+        except Exception as exc:
+            logger.debug(f"[TestProfile] Sky preset failed ({profile}): {exc}")
+
     def _apply_test_profile(self):
         profile = str(self._test_profile or "").strip().lower()
         if not profile and not self._test_location_raw:
@@ -785,11 +905,15 @@ class XBotApp(ShowBase):
             "mounts": "9,6,0",
             "skills": "0,0,0",
             "movement": "training",
+            "parkour": "parkour",
+            "flight": "flight",
         }.get(profile, "")
 
         desired = self._resolve_test_location(self._test_location_raw or default_location)
         if desired is not None:
             self._teleport_player_to(desired)
+
+        self._apply_test_profile_visuals(profile)
 
         if self.movement_tutorial:
             self.movement_tutorial.disable()
@@ -821,6 +945,37 @@ class XBotApp(ShowBase):
                 self.world.active_location = "Training Grounds"
             if self.movement_tutorial:
                 self._start_tutorial_flow(reset=True, mode="demo", source="test_profile")
+        elif profile == "parkour":
+            if self.world:
+                self.world.active_location = "Forest Parkour Grounds"
+        elif profile == "flight":
+            if self.world:
+                self.world.active_location = "Coastal Flight Grounds"
+            if self.player and self.player.actor:
+                pos = self.player.actor.getPos(self.render)
+                flight_pos = Vec3(pos.x, pos.y, pos.z + 9.0)
+                self.player.actor.setPos(flight_pos)
+                if HAS_CORE and self.char_state:
+                    try:
+                        self.char_state.position = gc.Vec3(flight_pos.x, flight_pos.y, flight_pos.z)
+                        self.char_state.velocity = gc.Vec3(0.0, 0.0, 0.0)
+                    except Exception:
+                        pass
+                # Keep test launcher deterministic: flight profile starts already airborne.
+                self.player._is_flying = True
+        elif profile == "mounts":
+            if self.world:
+                self.world.active_location = "Port Caravan Trail"
+        elif profile == "skills":
+            if self.world:
+                self.world.active_location = "Town Hall"
+            skill_mgr = getattr(self, "skill_tree_mgr", None)
+            if skill_mgr and hasattr(skill_mgr, "get_points") and hasattr(skill_mgr, "grant_points"):
+                try:
+                    if int(skill_mgr.get_points()) < 4:
+                        skill_mgr.grant_points(4)
+                except Exception:
+                    pass
 
         logger.info(
             f"[TestProfile] Applied profile='{profile or 'custom'}' "
@@ -875,7 +1030,16 @@ class XBotApp(ShowBase):
         self._start_tutorial_flow(reset=True, mode="demo", source="hotkey_shift_f8")
         logger.info("[Tutorial] Restarted full training flow (Shift+F8).")
 
-    def play_camera_shot(self, name="shot", duration=1.35, profile="boss", side=0.0, yaw_bias_deg=0.0):
+    def play_camera_shot(
+        self,
+        name="shot",
+        duration=1.35,
+        profile="boss",
+        side=0.0,
+        yaw_bias_deg=0.0,
+        priority=50,
+        owner="runtime",
+    ):
         director = getattr(self, "camera_director", None)
         if not director or not hasattr(director, "play_camera_shot"):
             return False
@@ -887,6 +1051,8 @@ class XBotApp(ShowBase):
                     profile=profile,
                     side=side,
                     yaw_bias_deg=yaw_bias_deg,
+                    priority=priority,
+                    owner=owner,
                 )
             )
         except Exception as exc:
@@ -1048,11 +1214,11 @@ class XBotApp(ShowBase):
 
     def _finalize_initialization(self):
         logger.info("Finalizing initialization...")
-        # Fog
-        fog = Fog("scene_fog")
-        fog.setColor(0.45, 0.62, 0.85)
-        fog.setExpDensity(0.008)
-        self.render.setFog(fog)
+        if not getattr(self, "sky_mgr", None):
+            fog = Fog("scene_fog")
+            fog.setColor(0.45, 0.62, 0.85)
+            fog.setExpDensity(0.008)
+            self.render.setFog(fog)
 
         if not hasattr(self, 'player') or self.player is None:
             self.player = Player(
@@ -1187,6 +1353,19 @@ class XBotApp(ShowBase):
                 apply_skin=False,
                 debug_label=f"npc_static:{npc_id}",
             )
+            if getattr(self, "char_state", None) is None:
+                try:
+                    np.setShaderOff(1002)
+                except Exception:
+                    pass
+                try:
+                    np.setColorScale(1.0, 1.0, 1.0, 1.0)
+                except Exception:
+                    pass
+                try:
+                    np.setTwoSided(True)
+                except Exception:
+                    pass
             logger.info(f"[XBotApp] Spawned static NPC fallback: {data.get('name', npc_id)} at {pos}")
 
     def _init_core_systems(self):
@@ -1239,10 +1418,35 @@ class XBotApp(ShowBase):
             )
 
     def _update(self, task):
-        dt = globalClock.getDt()
-        dt = min(dt, 0.05) # Cap delta time
+        dt_real = globalClock.getDt()
+        dt_real = min(dt_real, 0.05) # Cap delta time
+        bus = getattr(self, "event_bus", None)
+        if bus and hasattr(bus, "flush"):
+            try:
+                bus.flush(max_events=32)
+            except Exception as exc:
+                logger.debug(f"[EventBus] flush failed: {exc}")
+        time_fx = getattr(self, "time_fx", None)
+        if time_fx:
+            try:
+                time_fx.update(dt_real)
+            except Exception as exc:
+                logger.debug(f"[TimeFx] Update failed: {exc}")
+        dt_world = time_fx.scaled_dt("world", dt_real) if time_fx else dt_real
+        dt_player = time_fx.scaled_dt("player", dt_real) if time_fx else dt_real
+        dt_enemies = time_fx.scaled_dt("enemies", dt_real) if time_fx else dt_real
+        dt_particles = time_fx.scaled_dt("particles", dt_real) if time_fx else dt_real
+        world_state = {}
+        if getattr(self, "sky_mgr", None):
+            try:
+                self.sky_mgr.update(dt_world)
+                if hasattr(self.sky_mgr, "get_world_state"):
+                    world_state = self.sky_mgr.get_world_state() or {}
+            except Exception as exc:
+                logger.debug(f"[SkyManager] Update failed: {exc}")
+        self._world_state_cache = world_state
         if getattr(self, "audio", None):
-            self.audio.update(dt)
+            self.audio.update(dt_world)
         if self.state_mgr.is_playing():
             self.hud.show()
         else:
@@ -1252,7 +1456,7 @@ class XBotApp(ShowBase):
             return Task.cont
 
         if hasattr(self, "influence_mgr") and self.influence_mgr:
-            self.influence_mgr.update(dt)
+            self.influence_mgr.update(dt_world)
 
         # Attention-based simulation tier manager
         if hasattr(self, "sim_tier_mgr") and self.sim_tier_mgr and self.player:
@@ -1269,37 +1473,42 @@ class XBotApp(ShowBase):
                         cam_fwd_np.y * prev_fwd[1] +
                         cam_fwd_np.z * prev_fwd[2]
                     )))
-                    ang_speed = math.acos(dot) / max(dt, 0.001)
+                    ang_speed = math.acos(dot) / max(dt_real, 0.001)
                 self._prev_cam_fwd = (cam_fwd_np.x, cam_fwd_np.y, cam_fwd_np.z)
-                self.sim_tier_mgr.update(dt, cam_pos, cam_fwd_np, ang_speed)
+                self.sim_tier_mgr.update(dt_world, cam_pos, cam_fwd_np, ang_speed)
             except Exception as _exc:
                 pass
 
         if HAS_CORE:
-            self.particles.update(dt)
-            self._particle_upload_accum += dt
+            self.particles.update(dt_particles)
+            self._particle_upload_accum += dt_world
             if self._particle_upload_accum >= self._particle_upload_interval:
                 self._upload_particles()
                 self._particle_upload_accum = 0.0
             if self.water_sim:
                 self.water_sim.update(task.time)
 
-        self.player.update(dt, self._cam_yaw)
+        self.player.update(dt_player, self._cam_yaw)
         player_pos = self.player.actor.getPos()
         if getattr(self, "npc_mgr", None):
             try:
-                self.npc_mgr.update(dt)
+                self.npc_mgr.update(dt_world, world_state=world_state)
             except Exception as exc:
                 logger.warning(f"[NPCManager] Update failed: {exc}")
                 self.npc_mgr = None
+        if getattr(self, "npc_activity_director", None):
+            try:
+                self.npc_activity_director.update(dt_world)
+            except Exception as exc:
+                logger.debug(f"[NPCActivityDirector] Update failed: {exc}")
         if getattr(self, "npc_interaction", None):
             try:
-                self.npc_interaction.update(dt)
+                self.npc_interaction.update(dt_world)
             except Exception as exc:
                 logger.debug(f"[NPCInteraction] Update failed: {exc}")
         if self.boss_manager and self.player:
             try:
-                self.boss_manager.update(dt, self.player.actor.getPos(self.render))
+                self.boss_manager.update(dt_enemies, self.player.actor.getPos(self.render))
                 self._boss_update_fail_count = 0
             except Exception as exc:
                 self._boss_update_fail_count += 1
@@ -1333,6 +1542,7 @@ class XBotApp(ShowBase):
                 quest_data = []
         combat_event = None
         tutorial_message = ""
+        tutorial_state = None
         spell_labels = []
         active_skill_idx = 0
         ultimate_skill_idx = 0
@@ -1348,12 +1558,15 @@ class XBotApp(ShowBase):
                 spell_labels, active_skill_idx, ultimate_skill_idx = [], 0, 0
         if self.movement_tutorial:
             try:
-                self.movement_tutorial.update(dt)
+                self.movement_tutorial.update(dt_world)
                 tutorial_message = self.movement_tutorial.get_hud_message()
+                if hasattr(self.movement_tutorial, "get_hud_payload"):
+                    tutorial_state = self.movement_tutorial.get_hud_payload()
                 self._handle_tutorial_runtime_events()
             except Exception as exc:
                 logger.debug(f"[MovementTutorial] Update failed: {exc}")
                 tutorial_message = ""
+                tutorial_state = None
             if hasattr(self.movement_tutorial, "get_checkpoint_entry"):
                 try:
                     tutorial_cp = self.movement_tutorial.get_checkpoint_entry(player_pos=player_pos)
@@ -1369,7 +1582,7 @@ class XBotApp(ShowBase):
                         filtered.append(entry)
                     quest_data = [tutorial_cp] + filtered
         self.hud.update(
-            dt,
+            dt_real,
             self.char_state,
             quest_data,
             self.profile,
@@ -1379,10 +1592,11 @@ class XBotApp(ShowBase):
             active_skill_idx,
             ultimate_skill_idx,
             player_pos,
-            tutorial_message,
+            tutorial_message=tutorial_message,
+            tutorial_state=tutorial_state,
         )
 
-        self._follow_camera(dt)
+        self._follow_camera(dt_real)
 
         return Task.cont
 

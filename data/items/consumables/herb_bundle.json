@@ -2,5 +2,16 @@
     "id": "herb_bundle",
     "name": "Herb Bundle",
     "type": "consumable",
+    "slot": "consumable",
+    "icon": "assets/textures/items/herb_bundle.png",
+    "attach_point": "none",
+    "equip_visual": {
+        "style": "none",
+        "scale": 1.0
+    },
+    "use_effect": {
+        "type": "heal",
+        "amount": 28
+    },
     "description": "A bundle of medicinal herbs."
 }

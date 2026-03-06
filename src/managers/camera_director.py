@@ -10,6 +10,7 @@ Improvements over previous version:
 """
 
 import math
+import random
 
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import LPoint3, Vec3
@@ -71,6 +72,9 @@ class CameraDirector:
             "swim":        {"dist": 18.5, "pitch": -10.0, "target_z": 1.4,  "side": 0.0, "smooth": 7.2},
             "flight":      {"dist": 30.0, "pitch": -26.0, "target_z": 2.6,  "side": 0.0, "smooth": 5.3},
             "mounted":     {"dist": 24.0, "pitch": -17.0, "target_z": 2.2,  "side": 0.0, "smooth": 6.8},
+            "mounted_horse": {"dist": 23.0, "pitch": -16.0, "target_z": 2.1, "side": 0.0, "smooth": 7.4},
+            "mounted_carriage": {"dist": 25.5, "pitch": -18.0, "target_z": 2.45, "side": 0.5, "smooth": 6.2},
+            "mounted_ship": {"dist": 27.5, "pitch": -13.5, "target_z": 2.9, "side": 0.0, "smooth": 5.4},
             "dialog":      {"dist": 11.5, "pitch":  -8.0, "target_z": 1.85, "side": 2.0, "smooth": 9.0},
             # Wide cinematic profile — used during cutscene shots
             "cinematic":   {"dist": 26.0, "pitch": -14.0, "target_z": 2.0,  "side": 3.5, "smooth": 4.0},
@@ -90,16 +94,48 @@ class CameraDirector:
         self._active_profile = "exploration"
         self._forced_profile = None
         self._forced_until = 0.0
+        self._profile_override_priority = -999
+        self._profile_override_owner = ""
 
         # Shot state
         self._cutscene = None
         # Snapshot of gameplay camera taken when shot ENDS (for blend-back)
         self._blend_back = None
+        self._active_shot_priority = -999
+        self._active_shot_owner = ""
+        self._shot_priority_cfg = {
+            "dialog": 92,
+            "dialog_auto": 91,
+            "dialog_npc": 93,
+            "dialog_player": 93,
+            "dialog_wide": 90,
+            "boss_intro": 82,
+            "location": 70,
+            "spell_hit": 64,
+            "shot": 50,
+        }
+        self._profile_priority_cfg = {
+            "dialog": 90,
+            "cinematic": 84,
+            "boss": 80,
+            "combat": 60,
+            "exploration": 40,
+        }
 
         self._last_state_name = ""
         self._boss_prev = False
         self._boss_intro_cooldown_until = 0.0
+        self._impulse_pitch = 0.0
+        self._impulse_yaw = 0.0
+        self._impulse_roll = 0.0
+        self._impulse_shake = 0.0
+        self._screen_state = {
+            "vignette_boost": 0.0,
+            "fear_tint": 0.0,
+            "damage_tint": 0.0,
+        }
         self._load_config()
+        self._bind_event_bus()
 
     # ──────────────────────────────────────────────────────────────
     # Config helpers
@@ -118,6 +154,17 @@ class CameraDirector:
         if max_value is not None:
             out = min(float(max_value), out)
         return float(out)
+
+    def _coerce_int(self, value, default, min_value=None, max_value=None):
+        try:
+            out = int(value)
+        except Exception:
+            out = int(default)
+        if min_value is not None:
+            out = max(int(min_value), out)
+        if max_value is not None:
+            out = min(int(max_value), out)
+        return int(out)
 
     def _merge_profile(self, base, payload):
         if not isinstance(payload, dict):
@@ -176,6 +223,20 @@ class CameraDirector:
                 settings.get("boss_intro_cooldown", self._boss_intro_cooldown_sec),
                 self._boss_intro_cooldown_sec, 0.0, 60.0,
             )
+            shot_priorities = settings.get("shot_priorities", {})
+            if isinstance(shot_priorities, dict):
+                for key, value in shot_priorities.items():
+                    token = str(key or "").strip().lower()
+                    if not token:
+                        continue
+                    self._shot_priority_cfg[token] = self._coerce_int(value, 50, -999, 999)
+            profile_priorities = settings.get("profile_override_priorities", {})
+            if isinstance(profile_priorities, dict):
+                for key, value in profile_priorities.items():
+                    token = str(key or "").strip().lower()
+                    if not token:
+                        continue
+                    self._profile_priority_cfg[token] = self._coerce_int(value, 40, -999, 999)
 
         logger.info(
             f"[CameraDirector] Loaded {len(self._profiles)} profiles, "
@@ -245,6 +306,18 @@ class CameraDirector:
         vm = getattr(self.app, "vehicle_mgr", None)
         return bool(vm and getattr(vm, "is_mounted", False))
 
+    def _mounted_kind(self):
+        vm = getattr(self.app, "vehicle_mgr", None)
+        if not vm or not getattr(vm, "is_mounted", False):
+            return ""
+        vehicle = vm.mounted_vehicle() if hasattr(vm, "mounted_vehicle") else None
+        if not isinstance(vehicle, dict):
+            return ""
+        kind = str(vehicle.get("kind", "")).strip().lower()
+        if kind == "boat":
+            kind = "ship"
+        return kind
+
     def _is_in_water(self):
         player = self._player()
         cs = getattr(player, "cs", None) if player else None
@@ -265,6 +338,11 @@ class CameraDirector:
         if self._is_combat_context():
             return "combat"
         if self._is_mounted():
+            mounted_kind = self._mounted_kind()
+            if mounted_kind in {"horse", "carriage", "ship"}:
+                specific = f"mounted_{mounted_kind}"
+                if specific in self._profiles:
+                    return specific
             return "mounted"
         if self._is_flying():
             return "flight"
@@ -296,17 +374,128 @@ class CameraDirector:
     # Profile override
     # ──────────────────────────────────────────────────────────────
 
-    def set_profile(self, profile_name, hold_seconds=0.0):
+    def _resolve_shot_priority(self, shot_name, explicit=None):
+        if explicit is not None:
+            return self._coerce_int(explicit, 50, -999, 999)
+        token = str(shot_name or "shot").strip().lower()
+        return int(self._shot_priority_cfg.get(token, self._shot_priority_cfg.get("shot", 50)))
+
+    def _can_take_shot(self, priority, owner):
+        now = self._now()
+        if not isinstance(self._cutscene, dict) or now >= float(self._cutscene.get("end_t", 0.0)):
+            return True
+        if str(owner or "").strip().lower() == str(self._active_shot_owner or "").strip().lower():
+            return True
+        return int(priority) >= int(self._active_shot_priority)
+
+    def _resolve_profile_priority(self, profile_name, explicit=None):
+        if explicit is not None:
+            return self._coerce_int(explicit, 40, -999, 999)
+        token = str(profile_name or "").strip().lower()
+        return int(self._profile_priority_cfg.get(token, self._profile_priority_cfg.get("exploration", 40)))
+
+    def _can_set_profile(self, priority, owner):
+        now = self._now()
+        if not self._forced_profile or now >= float(self._forced_until):
+            return True
+        if str(owner or "").strip().lower() == str(self._profile_override_owner or "").strip().lower():
+            return True
+        return int(priority) >= int(self._profile_override_priority)
+
+    def _bind_event_bus(self):
+        bus = getattr(self.app, "event_bus", None)
+        if not bus or not hasattr(bus, "subscribe"):
+            return
+        try:
+            bus.subscribe("camera.shot.request", self._on_event_camera_shot, priority=70)
+            bus.subscribe("camera.profile.request", self._on_event_camera_profile, priority=65)
+            bus.subscribe("camera.impact", self._on_event_camera_impact, priority=75)
+        except Exception as exc:
+            logger.debug(f"[CameraDirector] Event bus bind failed: {exc}")
+
+    def _on_event_camera_shot(self, event_name, payload):
+        _ = event_name
+        if not isinstance(payload, dict):
+            return
+        self.play_camera_shot(
+            name=payload.get("name", "shot"),
+            duration=payload.get("duration", 1.2),
+            profile=payload.get("profile", "exploration"),
+            side=payload.get("side", 0.0),
+            yaw_bias_deg=payload.get("yaw_bias_deg", 0.0),
+            priority=payload.get("priority"),
+            owner=payload.get("owner", "event_bus"),
+        )
+
+    def _on_event_camera_profile(self, event_name, payload):
+        _ = event_name
+        if not isinstance(payload, dict):
+            return
+        self.set_profile(
+            profile_name=payload.get("profile", "exploration"),
+            hold_seconds=payload.get("hold_seconds", 0.0),
+            priority=payload.get("priority"),
+            owner=payload.get("owner", "event_bus"),
+        )
+
+    def _on_event_camera_impact(self, event_name, payload):
+        _ = event_name
+        if not isinstance(payload, dict):
+            return
+        self.emit_impact(
+            kind=payload.get("kind", "hit"),
+            intensity=payload.get("intensity", 1.0),
+            direction_deg=payload.get("direction_deg", 0.0),
+        )
+
+    def set_profile(self, profile_name, hold_seconds=0.0, priority=None, owner="runtime"):
         token = str(profile_name or "").strip().lower()
         if token not in self._profiles:
             return False
+        prio = self._resolve_profile_priority(token, explicit=priority)
+        if not self._can_set_profile(prio, owner):
+            return False
         self._forced_profile = token
         self._forced_until = self._now() + max(0.0, float(hold_seconds))
+        self._profile_override_priority = int(prio)
+        self._profile_override_owner = str(owner or "runtime")
         return True
 
     def clear_profile_override(self):
         self._forced_profile = None
         self._forced_until = 0.0
+        self._profile_override_priority = -999
+        self._profile_override_owner = ""
+
+    def get_screen_effect_state(self):
+        return dict(self._screen_state)
+
+    def emit_impact(self, kind="hit", intensity=1.0, direction_deg=0.0):
+        tag = str(kind or "hit").strip().lower()
+        i = max(0.0, min(2.0, float(intensity or 0.0)))
+        d = math.radians(float(direction_deg or 0.0))
+        sign = 1.0 if math.sin(d) >= 0.0 else -1.0
+
+        if tag in {"parry", "block"}:
+            self._impulse_pitch += 0.45 * i
+            self._impulse_yaw += 0.35 * i * sign
+            self._impulse_roll += 0.18 * i * sign
+            self._impulse_shake += 0.06 * i
+        elif tag in {"critical", "heavy", "hard_fall"}:
+            self._impulse_pitch += 2.20 * i
+            self._impulse_yaw += 1.55 * i * sign
+            self._impulse_roll += 0.95 * i * sign
+            self._impulse_shake += 0.26 * i
+        elif tag in {"near_miss"}:
+            self._impulse_pitch += 0.28 * i
+            self._impulse_yaw += 0.95 * i * sign
+            self._impulse_roll += 0.55 * i * sign
+            self._impulse_shake += 0.08 * i
+        else:
+            self._impulse_pitch += 1.05 * i
+            self._impulse_yaw += 0.72 * i * sign
+            self._impulse_roll += 0.42 * i * sign
+            self._impulse_shake += 0.12 * i
 
     # ──────────────────────────────────────────────────────────────
     # Shot playback
@@ -317,10 +506,23 @@ class CameraDirector:
             return False
         return self._now() < float(self._cutscene.get("end_t", 0.0))
 
-    def play_camera_shot(self, name="shot", duration=1.35, profile="boss",
-                          side=0.0, yaw_bias_deg=0.0):
+    def play_camera_shot(
+        self,
+        name="shot",
+        duration=1.35,
+        profile="boss",
+        side=0.0,
+        yaw_bias_deg=0.0,
+        priority=None,
+        owner="runtime",
+    ):
         center, base_z = self._player_center()
         if center is None:
+            return False
+
+        shot_name = str(name or "shot").strip().lower()
+        prio = self._resolve_shot_priority(shot_name, explicit=priority)
+        if not self._can_take_shot(prio, owner):
             return False
 
         profile_name = str(profile or "boss").strip().lower()
@@ -351,7 +553,11 @@ class CameraDirector:
             "to_pos":    to_pos,
             "from_look": LPoint3(from_look.x, from_look.y, from_look.z),
             "to_look":   LPoint3(to_look.x,   to_look.y,  to_look.z),
+            "priority":  int(prio),
+            "owner":     str(owner or "runtime"),
         }
+        self._active_shot_priority = int(prio)
+        self._active_shot_owner = str(owner or "runtime")
         self._blend_back = None  # reset blend-back snapshot
         logger.info(f"[CameraDirector] Shot '{name}' → {duration:.2f}s")
         return True
@@ -364,6 +570,8 @@ class CameraDirector:
             profile=cfg.get("profile", "dialog"),
             side=cfg.get("side", 2.3),
             yaw_bias_deg=cfg.get("yaw_bias_deg", 8.0),
+            priority=self._resolve_shot_priority("dialog", None),
+            owner="dialog",
         )
 
     def play_boss_intro_shot(self, duration=None):
@@ -374,6 +582,8 @@ class CameraDirector:
             profile=cfg.get("profile", "cinematic"),
             side=cfg.get("side", 5.5),
             yaw_bias_deg=cfg.get("yaw_bias_deg", 22.0),
+            priority=self._resolve_shot_priority("boss_intro", None),
+            owner="boss_intro",
         )
 
     # ──────────────────────────────────────────────────────────────
@@ -394,6 +604,8 @@ class CameraDirector:
         if now >= end_t:
             self._cutscene = None
             self._blend_back = None
+            self._active_shot_priority = -999
+            self._active_shot_owner = ""
             return None
 
         raw_t = max(0.0, min(1.0, (now - start_t) / span))
@@ -468,6 +680,32 @@ class CameraDirector:
                 float(cfg.get("pitch", -20.0)),
                 gain,
             )
+        decay = max(0.0, min(1.0, dt * 6.8))
+        self._impulse_pitch = self._approach(self._impulse_pitch, 0.0, decay)
+        self._impulse_yaw = self._approach(self._impulse_yaw, 0.0, decay)
+        self._impulse_roll = self._approach(self._impulse_roll, 0.0, decay)
+        self._impulse_shake = self._approach(self._impulse_shake, 0.0, max(0.0, min(1.0, dt * 8.2)))
+
+        player = self._player()
+        fear = 0.0
+        hp_ratio = 1.0
+        if player and hasattr(player, "brain"):
+            try:
+                fear = float(getattr(player.brain, "mental", {}).get("fear", 0.0) or 0.0)
+            except Exception:
+                fear = 0.0
+        cs = getattr(player, "cs", None) if player else None
+        if cs and hasattr(cs, "health") and hasattr(cs, "maxHealth"):
+            try:
+                hp_ratio = float(cs.health) / max(1.0, float(cs.maxHealth))
+            except Exception:
+                hp_ratio = 1.0
+        self._screen_state["fear_tint"] = max(0.0, min(1.0, fear))
+        self._screen_state["damage_tint"] = max(0.0, min(1.0, 1.0 - hp_ratio))
+        self._screen_state["vignette_boost"] = max(
+            0.0,
+            min(1.0, (fear * 0.55) + ((1.0 - hp_ratio) * 0.65) + self._impulse_shake),
+        )
         return dict(cfg)
 
     # ──────────────────────────────────────────────────────────────
@@ -479,6 +717,11 @@ class CameraDirector:
         dist     = float(getattr(self.app, "_cam_dist", cfg.get("dist",     22.0)))
         target_z = float(cfg.get("target_z", 1.8))
         side     = float(cfg.get("side",     0.0))
+        yaw_rad = float(yaw_rad) + math.radians(self._impulse_yaw)
+        pitch_rad = float(pitch_rad) + math.radians(self._impulse_pitch)
+        side = side + (self._impulse_roll * 0.12)
+        if self._impulse_shake > 1e-4:
+            target_z += random.uniform(-1.0, 1.0) * self._impulse_shake * 0.12
 
         # Compute the "gameplay" position first (used for blend-back target)
         gameplay_pos, gameplay_look = self._camera_pos(

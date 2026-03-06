@@ -43,21 +43,38 @@ class PlayerMovementMixin:
         self._set_flight_fx(False)
         running = self._get_action("run")
         moving = move.len() > 0.01
+        motion_plan = getattr(self, "_motion_plan", {}) if isinstance(getattr(self, "_motion_plan", {}), dict) else {}
+        motion = motion_plan.get("motion_plan", {}) if isinstance(motion_plan, dict) else {}
+        gait_mult = 1.0
+        try:
+            gait_mult = max(0.45, min(1.15, float(motion.get("gait_speed_mult", 1.0) or 1.0)))
+        except Exception:
+            gait_mult = 1.0
         if moving:
-            speed = self.run_speed if running else self.walk_speed
+            speed = (self.run_speed if running else self.walk_speed) * gait_mult
             move_normalized = move.normalized()
             self.cs.velocity.x = move_normalized.x * speed
             self.cs.velocity.y = move_normalized.y * speed
             angle = math.degrees(math.atan2(move_normalized.x, move_normalized.y))
             self.cs.facingDir = move_normalized
             self.actor.setH(180 - angle)
+            turn_type = str(motion.get("turn_type", "") or "").strip().lower()
+            now = globalClock.getFrameTime()
+            if turn_type and (now - float(getattr(self, "_last_turn_trigger_time", 0.0))) >= 0.22:
+                self._queue_state_trigger(turn_type)
+                self._last_turn_trigger_time = now
         else:
             self.cs.velocity.x *= 0.3
             self.cs.velocity.y *= 0.3
 
         if self._once_action("jump"):
             if self.cs.grounded:
-                self.phys.applyJump(self.cs, self.data_mgr.get_move_param("jump_force"))
+                jump_force = float(self.data_mgr.get_move_param("jump_force") or 9.5)
+                try:
+                    jump_force *= max(0.35, min(1.25, float(motion.get("jump_modifier", 1.0) or 1.0)))
+                except Exception:
+                    pass
+                self.phys.applyJump(self.cs, jump_force)
                 self._queue_state_trigger("jump")
                 self._play_sfx("jump", volume=0.68)
             else:
@@ -121,6 +138,8 @@ class PlayerMovementMixin:
         prev_vz = float(getattr(self.cs.velocity, "z", 0.0) or 0.0)
         self.phys.step(self.cs, dt)
         grounded = bool(getattr(self.cs, "grounded", False))
+        motion_plan = getattr(self, "_motion_plan", {}) if isinstance(getattr(self, "_motion_plan", {}), dict) else {}
+        motion = motion_plan.get("motion_plan", {}) if isinstance(motion_plan, dict) else {}
         if grounded and not prev_grounded:
             impact = abs(prev_vz)
             self._last_landing_impact_speed = impact
@@ -128,9 +147,48 @@ class PlayerMovementMixin:
                 self._queue_state_trigger("hard_landing")
             elif impact >= 3.0:
                 self._queue_state_trigger("soft_landing")
+            landing = str(motion.get("landing_prep", "") or "").strip().lower()
+            if landing == "roll_land":
+                self._queue_state_trigger("roll_land")
+            elif landing == "stumble_land":
+                self._queue_state_trigger("stumble_land")
+            elif landing == "collapse":
+                self._queue_state_trigger("collapse")
             self._play_sfx("land", volume=0.72)
+            director = getattr(getattr(self, "app", None), "camera_director", None)
+            if director and hasattr(director, "emit_impact"):
+                try:
+                    if impact >= 10.0:
+                        director.emit_impact("hard_fall", intensity=min(1.6, impact / 10.0))
+                    elif impact >= 4.5:
+                        director.emit_impact("hit", intensity=min(1.0, impact / 12.0))
+                except Exception:
+                    pass
+            time_fx = getattr(getattr(self, "app", None), "time_fx", None)
+            if time_fx and hasattr(time_fx, "trigger"):
+                try:
+                    if impact >= 10.0:
+                        time_fx.trigger("hard_fall", duration=0.20)
+                    elif impact >= 4.5:
+                        time_fx.trigger("micro_hit", duration=0.10)
+                except Exception:
+                    pass
         elif grounded:
             self._last_landing_impact_speed = 0.0
+            balance = str(motion.get("balance_correction", "") or "").strip().lower()
+            if balance in {"stumble", "near_fall", "fall"}:
+                self._queue_state_trigger(balance)
+                director = getattr(getattr(self, "app", None), "camera_director", None)
+                if director and hasattr(director, "emit_impact"):
+                    try:
+                        if balance == "fall":
+                            director.emit_impact("heavy", intensity=0.85)
+                        elif balance == "near_fall":
+                            director.emit_impact("near_miss", intensity=0.55)
+                        else:
+                            director.emit_impact("hit", intensity=0.35)
+                    except Exception:
+                        pass
         self._was_grounded = grounded
         pos = self.cs.position
         self.actor.setPos(pos.x, pos.y, pos.z)
@@ -205,6 +263,20 @@ class PlayerMovementMixin:
         self._set_flight_fx(False)
         if mx is None or my is None:
             mx, my = self._get_move_axes()
+        motion_plan = getattr(self, "_motion_plan", {})
+        if not isinstance(motion_plan, dict):
+            motion_plan = {}
+        motion = motion_plan.get("motion_plan", {})
+        if not isinstance(motion, dict):
+            motion = {}
+        try:
+            gait_mult = max(0.45, min(1.15, float(motion.get("gait_speed_mult", 1.0) or 1.0)))
+        except Exception:
+            gait_mult = 1.0
+        try:
+            jump_mult = max(0.35, min(1.25, float(motion.get("jump_modifier", 1.0) or 1.0)))
+        except Exception:
+            jump_mult = 1.0
 
         if not hasattr(self, "_py_velocity_z"):
             self._py_velocity_z = 0.0
@@ -215,7 +287,7 @@ class PlayerMovementMixin:
         _ = self._get_terrain_height(current_pos.x, current_pos.y)
 
         if abs(mx) > 0.1 or abs(my) > 0.1:
-            speed = self.run_speed if self._get_action("run") else self.walk_speed
+            speed = (self.run_speed if self._get_action("run") else self.walk_speed) * gait_mult
             dx, dy = self._camera_move_vector(mx, my, cam_yaw)
 
             new_x = current_pos.x + dx * speed * dt
@@ -240,7 +312,7 @@ class PlayerMovementMixin:
             moving = False
 
         if self._once_action("jump") and self._py_grounded:
-            self._py_velocity_z = 6.5
+            self._py_velocity_z = 6.5 * jump_mult
             self._py_grounded = False
             self._queue_state_trigger("jump")
             self._play_sfx("jump", volume=0.68)

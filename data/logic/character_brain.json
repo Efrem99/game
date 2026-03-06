@@ -1,0 +1,32 @@
+{
+  "context_fsm": [
+    "normal",
+    "combat",
+    "parkour",
+    "airborne",
+    "flight",
+    "interaction",
+    "injured",
+    "stealth",
+    "panic",
+    "cinematic"
+  ],
+  "mental_defaults": {
+    "fear": 0.12,
+    "confidence": 0.78,
+    "perception_noise": 0.05,
+    "risk_tolerance": 0.46,
+    "reaction_speed": 1.0
+  },
+  "regional_bias": {
+    "krymora": {
+      "fear_add": 0.24,
+      "confidence_sub": 0.12
+    }
+  },
+  "utility_sets": [
+    "turn_choice",
+    "landing_choice",
+    "balance_recovery_choice"
+  ]
+}

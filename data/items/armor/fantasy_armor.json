@@ -2,6 +2,19 @@
     "id": "fantasy_armor",
     "name": "Fantasy Armor",
     "type": "armor",
+    "slot": "chest",
+    "icon": "assets/textures/items/fantasy_armor.png",
+    "attach_point": "spine_upper",
+    "equip_visual": {
+        "style": "heavy",
+        "color": [
+            0.88,
+            0.85,
+            0.95,
+            1.0
+        ],
+        "scale": 1.0
+    },
     "armor": 4,
     "description": "Ornate fantasy armor with magical properties.",
     "visual": {

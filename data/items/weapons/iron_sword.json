@@ -2,6 +2,14 @@
   "id": "iron_sword",
   "name": "Iron Sword",
   "type": "weapon",
+  "slot": "weapon_main",
+  "icon": "assets/textures/items/iron_sword.png",
+  "attach_point": "right_hand",
+  "equip_visual": {
+    "style": "blade",
+    "color": [0.82, 0.84, 0.9, 1.0],
+    "scale": 1.0
+  },
   "power": 2,
   "description": "A standard iron sword. Reliable and balanced.",
   "visual": {

@@ -138,10 +138,26 @@ class PlayerStateMachineMixin:
         target_prio = self._priority_of(target)
         current_prio = self._priority_of(current)
         trigger_token = str(trigger or "").strip().lower()
+        current_def = self._state_def(current)
+        state_uninterruptible = bool(
+            current in UNINTERRUPTIBLE_STATES
+            or (isinstance(current_def, dict) and bool(current_def.get("uninterruptible", False)))
+        )
 
         # Hard-uninterruptible states block everything (except force/death)
-        if current in UNINTERRUPTIBLE_STATES:
+        if state_uninterruptible:
             if trigger_token == "animation_finished":
+                return True
+            explicit_interruptors = []
+            if isinstance(current_def, dict):
+                raw_interruptors = current_def.get("interruptible_by", [])
+                if isinstance(raw_interruptors, list):
+                    explicit_interruptors = [
+                        str(name or "").strip().lower()
+                        for name in raw_interruptors
+                        if str(name or "").strip()
+                    ]
+            if explicit_interruptors and target in explicit_interruptors:
                 return True
             # Only lower-numbered priority can break in
             return target_prio < current_prio
@@ -172,14 +188,11 @@ class PlayerStateMachineMixin:
             return True
 
         # Explicit can_transition_to whitelist in state def
-        defs = getattr(self, "_state_defs", {})
-        if isinstance(defs, dict):
-            current_def = defs.get(current, {})
-            if isinstance(current_def, dict):
-                explicit = current_def.get("can_transition_to", [])
-                if isinstance(explicit, list):
-                    if any(str(v or "").strip().lower() == target for v in explicit):
-                        return True
+        if isinstance(current_def, dict):
+            explicit = current_def.get("can_transition_to", [])
+            if isinstance(explicit, list):
+                if any(str(v or "").strip().lower() == target for v in explicit):
+                    return True
 
         return False
 
@@ -346,6 +359,9 @@ class PlayerStateMachineMixin:
         speed = float(context.get("speed", 0.0) or 0.0)
         on_ground = bool(context.get("on_ground", True))
         if bool(context.get("mounted", False)):
+            mounted_kind = str(context.get("mounted_kind", "") or "").strip().lower()
+            if mounted_kind in {"ship", "boat"}:
+                return "mounted_ship_move" if speed > 0.2 else "mounted_ship_idle"
             return "mounted_move" if speed > 0.15 else "mounted_idle"
         if bool(context.get("is_flying", False)):
             return "flying"
@@ -369,6 +385,12 @@ class PlayerStateMachineMixin:
         if not target:
             return False
 
+        resolved_clip, _, _ = self._resolve_anim_clip(
+            target,
+            include_state_fallback=True,
+            include_global_fallback=True,
+            with_meta=True,
+        )
         state_def = self._state_defs.get(target, {}) if isinstance(self._state_defs, dict) else {}
         duration = 0.0
         try:
@@ -378,14 +400,44 @@ class PlayerStateMachineMixin:
         if duration <= 0.0:
             duration = float(DEFAULT_STATE_DURATIONS.get(target, 0.0))
 
-        loop = duration <= 0.0
-        force_restart = duration > 0.0
-        changed = self._set_anim(target, loop=loop, force=force_restart)
+        blend_time = None
+        if isinstance(state_def, dict) and "blend_time" in state_def:
+            try:
+                blend_time = float(state_def.get("blend_time"))
+            except Exception:
+                blend_time = None
+            if blend_time is not None:
+                blend_time = max(0.02, min(1.2, blend_time))
+
+        loop_override = state_def.get("loop") if isinstance(state_def, dict) else None
+        loop_hint = self._state_loop_hint(target, resolved_clip=resolved_clip)
+
+        if isinstance(loop_override, bool):
+            loop = loop_override
+        elif isinstance(loop_hint, bool):
+            loop = loop_hint
+        else:
+            loop = duration <= 0.0
+
+        if not loop and duration <= 0.0:
+            clip_duration = self._resolved_clip_duration(resolved_clip)
+            if clip_duration > 0.0:
+                duration = clip_duration
+            else:
+                duration = max(0.25, float(DEFAULT_STATE_DURATIONS.get(target, 0.35) or 0.35))
+
+        force_restart = (not loop) or (duration > 0.0)
+        changed = self._set_anim(
+            target,
+            loop=loop,
+            blend_time=blend_time,
+            force=force_restart,
+        )
         if not changed:
             return False
 
         now = globalClock.getFrameTime()
-        self._state_lock_until = (now + duration) if duration > 0.0 else 0.0
+        self._state_lock_until = (now + duration) if (duration > 0.0 and not loop) else 0.0
         return True
 
     # ───────────────────────────────────────────────────────────
@@ -481,7 +533,7 @@ class PlayerStateMachineMixin:
             "walking", "walk", "running", "run", "sprinting", "sprint",
             "jumping", "jump", "in_air",
             "falling", "landing", "land_soft",
-            "mounted_idle", "mounted_move",
+            "mounted_idle", "mounted_move", "mounted_ship_idle", "mounted_ship_move",
             "swim", "swim_surface", "swim_dive", "swim_underwater",
             "flying", "fly", "flight_hover", "flight_glide",
         }

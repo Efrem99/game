@@ -1,8 +1,11 @@
 {
-    "default_time": "noon",
+    "default_time": "afternoon",
     "default_weather": "clear",
-    "auto_cycle": false,
-    "cycle_duration": 600,
+    "auto_cycle": true,
+    "cycle_duration": 780,
+    "auto_weather": true,
+    "weather_hold_min": 90,
+    "weather_hold_max": 190,
     "time_presets": {
         "midnight": {
             "description": "Deep night, stars visible",
@@ -64,7 +67,7 @@
         }
     },
     "transitions": {
-        "time_transition_speed": 0.1,
-        "weather_transition_speed": 2.0
+        "time_transition_speed": 0.22,
+        "weather_transition_speed": 1.25
     }
 }

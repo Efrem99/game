@@ -1,3 +1,4 @@
+import math
 import random
 
 from direct.gui.DirectGui import DirectFrame, DirectWaitBar, OnscreenText
@@ -12,6 +13,8 @@ class LoadingScreen:
     def __init__(self, app):
         self.app = app
         self._spin_task_name = "loading_spinner_task"
+        self._spinner_frames = [" .  ", " .. ", " ...", "....", " ...", " .. "]
+        self._spinner_step = 0.14
 
         self.frame = DirectFrame(
             frameColor=(0, 0, 0, 0),
@@ -41,14 +44,14 @@ class LoadingScreen:
         place_ui_on_top(self.title, 61)
 
         self.spinner = OnscreenText(
-            text="+",
+            text=self._spinner_frames[0],
             pos=(0.0, 0.18),
-            scale=0.26,
+            scale=0.11,
             fg=THEME["gold_soft"],
             shadow=(0, 0, 0, 0.75),
             align=TextNode.ACenter,
             parent=self.frame,
-            mayChange=False,
+            mayChange=True,
             font=body_font(self.app),
         )
         place_ui_on_top(self.spinner, 61)
@@ -109,7 +112,10 @@ class LoadingScreen:
         self.hint_text.setText(random.choice(self.hints))
 
     def _spin_logic(self, task):
-        self.spinner.setR((task.time * 85.0) % 360.0)
+        frame_idx = int(task.time / self._spinner_step) % len(self._spinner_frames)
+        self.spinner.setText(self._spinner_frames[frame_idx])
+        pulse = 0.90 + (0.08 * (0.5 + (0.5 * math.sin(task.time * 4.8))))
+        self.spinner.setScale(0.105 * pulse)
         return task.cont
 
     def show(self):

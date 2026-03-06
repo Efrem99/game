@@ -40,10 +40,10 @@
             "name": "Sharuan Castle",
             "pos": [
                 0,
-                65,
+                78,
                 23
             ],
-            "radius": 20
+            "radius": 24
         },
         {
             "name": "Town Hall",
@@ -55,13 +55,22 @@
             "radius": 15
         },
         {
-            "name": "Southern Docks",
+            "name": "Old Forest",
             "pos": [
-                0,
-                -60,
-                0
+                -28,
+                10,
+                3
             ],
-            "radius": 30
+            "radius": 48
+        },
+        {
+            "name": "Port Market",
+            "pos": [
+                18,
+                -62,
+                1
+            ],
+            "radius": 34
         },
         {
             "name": "Training Grounds",
@@ -79,45 +88,47 @@
             "kind": "horse",
             "pos": [
                 9,
-                6
+                61
             ],
-            "heading": 25
+            "heading": 194
         },
         {
             "id": "horse_stable_2",
             "kind": "horse",
             "pos": [
                 13,
-                9
+                58
             ],
-            "heading": 205
+            "heading": 168
         },
         {
             "id": "carriage_market_1",
             "kind": "carriage",
             "pos": [
-                -11,
-                4
+                12,
+                -52
             ],
-            "heading": 90
+            "heading": 194
         },
         {
-            "id": "boat_docks_1",
-            "kind": "boat",
+            "id": "ship_port_1",
+            "kind": "ship",
             "pos": [
-                0,
-                -77
+                18,
+                -78
             ],
-            "heading": 180
+            "heading": 180,
+            "nav_zone_id": "coastal_sea"
         },
         {
-            "id": "boat_river_1",
-            "kind": "boat",
+            "id": "ship_estuary_1",
+            "kind": "ship",
             "pos": [
-                -8,
-                -26
+                5,
+                -60
             ],
-            "heading": 168
+            "heading": 168,
+            "nav_zone_id": "river_estuary"
         }
     ]
 }

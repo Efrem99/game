@@ -1,0 +1,17 @@
+{
+    "id": "ship",
+    "kind": "ship",
+    "aliases": ["boat"],
+    "speed": 7.4,
+    "run_speed": 11.3,
+    "accel": 5.4,
+    "decel": 4.8,
+    "turn_rate": 66.0,
+    "water_level": -1.55,
+    "wave_bob_amplitude": 0.16,
+    "wave_bob_speed": 2.1,
+    "mount_offset": [0.0, 0.0, 0.92],
+    "dismount_offset": [1.6, 0.0, 0.16],
+    "camera_profile": "mounted_ship",
+    "nav_zone_id": "coastal_sea"
+}

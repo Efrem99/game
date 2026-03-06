@@ -1,0 +1,70 @@
+{
+  "npc": {
+    "guard_city": {
+      "edge_voice": "en-US-ChristopherNeural",
+      "rate": "-2%",
+      "pitch": "-3Hz",
+      "expressiveness": 0.9,
+      "pyttsx3_rate": 168,
+      "pyttsx3_volume": 0.9
+    },
+    "dragon_boss": {
+      "edge_voice": "en-US-GuyNeural",
+      "rate": "-11%",
+      "pitch": "-14Hz",
+      "expressiveness": 1.25,
+      "pyttsx3_rate": 152,
+      "pyttsx3_volume": 0.92
+    },
+    "merchant_general": {
+      "edge_voice": "en-US-JennyNeural",
+      "rate": "+2%",
+      "pitch": "+4Hz",
+      "expressiveness": 1.2,
+      "pyttsx3_rate": 188,
+      "pyttsx3_volume": 0.95
+    },
+    "merchant": {
+      "edge_voice": "en-US-JennyNeural",
+      "rate": "+1%",
+      "pitch": "+4Hz",
+      "expressiveness": 1.2,
+      "pyttsx3_rate": 186,
+      "pyttsx3_volume": 0.95
+    },
+    "quest_giver_main": {
+      "edge_voice": "en-US-AnaNeural",
+      "rate": "-1%",
+      "pitch": "+1Hz",
+      "expressiveness": 1.05,
+      "pyttsx3_rate": 170,
+      "pyttsx3_volume": 0.92
+    },
+    "player": {
+      "edge_voice": "en-US-EricNeural",
+      "rate": "+0%",
+      "pitch": "+0Hz",
+      "expressiveness": 1.0,
+      "pyttsx3_rate": 176,
+      "pyttsx3_volume": 0.93
+    }
+  },
+  "speaker": {
+    "elder sophia": {
+      "edge_voice": "en-US-AnaNeural",
+      "rate": "-3%",
+      "pitch": "+2Hz",
+      "expressiveness": 1.08,
+      "pyttsx3_rate": 166,
+      "pyttsx3_volume": 0.91
+    },
+    "merchant aldric": {
+      "edge_voice": "en-US-JennyNeural",
+      "rate": "+2%",
+      "pitch": "+4Hz",
+      "expressiveness": 1.2,
+      "pyttsx3_rate": 188,
+      "pyttsx3_volume": 0.95
+    }
+  }
+}

@@ -40,6 +40,7 @@ from entities.player_combat_mixin import PlayerCombatMixin
 from entities.player_input_mixin import PlayerInputMixin
 from entities.player_movement_mixin import PlayerMovementMixin
 from entities.player_state_machine_mixin import PlayerStateMachineMixin
+from entities.character_brain import CharacterBrain
 from render.model_visuals import ensure_model_visual_defaults
 from utils.logger import logger
 
@@ -88,6 +89,7 @@ class Player(
         self._available_anims = set()
         self._state_anim_tokens = {}
         self._state_anim_overrides = {}
+        self._manifest_anim_loop_hints = {}
         self._state_defs = {}
         self._state_transitions = []
         self._state_rules = []
@@ -111,8 +113,19 @@ class Player(
         self._footstep_timer = 0.0
         self._was_grounded = True
         self._mount_anim_kind = ""
+        self._equipment_state = {
+            "weapon_main": "",
+            "offhand": "",
+            "chest": "",
+            "trinket": "",
+        }
+        self._has_weapon_visual = False
+        self._has_offhand_visual = False
         self._anim_failed_once = set()
         self._anim_missing_state_once = set()
+        self._motion_plan = {}
+        self._last_turn_trigger_time = 0.0
+        self._brain_last_pos = None
         # ContextFlags (updated each FSM tick by _update_context_flags)
         self._context_flags: set = set()
         self._env_flags: set = set()   # injected by world/app for surface context
@@ -128,6 +141,16 @@ class Player(
         self._spell_cooldowns = {}
         self._spell_cast_lock_until = 0.0
         self._last_combat_event = None
+        self._combo_chain = 0
+        self._combo_deadline = 0.0
+        self._combo_style = "unarmed"
+        self._combo_kind = "melee"
+        self._last_hp_observed = None
+        if self.cs and hasattr(self.cs, "health"):
+            try:
+                self._last_hp_observed = float(self.cs.health)
+            except Exception:
+                self._last_hp_observed = None
         self._skill_wheel_open = False
         self._skill_wheel_hover_idx = None
         self._skill_wheel_preview_idx = None
@@ -149,6 +172,7 @@ class Player(
             "meteor": "MeteorStrike",
             "meteorstrike": "MeteorStrike",
         }
+        self.brain = CharacterBrain(self.app, self)
 
         self._build_character()
         self._setup_sword_trail()
@@ -356,6 +380,21 @@ class Player(
             apply_skin=True,
             debug_label="player_actor",
         )
+        # In Python-only mode we occasionally get overly dark skinned actors under PBR.
+        # Force fixed-function rendering fallback for readability.
+        if not HAS_CORE:
+            try:
+                self.actor.setShaderOff(1002)
+            except Exception:
+                pass
+            try:
+                self.actor.setColorScale(1.0, 1.0, 1.0, 1.0)
+            except Exception:
+                pass
+            try:
+                self.actor.setTwoSided(True)
+            except Exception:
+                pass
 
         self._resolve_attachment_nodes()
         self._build_equipment_visuals()
@@ -529,6 +568,46 @@ class Player(
                 mapping[state_key] = usable
         return mapping
 
+    def _load_manifest_loop_hints(self):
+        path = Path("data/actors/player_animations.json")
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        except Exception as exc:
+            logger.warning(f"[Anim] Failed to parse loop hints from player_animations.json: {exc}")
+            return {}
+
+        manifest = payload.get("manifest", {}) if isinstance(payload, dict) else {}
+        sources = manifest.get("sources", []) if isinstance(manifest, dict) else []
+        if not isinstance(sources, list):
+            return {}
+
+        hints = {}
+        for entry in sources:
+            if not isinstance(entry, dict):
+                continue
+            loop_value = entry.get("loop")
+            if not isinstance(loop_value, bool):
+                continue
+
+            key_raw = entry.get("key") or entry.get("state") or entry.get("id") or ""
+            key = self._normalize_anim_key(key_raw)
+            if key:
+                hints[key] = loop_value
+
+            clip_path = str(
+                entry.get("path") or entry.get("file") or entry.get("src") or ""
+            ).strip()
+            if clip_path:
+                stem_key = self._normalize_anim_key(Path(clip_path).stem)
+                if stem_key and stem_key not in hints:
+                    hints[stem_key] = loop_value
+                alias_key = self._normalize_anim_key(self._alias_animation_key(Path(clip_path).stem))
+                if alias_key and alias_key not in hints:
+                    hints[alias_key] = loop_value
+        return hints
+
     def _normalize_anim_key(self, token):
         return "".join(ch for ch in str(token or "").lower() if ch.isalnum())
 
@@ -538,6 +617,7 @@ class Player(
 
         self._state_anim_tokens = self._load_player_state_animation_tokens()
         self._state_anim_overrides = self._load_actor_animation_overrides()
+        self._manifest_anim_loop_hints = self._load_manifest_loop_hints()
 
         try:
             self._available_anims = {str(name) for name in self.actor.getAnimNames()}
@@ -577,7 +657,14 @@ class Player(
 
     def _mount_state_context_tokens(self, state_key):
         key = str(state_key or "").strip().lower()
-        if key not in {"mounting", "mounted_idle", "mounted_move", "dismounting"}:
+        if key not in {
+            "mounting",
+            "mounted_idle",
+            "mounted_move",
+            "mounted_ship_idle",
+            "mounted_ship_move",
+            "dismounting",
+        }:
             return []
         kind = self._current_mount_anim_kind()
         if not kind:
@@ -592,14 +679,14 @@ class Player(
                     f"mountstart_{kind}",
                 ]
             )
-        elif key == "mounted_idle":
+        elif key in {"mounted_idle", "mounted_ship_idle"}:
             tokens.extend(
                 [
                     f"mounted_{kind}_idle",
                     f"mount_{kind}_idle",
                 ]
             )
-        elif key == "mounted_move":
+        elif key in {"mounted_move", "mounted_ship_move"}:
             tokens.extend(
                 [
                     f"mounted_{kind}_move",
@@ -699,6 +786,40 @@ class Player(
         if with_meta:
             return None, None, None
         return None
+
+    def _state_loop_hint(self, state_name, resolved_clip=None):
+        hints = getattr(self, "_manifest_anim_loop_hints", {})
+        if not isinstance(hints, dict) or not hints:
+            return None
+
+        state_key = self._normalize_anim_key(state_name)
+        if state_key in hints:
+            return hints.get(state_key)
+
+        clip_key = self._normalize_anim_key(resolved_clip)
+        if clip_key in hints:
+            return hints.get(clip_key)
+
+        for token, _ in self._iter_anim_candidates(
+            state_name,
+            include_state_fallback=True,
+            include_global_fallback=False,
+        ):
+            token_key = self._normalize_anim_key(token)
+            if token_key in hints:
+                return hints.get(token_key)
+        return None
+
+    def _resolved_clip_duration(self, clip_name):
+        if not clip_name or not hasattr(self.actor, "getDuration"):
+            return 0.0
+        try:
+            duration = float(self.actor.getDuration(clip_name) or 0.0)
+        except Exception:
+            return 0.0
+        if not math.isfinite(duration):
+            return 0.0
+        return max(0.0, min(8.0, duration))
 
     def _write_animation_coverage_report(self):
         report_path = Path("data/states/ANIMATION_COVERAGE.md")
@@ -819,6 +940,34 @@ class Player(
                 logger.warning(f"[Anim] Playback failed for '{clip}': {exc}")
             return False
 
+    def _force_safe_idle_anim(self):
+        fallback_states = ("idle", "walking", "running")
+        for fallback_state in fallback_states:
+            clip = self._resolve_anim_clip(
+                fallback_state,
+                include_state_fallback=True,
+                include_global_fallback=False,
+            )
+            if not clip:
+                continue
+            if not self._play_actor_anim(clip, loop=True, state_name=fallback_state):
+                continue
+
+            self._anim_state = fallback_state
+            self._anim_clip = clip
+            self._anim_blend_transition = None
+            if self._anim_blend_enabled:
+                try:
+                    for anim_name in self._available_anims:
+                        self.actor.setControlEffect(anim_name, 0.0)
+                    self.actor.setControlEffect(clip, 1.0)
+                except Exception:
+                    pass
+            return True
+
+        logger.warning("[Anim] Failed to recover with safe idle fallback (idle/walking/running).")
+        return False
+
     def _set_anim(self, state_name, loop=True, blend_time=None, force=False):
         clip = self._resolve_anim_clip(state_name)
         target_state = str(state_name or "idle").lower()
@@ -839,6 +988,8 @@ class Player(
                     f"[Anim] No clip resolved for state '{target_state}'. "
                     f"Candidates: {sample}"
                 )
+            if self._force_safe_idle_anim():
+                return False
             # Procedural fallback
             if target_state == "jumping":
                 self.actor.setHpr(0, -15, 0)
@@ -869,6 +1020,9 @@ class Player(
 
         if not self._anim_blend_enabled or not old_clip or old_clip == clip:
             ok = self._play_actor_anim(clip, loop=loop, state_name=target_state)
+            if not ok:
+                self._force_safe_idle_anim()
+                return False
             if ok and self._anim_blend_enabled:
                 try:
                     for anim_name in self._available_anims:
@@ -881,6 +1035,7 @@ class Player(
 
         self._play_actor_anim(old_clip, loop=True, state_name=old_state)
         if not self._play_actor_anim(clip, loop=loop, state_name=target_state):
+            self._force_safe_idle_anim()
             return False
 
         try:
@@ -1010,6 +1165,10 @@ class Player(
         self._shield_node = self.actor.attachNewNode("shield_visual")
         self._build_sword(self._sword_node)
         self._build_shield(self._shield_node)
+        self._armor_node = (self._spine_upper or self.actor).attachNewNode("armor_visual")
+        self._trinket_node = (self._spine_upper or self.actor).attachNewNode("trinket_visual")
+        self._build_armor(self._armor_node)
+        self._build_trinket(self._trinket_node)
         ensure_model_visual_defaults(
             self._sword_node,
             force_two_sided=True,
@@ -1020,6 +1179,17 @@ class Player(
             force_two_sided=True,
             debug_label="player_shield_visual",
         )
+        ensure_model_visual_defaults(
+            self._armor_node,
+            force_two_sided=True,
+            debug_label="player_armor_visual",
+        )
+        ensure_model_visual_defaults(
+            self._trinket_node,
+            force_two_sided=True,
+            debug_label="player_trinket_visual",
+        )
+        self._apply_equipment_visuals()
         self._set_weapon_drawn(False, reset_timer=True)
 
     def _build_flight_vfx(self):
@@ -1108,6 +1278,188 @@ class Player(
         rim.setPos(0, 0, 0.22)
         boss.setPos(0, 0.04, 0)
 
+    def _build_armor(self, parent):
+        plate = self._make_box(parent, "armor_plate", 0.74, 0.28, 0.84, (0.34, 0.34, 0.38, 0.96))
+        collar = self._make_box(parent, "armor_collar", 0.42, 0.24, 0.18, (0.68, 0.68, 0.72, 0.98))
+        plate.setPos(0.0, 0.10, 0.18)
+        collar.setPos(0.0, 0.22, 0.62)
+        parent.setPos(0.0, 0.0, 0.20)
+
+    def _build_trinket(self, parent):
+        gem = self._make_box(parent, "trinket_core", 0.12, 0.05, 0.16, (0.70, 0.84, 0.98, 0.95))
+        loop = self._make_box(parent, "trinket_loop", 0.08, 0.03, 0.04, (0.86, 0.82, 0.54, 0.98))
+        gem.setPos(0.0, 0.08, -0.04)
+        loop.setPos(0.0, 0.05, 0.06)
+        parent.setPos(0.0, 0.34, 0.98)
+
+    def _slot_alias(self, slot_token):
+        token = str(slot_token or "").strip().lower()
+        if token in {"weapon", "weapon_main", "mainhand", "main_hand"}:
+            return "weapon_main"
+        if token in {"offhand", "off_hand", "shield"}:
+            return "offhand"
+        if token in {"armor", "body", "chest"}:
+            return "chest"
+        if token in {"artifact", "trinket", "amulet"}:
+            return "trinket"
+        return token
+
+    def _safe_color4(self, value, fallback):
+        if isinstance(value, (list, tuple)) and len(value) >= 4:
+            try:
+                return (
+                    float(value[0]),
+                    float(value[1]),
+                    float(value[2]),
+                    float(value[3]),
+                )
+            except Exception:
+                return fallback
+        return fallback
+
+    def _resolve_attach_point(self, token):
+        key = str(token or "").strip().lower()
+        if key in {"right_hand", "hand_r"}:
+            return self._sword_hand_anchor
+        if key in {"left_hand", "hand_l", "offhand"}:
+            return self._shield_hand_anchor
+        if key in {"left_hip", "hip_l", "sheathe"}:
+            return self._sword_sheath_anchor
+        if key in {"spine_upper", "spine", "chest", "back"}:
+            return self._spine_upper or self.actor
+        return self.actor
+
+    def _apply_equipment_visuals(self):
+        data_mgr = getattr(self, "data_mgr", None)
+
+        weapon_item = data_mgr.get_item(self._equipment_state.get("weapon_main", "")) if data_mgr else None
+        self._has_weapon_visual = isinstance(weapon_item, dict)
+        if self._has_weapon_visual:
+            visual = weapon_item.get("equip_visual", {})
+            if not isinstance(visual, dict):
+                visual = {}
+            scale = max(0.5, min(1.8, float(visual.get("scale", 1.0) or 1.0)))
+            color = self._safe_color4(visual.get("color"), (0.90, 0.90, 0.95, 1.0))
+            self._sword_node.setScale(scale)
+            self._sword_node.setColorScale(*color)
+            self._sword_node.show()
+        else:
+            self._sword_node.hide()
+
+        offhand_item = data_mgr.get_item(self._equipment_state.get("offhand", "")) if data_mgr else None
+        self._has_offhand_visual = isinstance(offhand_item, dict)
+        if self._has_offhand_visual:
+            visual = offhand_item.get("equip_visual", {})
+            if not isinstance(visual, dict):
+                visual = {}
+            scale = max(0.5, min(1.8, float(visual.get("scale", 1.0) or 1.0)))
+            color = self._safe_color4(visual.get("color"), (0.75, 0.74, 0.72, 1.0))
+            self._shield_node.setScale(scale)
+            self._shield_node.setColorScale(*color)
+            self._shield_node.show()
+        else:
+            self._shield_node.hide()
+
+        chest_item = data_mgr.get_item(self._equipment_state.get("chest", "")) if data_mgr else None
+        if isinstance(chest_item, dict):
+            visual = chest_item.get("equip_visual", {})
+            if not isinstance(visual, dict):
+                visual = {}
+            color = self._safe_color4(visual.get("color"), (0.36, 0.36, 0.42, 0.96))
+            scale = max(0.72, min(1.35, float(visual.get("scale", 1.0) or 1.0)))
+            self._armor_node.setColorScale(*color)
+            self._armor_node.setScale(scale)
+            attach = self._resolve_attach_point(chest_item.get("attach_point", "spine_upper"))
+            self._armor_node.wrtReparentTo(attach)
+            self._armor_node.setPos(0.0, 0.0, 0.20)
+            self._armor_node.show()
+        else:
+            self._armor_node.hide()
+
+        trinket_item = data_mgr.get_item(self._equipment_state.get("trinket", "")) if data_mgr else None
+        if isinstance(trinket_item, dict):
+            visual = trinket_item.get("equip_visual", {})
+            if not isinstance(visual, dict):
+                visual = {}
+            color = self._safe_color4(visual.get("color"), (0.72, 0.86, 0.99, 0.95))
+            scale = max(0.35, min(1.25, float(visual.get("scale", 0.75) or 0.75)))
+            self._trinket_node.setColorScale(*color)
+            self._trinket_node.setScale(scale)
+            attach = self._resolve_attach_point(trinket_item.get("attach_point", "spine_upper"))
+            self._trinket_node.wrtReparentTo(attach)
+            self._trinket_node.setPos(0.0, 0.34, 0.98)
+            self._trinket_node.show()
+        else:
+            self._trinket_node.hide()
+
+    def export_equipment_state(self):
+        return dict(self._equipment_state)
+
+    def import_equipment_state(self, payload):
+        if not isinstance(payload, dict):
+            return
+        for key in list(self._equipment_state.keys()):
+            val = payload.get(key, "")
+            self._equipment_state[key] = str(val).strip() if isinstance(val, str) else ""
+        self._apply_equipment_visuals()
+        self._set_weapon_drawn(self._weapon_drawn, reset_timer=False)
+
+    def equip_item(self, item_id, item_data=None):
+        token = str(item_id or "").strip()
+        if not token:
+            return False, "invalid_item"
+        payload = item_data if isinstance(item_data, dict) else (self.data_mgr.get_item(token) or {})
+        if not isinstance(payload, dict):
+            return False, "missing_item_data"
+        slot = self._slot_alias(payload.get("slot") or payload.get("type"))
+        if slot in {"consumable", "quest", "material", "none", ""}:
+            return False, "not_equippable"
+        if slot not in self._equipment_state:
+            return False, "unsupported_slot"
+
+        self._equipment_state[slot] = token
+        self._apply_equipment_visuals()
+        self._set_weapon_drawn(self._weapon_drawn, reset_timer=False)
+        return True, slot
+
+    def unequip_slot(self, slot):
+        key = self._slot_alias(slot)
+        if key not in self._equipment_state:
+            return False
+        self._equipment_state[key] = ""
+        self._apply_equipment_visuals()
+        self._set_weapon_drawn(self._weapon_drawn, reset_timer=False)
+        return True
+
+    def use_item(self, item_id, item_data=None):
+        token = str(item_id or "").strip()
+        payload = item_data if isinstance(item_data, dict) else (self.data_mgr.get_item(token) or {})
+        if not isinstance(payload, dict):
+            return False
+        effect = payload.get("use_effect", {})
+        if not isinstance(effect, dict):
+            return False
+        if not self.cs:
+            return False
+
+        effect_type = str(effect.get("type", "") or "").strip().lower()
+        amount = max(0.0, float(effect.get("amount", 0.0) or 0.0))
+        if amount <= 0.0:
+            return False
+        if effect_type == "heal" and hasattr(self.cs, "health"):
+            max_hp = float(getattr(self.cs, "maxHealth", getattr(self.cs, "health", 100.0)))
+            self.cs.health = min(max_hp, float(self.cs.health) + amount)
+            return True
+        if effect_type == "mana" and hasattr(self.cs, "mana"):
+            max_mana = float(getattr(self.cs, "maxMana", getattr(self.cs, "mana", 100.0)))
+            self.cs.mana = min(max_mana, float(self.cs.mana) + amount)
+            return True
+        if effect_type == "stamina" and hasattr(self.cs, "stamina"):
+            max_stamina = float(getattr(self.cs, "maxStamina", getattr(self.cs, "stamina", 100.0)))
+            self.cs.stamina = min(max_stamina, float(self.cs.stamina) + amount)
+            return True
+        return False
+
     def _set_weapon_drawn(self, drawn, reset_timer=False):
         was_drawn = bool(self._weapon_drawn)
         target = bool(drawn)
@@ -1117,25 +1469,37 @@ class Player(
             return
         self._weapon_drawn = target
         if self._weapon_drawn:
-            self._sword_node.wrtReparentTo(self._sword_hand_anchor)
-            self._sword_node.setPos(0.02, 0.01, -0.16)
-            self._sword_node.setHpr(-15, -15, 90)
-
-            self._shield_node.wrtReparentTo(self._shield_hand_anchor)
-            self._shield_node.setPos(-0.03, -0.02, -0.08)
-            self._shield_node.setHpr(0, 15, 92)
+            has_visual = bool(self._has_weapon_visual or self._has_offhand_visual)
+            if self._has_weapon_visual:
+                self._sword_node.wrtReparentTo(self._sword_hand_anchor)
+                self._sword_node.setPos(0.02, 0.01, -0.16)
+                self._sword_node.setHpr(-15, -15, 90)
+                self._sword_node.show()
+            if self._has_offhand_visual:
+                self._shield_node.wrtReparentTo(self._shield_hand_anchor)
+                self._shield_node.setPos(-0.03, -0.02, -0.08)
+                self._shield_node.setHpr(0, 15, 92)
+                self._shield_node.show()
 
             self._drawn_hold_timer = 2.4
-            if not was_drawn:
+            if has_visual and (not was_drawn):
                 self._play_sfx("weapon_unsheathe", volume=0.95)
         else:
-            self._sword_node.wrtReparentTo(self._sword_sheath_anchor)
-            self._sword_node.setPos(-0.02, -0.08, 0.02)
-            self._sword_node.setHpr(12, -65, -30)
+            if self._has_weapon_visual:
+                self._sword_node.wrtReparentTo(self._sword_sheath_anchor)
+                self._sword_node.setPos(-0.02, -0.08, 0.02)
+                self._sword_node.setHpr(12, -65, -30)
+                self._sword_node.show()
+            else:
+                self._sword_node.hide()
 
-            self._shield_node.wrtReparentTo(self._shield_sheath_anchor)
-            self._shield_node.setPos(-0.16, -0.10, -0.10)
-            self._shield_node.setHpr(-35, 0, 92)
+            if self._has_offhand_visual:
+                self._shield_node.wrtReparentTo(self._shield_sheath_anchor)
+                self._shield_node.setPos(-0.16, -0.10, -0.10)
+                self._shield_node.setHpr(-35, 0, 92)
+                self._shield_node.show()
+            else:
+                self._shield_node.hide()
 
             if reset_timer:
                 self._drawn_hold_timer = 0.0
@@ -1254,16 +1618,170 @@ class Player(
 
         self._sync_skill_wheel_hud()
 
+    def _update_damage_feedback(self):
+        cs = getattr(self, "cs", None)
+        if not cs or (not hasattr(cs, "health")):
+            return
+        try:
+            current_hp = float(cs.health)
+        except Exception:
+            return
+        prev_hp = getattr(self, "_last_hp_observed", None)
+        self._last_hp_observed = current_hp
+        if prev_hp is None:
+            return
+        delta = float(prev_hp) - current_hp
+        if delta <= 0.35:
+            return
+
+        max_hp = max(1.0, float(getattr(cs, "maxHealth", 100.0) or 100.0))
+        damage_ratio = max(0.0, min(1.0, delta / max_hp))
+        intensity = max(0.25, min(1.8, (damage_ratio * 4.6) + (delta / 22.0)))
+
+        director = getattr(getattr(self, "app", None), "camera_director", None)
+        if director and hasattr(director, "emit_impact"):
+            try:
+                tag = "critical" if damage_ratio >= 0.18 else "hit"
+                director.emit_impact(tag, intensity=intensity, direction_deg=180.0)
+            except Exception:
+                pass
+
+        time_fx = getattr(getattr(self, "app", None), "time_fx", None)
+        if time_fx and hasattr(time_fx, "trigger"):
+            try:
+                if damage_ratio >= 0.20:
+                    time_fx.trigger("hard_fall", duration=0.26)
+                else:
+                    time_fx.trigger("micro_hit", duration=0.12)
+            except Exception:
+                pass
+
+        brain = getattr(self, "brain", None)
+        if brain and hasattr(brain, "register_injury"):
+            # Keep injury updates lightweight: we track short-term trauma windows, not permanent wounds.
+            severity = max(0.08, min(1.35, damage_ratio * 2.8))
+            part = "head" if damage_ratio >= 0.22 else "torso"
+            kind = "crush" if damage_ratio >= 0.22 else "bruise"
+            try:
+                brain.register_injury(part, kind, severity=severity)
+            except Exception:
+                pass
+
+    def _update_brain_runtime(self, mx, my, cam_yaw):
+        brain = getattr(self, "brain", None)
+        if not brain:
+            return
+
+        actor = getattr(self, "actor", None)
+        x = y = 0.0
+        heading = 0.0
+        if actor:
+            try:
+                pos = actor.getPos(self.render)
+            except Exception:
+                pos = actor.getPos()
+            x = float(pos.x)
+            y = float(pos.y)
+            heading = float(actor.getH())
+
+        speed = 0.0
+        vertical_speed = 0.0
+        on_ground = True
+        stamina_ratio = 1.0
+        hp_ratio = 1.0
+        in_water = False
+        parkour = bool(getattr(self, "_was_wallrun", False))
+        combat_now = False
+        location_name = str(getattr(getattr(self.app, "world", None), "active_location", "") or "")
+
+        if self.cs:
+            try:
+                vx = float(getattr(self.cs.velocity, "x", 0.0) or 0.0)
+                vy = float(getattr(self.cs.velocity, "y", 0.0) or 0.0)
+                speed = math.sqrt((vx * vx) + (vy * vy))
+                vertical_speed = float(getattr(self.cs.velocity, "z", 0.0) or 0.0)
+            except Exception:
+                speed = 0.0
+                vertical_speed = 0.0
+            on_ground = bool(getattr(self.cs, "grounded", True))
+            in_water = bool(getattr(self.cs, "inWater", False))
+            try:
+                hp_ratio = float(self.cs.health) / max(1.0, float(self.cs.maxHealth))
+            except Exception:
+                hp_ratio = 1.0
+            try:
+                stamina_ratio = float(self.cs.stamina) / max(1.0, float(self.cs.maxStamina))
+            except Exception:
+                stamina_ratio = 1.0
+        else:
+            if self._brain_last_pos is None and actor:
+                self._brain_last_pos = actor.getPos(self.render)
+            if actor and self._brain_last_pos is not None:
+                now_pos = actor.getPos(self.render)
+                delta = now_pos - self._brain_last_pos
+                dt = max(1e-3, float(globalClock.getDt()))
+                speed = float(math.sqrt((delta.x * delta.x) + (delta.y * delta.y)) / dt)
+                vertical_speed = float(delta.z / dt)
+                self._brain_last_pos = now_pos
+            on_ground = bool(getattr(self, "_py_grounded", True))
+
+        if self.combat and hasattr(self.combat, "isAttacking"):
+            try:
+                combat_now = bool(self.combat.isAttacking())
+            except Exception:
+                combat_now = False
+        if self._anim_state in {"attacking", "attack_light", "attack_heavy", "casting", "dodging", "blocking"}:
+            combat_now = True
+
+        yaw_radians = math.radians(cam_yaw)
+        move_dx = (mx * math.cos(yaw_radians)) + (my * math.sin(yaw_radians))
+        move_dy = (-mx * math.sin(yaw_radians)) + (my * math.cos(yaw_radians))
+        move_mag = math.sqrt((move_dx * move_dx) + (move_dy * move_dy))
+        turn_angle_deg = 0.0
+        if move_mag > 1e-3:
+            desired_h = 180.0 - math.degrees(math.atan2(move_dx, move_dy))
+            turn_angle_deg = abs(((desired_h - heading + 180.0) % 360.0) - 180.0)
+
+        sensors = {
+            "x": x,
+            "y": y,
+            "speed": speed,
+            "vertical_speed": vertical_speed,
+            "on_ground": on_ground,
+            "is_flying": bool(self._is_flying),
+            "parkour": parkour,
+            "combat": combat_now,
+            "in_water": in_water,
+            "fatigue": max(0.0, min(1.0, 1.0 - stamina_ratio)),
+            "hp_ratio": max(0.0, min(1.0, hp_ratio)),
+            "location_name": location_name,
+        }
+        intent = {
+            "move_x": float(mx),
+            "move_y": float(my),
+            "turn_angle_deg": turn_angle_deg,
+        }
+        self._motion_plan = brain.evaluate(intent, sensors)
+
     def update(self, dt, cam_yaw):
-        if self._once_action("inventory"):
+        director = getattr(self.app, "camera_director", None)
+        cutscene_active = False
+        if director and hasattr(director, "is_cutscene_active"):
+            try:
+                cutscene_active = bool(director.is_cutscene_active())
+            except Exception:
+                cutscene_active = False
+
+        if self._once_action("inventory") and (not cutscene_active):
             if self.app.state_mgr.current_state == self.app.GameState.INVENTORY:
                 self.app.state_mgr.set_state(self.app.GameState.PLAYING)
                 self.app.inventory_ui.hide()
-            else:
+            elif self.app.state_mgr.current_state == self.app.GameState.PLAYING:
                 self.app.state_mgr.set_state(self.app.GameState.INVENTORY)
                 self.app.inventory_ui.show()
 
         self._update_skill_wheel_input()
+        self._update_damage_feedback()
 
         if self.app.state_mgr.current_state == self.app.GameState.INVENTORY:
             if self._skill_wheel_open:
@@ -1281,6 +1799,7 @@ class Player(
             handled_vehicle = self._try_vehicle_interact()
 
         if not self.cs or not HAS_CORE:
+            self._update_brain_runtime(mx, my, cam_yaw)
             if self._update_vehicle_control(dt, cam_yaw, mx, my):
                 return
             if interacted and not handled_vehicle:
@@ -1295,6 +1814,7 @@ class Player(
             -mx * math.sin(yaw_radians) + my * math.cos(yaw_radians),
             0,
         )
+        self._update_brain_runtime(mx, my, cam_yaw)
 
         if self._update_vehicle_control(dt, cam_yaw, mx, my):
             return

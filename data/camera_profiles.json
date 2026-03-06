@@ -1,7 +1,25 @@
 {
     "settings": {
         "auto_boss_intro": true,
-        "boss_intro_cooldown": 9.0
+        "boss_intro_cooldown": 9.0,
+        "shot_priorities": {
+            "dialog": 92,
+            "dialog_auto": 91,
+            "dialog_npc": 93,
+            "dialog_player": 93,
+            "dialog_wide": 90,
+            "boss_intro": 82,
+            "location": 70,
+            "spell_hit": 64,
+            "shot": 50
+        },
+        "profile_override_priorities": {
+            "dialog": 90,
+            "cinematic": 84,
+            "boss": 80,
+            "combat": 60,
+            "exploration": 40
+        }
     },
     "profiles": {
         "exploration": {
@@ -52,6 +70,27 @@
             "target_z": 2.2,
             "side": 0.0,
             "smooth": 6.8
+        },
+        "mounted_horse": {
+            "dist": 23.0,
+            "pitch": -16.0,
+            "target_z": 2.1,
+            "side": 0.0,
+            "smooth": 7.4
+        },
+        "mounted_carriage": {
+            "dist": 25.5,
+            "pitch": -18.0,
+            "target_z": 2.45,
+            "side": 0.5,
+            "smooth": 6.2
+        },
+        "mounted_ship": {
+            "dist": 27.5,
+            "pitch": -13.5,
+            "target_z": 2.9,
+            "side": 0.0,
+            "smooth": 5.4
         },
         "dialog": {
             "dist": 11.5,

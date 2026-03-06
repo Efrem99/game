@@ -114,6 +114,7 @@ blender --background models/character.blend --python models/blender_head_swap.py
 ## Validation
 Run:
 ```bash
+python launcher_test_sherward_prep.py
 python launcher_test_sherward.py
 python launcher_test_manifest.py
 python launcher_test_smoke.py

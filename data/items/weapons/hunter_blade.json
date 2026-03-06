@@ -2,6 +2,19 @@
     "id": "hunter_blade",
     "name": "Hunter Blade",
     "type": "weapon",
+    "slot": "weapon_main",
+    "icon": "assets/textures/items/hunter_blade.png",
+    "attach_point": "right_hand",
+    "equip_visual": {
+        "style": "blade",
+        "color": [
+            0.5,
+            0.52,
+            0.55,
+            1.0
+        ],
+        "scale": 1.05
+    },
     "power": 3,
     "description": "A razor-sharp blade favored by hunters.",
     "visual": {

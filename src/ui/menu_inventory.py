@@ -1,4 +1,4 @@
-from direct.gui.DirectGui import DirectFrame, DirectScrolledFrame, OnscreenText, DirectButton
+from direct.gui.DirectGui import DirectFrame, DirectScrolledFrame, OnscreenText, DirectButton, DGG
 from panda3d.core import TextNode, TransparencyAttrib
 
 from ui.design_system import (
@@ -14,10 +14,12 @@ class InventoryUI:
     def __init__(self, app):
         self.app = app
         self._rows = []
-        self._current_tab = "inventory"  # "inventory", "map", "journal"
+        self._current_tab = "inventory"  # "inventory", "map", "skills", "journal"
         self._map_range = 180.0
         self._map_pin_markers = []
         self._map_pin_labels = []
+        self._inventory_status = ""
+        self._skill_status = ""
 
         asp = self.app.getAspectRatio()
         self.frame = DirectFrame(
@@ -85,6 +87,16 @@ class InventoryUI:
             align=TextNode.ALeft,
             wordwrap=34,
             parent=self.content_frame
+        )
+        self.inventory_status_text = OnscreenText(
+            text="",
+            pos=(-0.66, -0.54),
+            scale=0.03,
+            font=body_font(self.app),
+            fg=THEME["text_muted"],
+            align=TextNode.ALeft,
+            mayChange=True,
+            parent=self.content_frame,
         )
 
         # Close button
@@ -167,8 +179,8 @@ class InventoryUI:
             text="Inventory",
             text_font=body_font(self.app),
             text_scale=0.045,
-            frameSize=(-0.25, 0.25, -0.05, 0.06),
-            pos=(-0.55, 0, 0),
+            frameSize=(-0.20, 0.20, -0.05, 0.06),
+            pos=(-0.66, 0, 0),
             frameColor=THEME["bg_panel"],
             text_fg=THEME["text_main"],
             command=self._switch_tab,
@@ -181,12 +193,26 @@ class InventoryUI:
             text="Map",
             text_font=body_font(self.app),
             text_scale=0.045,
-            frameSize=(-0.25, 0.25, -0.05, 0.06),
-            pos=(0, 0, 0),
+            frameSize=(-0.20, 0.20, -0.05, 0.06),
+            pos=(-0.22, 0, 0),
             frameColor=THEME["bg_panel"],
             text_fg=THEME["text_main"],
             command=self._switch_tab,
             extraArgs=["map"],
+            relief=1
+        )
+
+        self.btn_skills = DirectButton(
+            parent=self.tabs_frame,
+            text="Skills",
+            text_font=body_font(self.app),
+            text_scale=0.045,
+            frameSize=(-0.20, 0.20, -0.05, 0.06),
+            pos=(0.22, 0, 0),
+            frameColor=THEME["bg_panel"],
+            text_fg=THEME["text_main"],
+            command=self._switch_tab,
+            extraArgs=["skills"],
             relief=1
         )
 
@@ -195,8 +221,8 @@ class InventoryUI:
             text="Journal",
             text_font=body_font(self.app),
             text_scale=0.045,
-            frameSize=(-0.25, 0.25, -0.05, 0.06),
-            pos=(0.55, 0, 0),
+            frameSize=(-0.20, 0.20, -0.05, 0.06),
+            pos=(0.66, 0, 0),
             frameColor=THEME["bg_panel"],
             text_fg=THEME["text_main"],
             command=self._switch_tab,
@@ -209,6 +235,7 @@ class InventoryUI:
         # Reset colors
         self.btn_inv["frameColor"] = THEME["bg_panel"]
         self.btn_map["frameColor"] = THEME["bg_panel"]
+        self.btn_skills["frameColor"] = THEME["bg_panel"]
         self.btn_journal["frameColor"] = THEME["bg_panel"]
 
         # Highlight active
@@ -222,6 +249,7 @@ class InventoryUI:
             self.map_pin_text.hide()
             self.map_text.hide()
             self.journal_text.hide()
+            self.inventory_status_text.show()
             self._refresh_inventory()
         elif tab_id == "map":
             self.btn_map["frameColor"] = active_color
@@ -231,7 +259,19 @@ class InventoryUI:
             self.map_pin_text.show()
             self.map_text.show()
             self.journal_text.hide()
+            self.inventory_status_text.hide()
             self._refresh_map()
+        elif tab_id == "skills":
+            self.btn_skills["frameColor"] = active_color
+            self.item_list.show()
+            self._clear_map_labels()
+            self.map_panel.hide()
+            self.map_title.hide()
+            self.map_pin_text.hide()
+            self.map_text.hide()
+            self.journal_text.hide()
+            self.inventory_status_text.show()
+            self._refresh_skills()
         elif tab_id == "journal":
             self.btn_journal["frameColor"] = active_color
             self.item_list.hide()
@@ -241,6 +281,7 @@ class InventoryUI:
             self.map_pin_text.hide()
             self.map_text.hide()
             self.journal_text.show()
+            self.inventory_status_text.hide()
             self._refresh_journal()
 
     def show(self):
@@ -265,6 +306,23 @@ class InventoryUI:
                 self.show()
         else:
             self.hide()
+
+    def export_map_state(self):
+        return {
+            "tab": str(self._current_tab),
+            "range": float(self._map_range),
+        }
+
+    def import_map_state(self, payload):
+        if not isinstance(payload, dict):
+            return
+        tab = str(payload.get("tab", self._current_tab) or self._current_tab).strip().lower()
+        if tab in {"inventory", "map", "skills", "journal"}:
+            self._current_tab = tab
+        try:
+            self._map_range = max(60.0, min(460.0, float(payload.get("range", self._map_range))))
+        except Exception:
+            pass
 
     def _refresh_journal(self):
         quest_mgr = getattr(self.app, "quest_mgr", None)
@@ -493,7 +551,7 @@ class InventoryUI:
                 pass
         self._map_pin_labels = []
 
-    def _refresh_inventory(self):
+    def _clear_rows(self):
         canvas = self.item_list.getCanvas()
         for row in self._rows:
             try:
@@ -501,6 +559,145 @@ class InventoryUI:
             except Exception:
                 pass
         self._rows = []
+        return canvas
+
+    def _refresh_skills(self):
+        canvas = self._clear_rows()
+        skill_mgr = getattr(self.app, "skill_tree_mgr", None)
+        if not skill_mgr or not hasattr(skill_mgr, "get_all_nodes"):
+            text = OnscreenText(
+                text="Skill tree manager unavailable.",
+                pos=(0, -0.08),
+                scale=0.05,
+                font=body_font(self.app),
+                align=TextNode.ACenter,
+                fg=THEME.get("text_body", THEME["text_muted"]),
+                parent=canvas,
+                mayChange=False,
+            )
+            self._rows.append(text)
+            self.item_list["canvasSize"] = (-0.68, 0.68, -0.45, 0)
+            self._set_inventory_status("")
+            return
+
+        points = int(skill_mgr.get_points()) if hasattr(skill_mgr, "get_points") else 0
+        status = f"Skill points: {points}"
+        if self._skill_status:
+            status = f"{status} | {self._skill_status}"
+        self._set_inventory_status(status)
+        rows = skill_mgr.get_all_nodes()
+        if not rows:
+            text = OnscreenText(
+                text="No skills configured.",
+                pos=(0, -0.08),
+                scale=0.05,
+                font=body_font(self.app),
+                align=TextNode.ACenter,
+                fg=THEME.get("text_body", THEME["text_muted"]),
+                parent=canvas,
+                mayChange=False,
+            )
+            self._rows.append(text)
+            self.item_list["canvasSize"] = (-0.68, 0.68, -0.45, 0)
+            return
+
+        row_y = -0.05
+        step = 0.14
+        prev_branch = None
+        for row in rows:
+            branch = str(row.get("branch_name", "") or "")
+            if branch != prev_branch:
+                if prev_branch is not None:
+                    row_y -= 0.04
+                branch_title = OnscreenText(
+                    text=branch.upper(),
+                    pos=(-0.63, row_y + 0.02),
+                    scale=0.032,
+                    font=title_font(self.app),
+                    align=TextNode.ALeft,
+                    fg=THEME["gold_soft"],
+                    parent=canvas,
+                    mayChange=False,
+                )
+                self._rows.append(branch_title)
+                row_y -= 0.05
+                prev_branch = branch
+
+            node_id = str(row.get("id", "") or "")
+            unlocked = bool(row.get("unlocked", False))
+            can_unlock = bool(row.get("can_unlock", False))
+            cost = int(row.get("cost", 1) or 1)
+            title = str(row.get("name", node_id) or node_id)
+            desc = str(row.get("description", "") or "")
+            missing = row.get("missing", [])
+            if not isinstance(missing, list):
+                missing = []
+
+            holder = DirectFrame(
+                parent=canvas,
+                frameColor=(0.10, 0.09, 0.08, 0.62),
+                frameSize=(-0.66, 0.66, -0.055, 0.055),
+                pos=(0.0, 0.0, row_y),
+            )
+            self._rows.append(holder)
+
+            title_text = title
+            if unlocked:
+                title_text = f"{title}  [Unlocked]"
+            elif missing:
+                title_text = f"{title}  [Locked]"
+            else:
+                title_text = f"{title}  [Cost {cost}]"
+
+            label = OnscreenText(
+                text=title_text,
+                pos=(-0.60, -0.018),
+                scale=0.035,
+                font=body_font(self.app),
+                align=TextNode.ALeft,
+                fg=THEME["gold_soft"] if unlocked else THEME["text_main"],
+                parent=holder,
+                mayChange=False,
+            )
+            self._rows.append(label)
+
+            if desc:
+                desc_text = OnscreenText(
+                    text=desc[:84],
+                    pos=(-0.60, -0.045),
+                    scale=0.023,
+                    font=body_font(self.app),
+                    align=TextNode.ALeft,
+                    fg=THEME["text_muted"],
+                    parent=holder,
+                    mayChange=False,
+                )
+                self._rows.append(desc_text)
+
+            if not unlocked:
+                btn = DirectButton(
+                    parent=holder,
+                    text="Unlock",
+                    text_font=body_font(self.app),
+                    text_scale=0.031,
+                    frameSize=(-0.11, 0.11, -0.03, 0.04),
+                    pos=(0.48, 0.0, 0.0),
+                    frameColor=BUTTON_COLORS["normal"] if can_unlock else (0.2, 0.2, 0.2, 0.6),
+                    text_fg=THEME["text_main"],
+                    command=self._handle_unlock_skill,
+                    extraArgs=[node_id],
+                    relief=1,
+                )
+                if not can_unlock:
+                    btn["state"] = DGG.DISABLED
+                self._rows.append(btn)
+            row_y -= step
+
+        min_y = min(-0.6, row_y - 0.08)
+        self.item_list["canvasSize"] = (-0.68, 0.68, min_y, 0)
+
+    def _refresh_inventory(self):
+        canvas = self._clear_rows()
 
         profile_bag = {}
         if isinstance(getattr(self.app, "profile", None), dict):
@@ -513,12 +710,28 @@ class InventoryUI:
                 if not isinstance(data, dict):
                     data = {"id": item_id, "name": str(data)}
                 row = dict(data)
-                row["id"] = item_id
-                row["quantity"] = int(qty or 1)
+                row["id"] = str(item_id)
+                try:
+                    row["quantity"] = max(0, int(qty or 0))
+                except Exception:
+                    row["quantity"] = 0
                 items.append(row)
         else:
-            item_ids = list(self.app.data_mgr.items.keys())
-            items = [self.app.data_mgr.get_item(item_id) or {"id": item_id} for item_id in item_ids]
+            for item_id, data in getattr(self.app.data_mgr, "items", {}).items():
+                row = dict(data) if isinstance(data, dict) else {"id": str(item_id), "name": str(item_id)}
+                row["id"] = str(item_id)
+                row["quantity"] = 0
+                items.append(row)
+
+        def _sort_key(entry):
+            if not isinstance(entry, dict):
+                return ("zzzz", "zzzz")
+            return (
+                str(entry.get("type", "")).lower(),
+                str(entry.get("name", entry.get("id", ""))).lower(),
+            )
+        items = sorted(items, key=_sort_key)
+        equipped = self._equipment_state()
 
         if not items:
             empty_text = OnscreenText(
@@ -536,29 +749,256 @@ class InventoryUI:
             return
 
         row_y = -0.05
-        step = 0.08
+        step = 0.13
         for idx, item in enumerate(items):
-            if not isinstance(item, dict):
-                label = str(item)
-                qty = 1
-            else:
-                label = item.get("name") or item.get("id") or f"Item {idx + 1}"
-                qty = int(item.get("quantity", 1))
+            row = item if isinstance(item, dict) else {"id": str(item), "name": str(item), "quantity": 0}
+            item_id = str(row.get("id", f"item_{idx}"))
+            name = str(row.get("name", item_id))
+            slot = self._slot_alias(row.get("slot") or row.get("type"))
+            qty = max(0, int(row.get("quantity", 0) or 0))
+            is_equipped = bool(slot in equipped and equipped.get(slot) == item_id)
 
-            row_text = f"{label}"
-            if qty > 1:
-                row_text = f"{row_text} x{qty}"
-
-            text_node = OnscreenText(
-                text=row_text,
-                pos=(-0.64, row_y),
-                scale=0.05,
-                font=body_font(self.app),
-                align=TextNode.ALeft,
-                fg=THEME["gold_soft"],
+            holder = DirectFrame(
                 parent=canvas,
+                frameColor=(0.10, 0.09, 0.08, 0.62),
+                frameSize=(-0.66, 0.66, -0.052, 0.052),
+                pos=(0.0, 0.0, row_y),
+            )
+            self._rows.append(holder)
+
+            icon = DirectFrame(
+                parent=holder,
+                frameColor=self._slot_color(slot),
+                frameSize=(-0.035, 0.035, -0.035, 0.035),
+                pos=(-0.61, 0.0, 0.0),
+            )
+            self._rows.append(icon)
+            icon_char = name[:1].upper() if name else "?"
+            icon_text = OnscreenText(
+                text=icon_char,
+                pos=(-0.61, -0.014),
+                scale=0.04,
+                font=title_font(self.app),
+                align=TextNode.ACenter,
+                fg=(0.10, 0.08, 0.05, 1.0),
+                parent=holder,
                 mayChange=False,
             )
-            self._rows.append(text_node)
+            self._rows.append(icon_text)
+
+            row_text = f"{name}"
+            if qty > 1:
+                row_text = f"{row_text} x{qty}"
+            if is_equipped:
+                row_text = f"{row_text}  [Equipped]"
+            label = OnscreenText(
+                text=row_text,
+                pos=(-0.55, -0.017),
+                scale=0.036,
+                font=body_font(self.app),
+                align=TextNode.ALeft,
+                fg=THEME["gold_soft"] if is_equipped else THEME["text_main"],
+                parent=holder,
+                mayChange=False,
+            )
+            self._rows.append(label)
+
+            desc = str(row.get("description", "") or "").strip()
+            if desc:
+                desc_text = OnscreenText(
+                    text=desc[:72],
+                    pos=(-0.55, -0.043),
+                    scale=0.024,
+                    font=body_font(self.app),
+                    align=TextNode.ALeft,
+                    fg=THEME["text_muted"],
+                    parent=holder,
+                    mayChange=False,
+                )
+                self._rows.append(desc_text)
+
+            if slot in {"weapon_main", "offhand", "chest", "trinket"}:
+                action = "Unequip" if is_equipped else "Equip"
+                cmd = self._handle_unequip if is_equipped else self._handle_equip
+                args = [slot] if is_equipped else [item_id]
+                btn = DirectButton(
+                    parent=holder,
+                    text=action,
+                    text_font=body_font(self.app),
+                    text_scale=0.032,
+                    frameSize=(-0.11, 0.11, -0.03, 0.04),
+                    pos=(0.48, 0.0, 0.0),
+                    frameColor=THEME["text_muted"] if is_equipped else BUTTON_COLORS["normal"],
+                    text_fg=THEME["text_main"],
+                    command=cmd,
+                    extraArgs=args,
+                    relief=1,
+                )
+                if qty <= 0 and (not is_equipped):
+                    btn["state"] = DGG.DISABLED
+                    btn["frameColor"] = (0.2, 0.2, 0.2, 0.6)
+                self._rows.append(btn)
+            elif slot == "consumable":
+                btn = DirectButton(
+                    parent=holder,
+                    text="Use",
+                    text_font=body_font(self.app),
+                    text_scale=0.032,
+                    frameSize=(-0.11, 0.11, -0.03, 0.04),
+                    pos=(0.48, 0.0, 0.0),
+                    frameColor=BUTTON_COLORS["normal"],
+                    text_fg=THEME["text_main"],
+                    command=self._handle_use,
+                    extraArgs=[item_id],
+                    relief=1,
+                )
+                if qty <= 0:
+                    btn["state"] = DGG.DISABLED
+                    btn["frameColor"] = (0.2, 0.2, 0.2, 0.6)
+                self._rows.append(btn)
+
+            row_y -= step
         min_y = min(-0.6, row_y - 0.08)
         self.item_list["canvasSize"] = (-0.68, 0.68, min_y, 0)
+
+    def _slot_alias(self, slot_token):
+        token = str(slot_token or "").strip().lower()
+        if token in {"weapon", "weapon_main", "mainhand", "main_hand"}:
+            return "weapon_main"
+        if token in {"offhand", "off_hand", "shield"}:
+            return "offhand"
+        if token in {"armor", "body", "chest"}:
+            return "chest"
+        if token in {"artifact", "trinket", "amulet"}:
+            return "trinket"
+        if token in {"consumable", "potion", "food"}:
+            return "consumable"
+        return token
+
+    def _slot_color(self, slot_token):
+        slot = self._slot_alias(slot_token)
+        palette = {
+            "weapon_main": (0.70, 0.65, 0.50, 0.96),
+            "offhand": (0.58, 0.64, 0.72, 0.96),
+            "chest": (0.48, 0.56, 0.66, 0.96),
+            "trinket": (0.72, 0.62, 0.44, 0.96),
+            "consumable": (0.46, 0.65, 0.48, 0.96),
+        }
+        return palette.get(slot, (0.42, 0.40, 0.36, 0.94))
+
+    def _equipment_state(self):
+        player = getattr(self.app, "player", None)
+        if player and hasattr(player, "export_equipment_state"):
+            try:
+                payload = player.export_equipment_state() or {}
+                if isinstance(payload, dict):
+                    return dict(payload)
+            except Exception:
+                pass
+        profile = getattr(self.app, "profile", {})
+        if isinstance(profile, dict) and isinstance(profile.get("equipment_state"), dict):
+            return dict(profile.get("equipment_state", {}))
+        return {}
+
+    def _set_inventory_status(self, text):
+        self._inventory_status = str(text or "")
+        self.inventory_status_text["text"] = self._inventory_status
+
+    def _sync_profile_equipment(self):
+        player = getattr(self.app, "player", None)
+        profile = getattr(self.app, "profile", None)
+        if not isinstance(profile, dict):
+            return
+        if player and hasattr(player, "export_equipment_state"):
+            try:
+                profile["equipment_state"] = player.export_equipment_state() or {}
+            except Exception:
+                pass
+
+    def _handle_equip(self, item_id):
+        item_id = str(item_id or "").strip()
+        if not item_id:
+            self._set_inventory_status("Equip failed: invalid item id.")
+            return
+        profile = getattr(self.app, "profile", {})
+        bag = profile.get("items", {}) if isinstance(profile, dict) else {}
+        qty = int(bag.get(item_id, 0) or 0) if isinstance(bag, dict) else 0
+        if qty <= 0:
+            self._set_inventory_status("Item is not in inventory.")
+            return
+        item_data = self.app.data_mgr.get_item(item_id) or {}
+        player = getattr(self.app, "player", None)
+        if not player or not hasattr(player, "equip_item"):
+            self._set_inventory_status("Equip is unavailable right now.")
+            return
+        ok, reason = player.equip_item(item_id, item_data=item_data)
+        if ok:
+            self._sync_profile_equipment()
+            name = item_data.get("name", item_id) if isinstance(item_data, dict) else item_id
+            self._set_inventory_status(f"Equipped: {name}")
+            self._refresh_inventory()
+        else:
+            self._set_inventory_status(f"Equip failed: {reason}")
+
+    def _handle_unequip(self, slot):
+        player = getattr(self.app, "player", None)
+        if not player or not hasattr(player, "unequip_slot"):
+            self._set_inventory_status("Unequip is unavailable right now.")
+            return
+        ok = bool(player.unequip_slot(slot))
+        if not ok:
+            self._set_inventory_status("Unequip failed.")
+            return
+        self._sync_profile_equipment()
+        self._set_inventory_status(f"Unequipped slot: {self._slot_alias(slot)}")
+        self._refresh_inventory()
+
+    def _handle_use(self, item_id):
+        item_id = str(item_id or "").strip()
+        if not item_id:
+            self._set_inventory_status("Use failed: invalid item id.")
+            return
+        profile = getattr(self.app, "profile", {})
+        if not isinstance(profile, dict):
+            self._set_inventory_status("Use failed: no profile.")
+            return
+        bag = profile.setdefault("items", {})
+        qty = int(bag.get(item_id, 0) or 0)
+        if qty <= 0:
+            self._set_inventory_status("No items left to use.")
+            return
+        player = getattr(self.app, "player", None)
+        item_data = self.app.data_mgr.get_item(item_id) or {}
+        if not player or not hasattr(player, "use_item"):
+            self._set_inventory_status("Use is unavailable right now.")
+            return
+        used = bool(player.use_item(item_id, item_data=item_data))
+        if not used:
+            self._set_inventory_status("Item cannot be used.")
+            return
+        qty -= 1
+        if qty <= 0:
+            bag.pop(item_id, None)
+        else:
+            bag[item_id] = qty
+        name = item_data.get("name", item_id) if isinstance(item_data, dict) else item_id
+        self._set_inventory_status(f"Used: {name}")
+        self._refresh_inventory()
+
+    def _handle_unlock_skill(self, node_id):
+        token = str(node_id or "").strip().lower()
+        if not token:
+            self._skill_status = "Unlock failed: invalid skill id."
+            self._refresh_skills()
+            return
+        skill_mgr = getattr(self.app, "skill_tree_mgr", None)
+        if not skill_mgr or not hasattr(skill_mgr, "unlock"):
+            self._skill_status = "Unlock failed: skill manager unavailable."
+            self._refresh_skills()
+            return
+        ok, reason = skill_mgr.unlock(token)
+        if ok:
+            self._skill_status = reason or f"Unlocked: {token}"
+        else:
+            self._skill_status = reason or f"Unlock failed: {token}"
+        self._refresh_skills()

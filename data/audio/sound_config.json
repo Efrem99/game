@@ -26,6 +26,22 @@
         "wind": {
             "path": "data/audio/ambient.mp3",
             "volume": 0.22
+        },
+        "forest": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.33
+        },
+        "sea_breeze": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.44
+        },
+        "castle_courtyard": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.3
+        },
+        "training": {
+            "path": "data/audio/ambient.mp3",
+            "volume": 0.26
         }
     },
     "location_music": {
@@ -42,6 +58,73 @@
         "plains": "plains",
         "mountain": "wind",
         "sea": "water"
+    },
+    "context_music": {
+        "docks": "overworld",
+        "town": "village",
+        "coast": "overworld",
+        "forest": "overworld",
+        "castle": "village",
+        "tutorial": "overworld",
+        "parkour": "overworld",
+        "water": "overworld",
+        "flight": "overworld",
+        "mounted_horse": "overworld",
+        "mounted_carriage": "overworld",
+        "mounted_ship": "overworld",
+        "panic": "combat",
+        "injured": "combat"
+    },
+    "context_ambient": {
+        "docks": "docks",
+        "town": "town",
+        "coast": "sea_breeze",
+        "forest": "forest",
+        "castle": "castle_courtyard",
+        "tutorial": "training",
+        "parkour": "training",
+        "water": "water",
+        "flight": "wind",
+        "mounted_horse": "plains",
+        "mounted_carriage": "plains",
+        "mounted_ship": "water",
+        "panic": "wind",
+        "injured": "town"
+    },
+    "priority": {
+        "music": {
+            "default": 10,
+            "location": 44,
+            "context": 64,
+            "combat": 86,
+            "boss": 96,
+            "override": 120
+        },
+        "music_context": {
+            "dialog": 94,
+            "panic": 89,
+            "parkour": 68,
+            "flight": 66,
+            "mounted_ship": 72
+        },
+        "ambient": {
+            "default": 12,
+            "biome": 28,
+            "location": 46,
+            "context": 62,
+            "water": 86,
+            "flight": 78,
+            "override": 110
+        },
+        "ambient_context": {
+            "docks": 68,
+            "coast": 70,
+            "forest": 66,
+            "castle": 64,
+            "training": 63,
+            "parkour": 65,
+            "flight": 79
+        }
     },
     "sfx": {
         "footstep_grass": {
@@ -147,6 +230,30 @@
         "item_pickup": {
             "path": "assets/audio/pickup.wav",
             "volume": 0.8
+        },
+        "npc_work_hammer": {
+            "path": "assets/audio/npc/work_hammer.wav",
+            "volume": 0.48
+        },
+        "npc_repair_tool": {
+            "path": "assets/audio/npc/repair_tool.wav",
+            "volume": 0.42
+        },
+        "npc_talk_murmur": {
+            "path": "assets/audio/npc/talk_murmur.wav",
+            "volume": 0.26
+        },
+        "npc_patrol_step": {
+            "path": "assets/audio/npc/patrol_step.wav",
+            "volume": 0.62
+        },
+        "npc_alarm": {
+            "path": "assets/audio/npc/alarm.wav",
+            "volume": 0.58
+        },
+        "npc_crate_move": {
+            "path": "assets/audio/npc/crate_move.wav",
+            "volume": 0.54
         }
     },
     "crossfade_time": 1.4,
@@ -159,6 +266,128 @@
     "sfx_global_limit": 22,
     "voices_path": "data/audio/voices",
     "voice_volume": 0.88,
+    "voice_playback": {
+        "rate_jitter": 0.018,
+        "volume_jitter": 0.025,
+        "playrate_min": 0.86,
+        "playrate_max": 1.14
+    },
+    "npc_activity": {
+        "max_distance": 36.0,
+        "global_cooldown": 0.35,
+        "npc_cooldown": 2.4,
+        "voice_cooldown": 10.0,
+        "camera_cooldown": 5.0,
+        "base_sfx_volume": 0.38,
+        "scene_anchor_radius": 10.0,
+        "scene_anchor_bonus": 0.14,
+        "debug_overlay": true,
+        "debug_lines": 5,
+        "activity_sfx": {
+            "patrol": [
+                "npc_patrol_step",
+                "footstep_stone"
+            ],
+            "inspect": [
+                "npc_patrol_step",
+                "ui_hover"
+            ],
+            "haul": [
+                "npc_crate_move",
+                "item_pickup"
+            ],
+            "work": [
+                "npc_work_hammer",
+                "item_pickup"
+            ],
+            "repair": [
+                "npc_repair_tool",
+                "item_pickup"
+            ],
+            "talk": [
+                "npc_talk_murmur",
+                "ui_hover"
+            ],
+            "panic": [
+                "npc_alarm",
+                "enemy_hit"
+            ]
+        },
+        "profiles": {
+            "default": {
+                "intensity_mul": 1.0,
+                "sfx_volume_mul": 1.0,
+                "voice_chance_mul": 1.0,
+                "camera_chance_mul": 1.0,
+                "route_hold_mul": 1.0
+            },
+            "docks": {
+                "intensity_mul": 1.08,
+                "sfx_volume_mul": 1.12,
+                "voice_chance_mul": 1.2,
+                "camera_chance_mul": 0.72,
+                "route_hold_mul": 1.18,
+                "override_ambient": "docks",
+                "ambient_by_story": {
+                    "storm_shelter": "wind"
+                },
+                "activity_sfx": {
+                    "talk": [
+                        "npc_talk_murmur",
+                        "npc_crate_move"
+                    ],
+                    "haul": [
+                        "npc_crate_move",
+                        "item_pickup"
+                    ]
+                }
+            },
+            "castle": {
+                "intensity_mul": 0.96,
+                "sfx_volume_mul": 0.95,
+                "voice_chance_mul": 1.08,
+                "camera_chance_mul": 1.16,
+                "route_hold_mul": 1.1,
+                "camera_profile": "cinematic",
+                "camera_side_min": 1.8,
+                "camera_side_max": 2.9,
+                "camera_yaw_min": 10.0,
+                "camera_yaw_max": 26.0,
+                "override_ambient": "castle_courtyard",
+                "activity_sfx": {
+                    "patrol": [
+                        "npc_patrol_step",
+                        "footstep_stone"
+                    ],
+                    "inspect": [
+                        "npc_patrol_step",
+                        "npc_alarm"
+                    ]
+                }
+            },
+            "forest": {
+                "intensity_mul": 1.14,
+                "sfx_volume_mul": 1.06,
+                "voice_chance_mul": 0.72,
+                "camera_chance_mul": 0.86,
+                "route_hold_mul": 1.08,
+                "override_ambient": "forest",
+                "activity_sfx": {
+                    "patrol": [
+                        "footstep_grass",
+                        "npc_patrol_step"
+                    ],
+                    "talk": [
+                        "ui_hover"
+                    ],
+                    "shelter": [
+                        "footstep_wood",
+                        "npc_repair_tool"
+                    ]
+                }
+            }
+        }
+    },
     "mixer": {
         "dialog_music_duck": 0.30,
         "dialog_ambient_duck": 0.28,
@@ -177,6 +406,12 @@
         "footstep_grass": 0.04,
         "footstep_stone": 0.04,
         "footstep_wood": 0.04,
-        "footstep_water": 0.04
+        "footstep_water": 0.04,
+        "npc_work_hammer": 0.12,
+        "npc_repair_tool": 0.11,
+        "npc_talk_murmur": 0.08,
+        "npc_patrol_step": 0.05,
+        "npc_alarm": 0.2,
+        "npc_crate_move": 0.1
     }
 }

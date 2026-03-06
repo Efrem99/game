@@ -1,4 +1,4 @@
-"""Runtime audio routing for music, ambient loops, and event SFX."""
+﻿"""Runtime audio routing for music, ambient loops, and event SFX."""
 
 import os
 import random
@@ -291,6 +291,7 @@ class AudioDirector:
         self._combat_until = 0.0
         self._boss_until = 0.0
         self._last_route_signature = None
+        self._route_override = None
 
         cfg = getattr(self.app.data_mgr, "sound_config", None)
         if not isinstance(cfg, dict):
@@ -312,6 +313,16 @@ class AudioDirector:
             _norm_key(k): v
             for k, v in (cfg.get("biome_ambient", {}) or {}).items()
         }
+        self._context_music = {
+            _norm_key(k): _norm_key(v)
+            for k, v in (cfg.get("context_music", {}) or {}).items()
+            if str(v or "").strip()
+        }
+        self._context_ambient = {
+            _norm_key(k): _norm_key(v)
+            for k, v in (cfg.get("context_ambient", {}) or {}).items()
+            if str(v or "").strip()
+        }
         self._crossfade_time = max(0.05, float(cfg.get("crossfade_time", 1.5) or 1.5))
         self._combat_hold_time = max(0.25, float(cfg.get("combat_hold_time", 4.0) or 4.0))
         self._boss_hold_time = max(0.5, float(cfg.get("boss_hold_time", 6.0) or 6.0))
@@ -326,6 +337,16 @@ class AudioDirector:
         self._mix_boss_ambient_duck = _clamp01(mixer_cfg.get("boss_ambient_duck", 0.62))
         self._mix_combat_ambient_duck = _clamp01(mixer_cfg.get("combat_ambient_duck", 0.80))
         self._mix_ui_music_duck = _clamp01(mixer_cfg.get("ui_music_duck", 0.72))
+        self._mix_voice_music_duck = _clamp01(mixer_cfg.get("voice_music_duck", 0.22))
+        self._mix_voice_ambient_duck = _clamp01(mixer_cfg.get("voice_ambient_duck", 0.20))
+        self._voices_path = str(cfg.get("voices_path", "data/audio/voices") or "data/audio/voices").strip()
+        self._voice_volume = _clamp01(cfg.get("voice_volume", 0.88))
+        self._active_voice = []
+        voice_playback_cfg = cfg.get("voice_playback", {}) if isinstance(cfg.get("voice_playback"), dict) else {}
+        self._voice_rate_jitter = max(0.0, min(0.25, float(voice_playback_cfg.get("rate_jitter", 0.018) or 0.018)))
+        self._voice_volume_jitter = max(0.0, min(0.20, float(voice_playback_cfg.get("volume_jitter", 0.025) or 0.025)))
+        self._voice_playrate_min = max(0.5, min(1.75, float(voice_playback_cfg.get("playrate_min", 0.86) or 0.86)))
+        self._voice_playrate_max = max(self._voice_playrate_min, min(1.75, float(voice_playback_cfg.get("playrate_max", 1.14) or 1.14)))
         raw_cooldowns = cfg.get("sfx_cooldowns", {})
         self._sfx_cooldowns = {}
         if isinstance(raw_cooldowns, dict):
@@ -339,6 +360,7 @@ class AudioDirector:
                     continue
                 self._sfx_cooldowns[norm_key] = seconds
         self._sfx_last_play = {}
+        self._priority_cfg = self._build_priority_config(cfg.get("priority", {}))
 
         self._music_channel = _LoopChannel(
             self.app,
@@ -352,6 +374,170 @@ class AudioDirector:
             fade_time=max(0.05, self._crossfade_time * 0.8),
             use_music=False,
         )
+        self._bind_event_bus()
+
+    def _cleanup_voice_instances(self):
+        alive = []
+        for snd in list(self._active_voice):
+            if not snd:
+                continue
+            try:
+                if snd.status() == AudioSound.PLAYING:
+                    alive.append(snd)
+            except Exception:
+                continue
+        self._active_voice = alive
+
+    def _voice_delivery(self, base_volume, base_rate=1.0):
+        volume = _clamp01(base_volume)
+        rate = max(0.5, min(1.75, float(base_rate or 1.0)))
+        if self._voice_volume_jitter > 0.0:
+            volume = _clamp01(volume + self._rng.uniform(-self._voice_volume_jitter, self._voice_volume_jitter))
+        if self._voice_rate_jitter > 0.0:
+            rate += self._rng.uniform(-self._voice_rate_jitter, self._voice_rate_jitter)
+        rate = max(self._voice_playrate_min, min(self._voice_playrate_max, rate))
+        return volume, rate
+
+    def _int_priority(self, value, default):
+        try:
+            out = int(value)
+        except Exception:
+            out = int(default)
+        return max(-999, min(999, out))
+
+    def _build_priority_config(self, payload):
+        music = {
+            "default": 10,
+            "location": 44,
+            "context": 64,
+            "combat": 86,
+            "boss": 96,
+            "override": 120,
+        }
+        ambient = {
+            "default": 12,
+            "biome": 28,
+            "location": 46,
+            "context": 62,
+            "water": 86,
+            "flight": 78,
+            "override": 110,
+        }
+        music_context = {}
+        ambient_context = {}
+        if isinstance(payload, dict):
+            row_music = payload.get("music", {})
+            if isinstance(row_music, dict):
+                for key, value in row_music.items():
+                    token = _norm_key(key)
+                    if token:
+                        music[token] = self._int_priority(value, music.get(token, 10))
+            row_ambient = payload.get("ambient", {})
+            if isinstance(row_ambient, dict):
+                for key, value in row_ambient.items():
+                    token = _norm_key(key)
+                    if token:
+                        ambient[token] = self._int_priority(value, ambient.get(token, 12))
+            row_music_ctx = payload.get("music_context", {})
+            if isinstance(row_music_ctx, dict):
+                for key, value in row_music_ctx.items():
+                    token = _norm_key(key)
+                    if token:
+                        music_context[token] = self._int_priority(value, music.get("context", 64))
+            row_ambient_ctx = payload.get("ambient_context", {})
+            if isinstance(row_ambient_ctx, dict):
+                for key, value in row_ambient_ctx.items():
+                    token = _norm_key(key)
+                    if token:
+                        ambient_context[token] = self._int_priority(value, ambient.get("context", 62))
+        return {
+            "music": music,
+            "ambient": ambient,
+            "music_context": music_context,
+            "ambient_context": ambient_context,
+        }
+
+    def _prio(self, family, key, fallback):
+        cfg = self._priority_cfg.get(family, {})
+        if not isinstance(cfg, dict):
+            return self._int_priority(fallback, fallback)
+        return self._int_priority(cfg.get(_norm_key(key), fallback), fallback)
+
+    def _bind_event_bus(self):
+        bus = getattr(self.app, "event_bus", None)
+        if not bus or not hasattr(bus, "subscribe"):
+            return
+        try:
+            bus.subscribe("audio.sfx.play", self._on_event_sfx, priority=70)
+            bus.subscribe("audio.voice.play", self._on_event_voice, priority=72)
+            bus.subscribe("audio.route.override", self._on_event_route_override, priority=76)
+            bus.subscribe("audio.route.clear", self._on_event_route_clear, priority=76)
+        except Exception as exc:
+            logger.debug(f"[Audio] Event bus bind failed: {exc}")
+
+    def _on_event_sfx(self, event_name, payload):
+        _ = event_name
+        if not isinstance(payload, dict):
+            return
+        self.play_sfx(
+            payload.get("key", ""),
+            volume=payload.get("volume", 1.0),
+            rate=payload.get("rate", 1.0),
+        )
+
+    def _on_event_voice(self, event_name, payload):
+        _ = event_name
+        if not isinstance(payload, dict):
+            return
+        key = str(payload.get("key", "") or "").strip()
+        path = str(payload.get("path", "") or "").strip()
+        if key:
+            self.play_voice_key(key, volume=payload.get("volume", 1.0), rate=payload.get("rate", 1.0))
+        elif path:
+            self.play_voice_path(path, volume=payload.get("volume", 1.0), rate=payload.get("rate", 1.0))
+
+    def _on_event_route_override(self, event_name, payload):
+        _ = event_name
+        if not isinstance(payload, dict):
+            return
+        self.request_route_override(
+            music_key=payload.get("music_key"),
+            ambient_key=payload.get("ambient_key"),
+            priority=payload.get("priority", self._prio("music", "override", 120)),
+            hold_seconds=payload.get("hold_seconds", 0.0),
+            owner=payload.get("owner", "event_bus"),
+        )
+
+    def _on_event_route_clear(self, event_name, payload):
+        _ = event_name
+        _ = payload
+        self.clear_route_override()
+
+    def request_route_override(self, music_key=None, ambient_key=None, priority=120, hold_seconds=0.0, owner="runtime"):
+        now = globalClock.getFrameTime()
+        token_music = _norm_key(music_key) if music_key else ""
+        token_ambient = _norm_key(ambient_key) if ambient_key else ""
+        if not token_music and not token_ambient:
+            return False
+        duration = float(hold_seconds or 0.0)
+        target_until = now + duration if duration > 0.0 else (now + 86400.0)
+        prio = self._int_priority(priority, self._prio("music", "override", 120))
+        if isinstance(self._route_override, dict):
+            active_until = float(self._route_override.get("until", -9999.0))
+            old_prio = int(self._route_override.get("priority", -999))
+            if now < active_until and prio < old_prio:
+                return False
+        self._route_override = {
+            "music_key": token_music,
+            "ambient_key": token_ambient,
+            "priority": prio,
+            "until": target_until,
+            "owner": str(owner or "runtime"),
+        }
+        return True
+
+    def clear_route_override(self):
+        self._route_override = None
 
     def _active_sfx_count(self):
         total = 0
@@ -543,6 +729,92 @@ class AudioDirector:
                 pass
         return "plains"
 
+    def _runtime_context_tags(self, location_key):
+        tags = []
+        low = str(location_key or "").lower()
+        if "dock" in low or "port" in low:
+            tags.append("docks")
+            tags.append("town")
+        if "coast" in low or "sea" in low or "shore" in low:
+            tags.append("coast")
+        if "forest" in low or "grove" in low:
+            tags.append("forest")
+        if "castle" in low or "keep" in low:
+            tags.append("castle")
+        if "training" in low:
+            tags.append("tutorial")
+
+        player = getattr(self.app, "player", None)
+        if player:
+            if bool(getattr(player, "_is_flying", False)):
+                tags.append("flight")
+            cs = getattr(player, "cs", None)
+            if cs and getattr(cs, "inWater", False):
+                tags.append("water")
+            vm = getattr(self.app, "vehicle_mgr", None)
+            if vm and bool(getattr(vm, "is_mounted", False)):
+                kind = ""
+                mounted = vm.mounted_vehicle() if hasattr(vm, "mounted_vehicle") else None
+                if isinstance(mounted, dict):
+                    kind = _norm_key(mounted.get("kind", ""))
+                if kind:
+                    tags.append(f"mounted_{kind}")
+                tags.append("mounted")
+            if getattr(player, "_was_wallrun", False):
+                tags.append("parkour")
+            brain = getattr(player, "brain", None)
+            if brain and isinstance(getattr(brain, "mental", None), dict):
+                fear = float(brain.mental.get("fear", 0.0) or 0.0)
+                if fear >= 0.72:
+                    tags.append("panic")
+            if cs and hasattr(cs, "health") and hasattr(cs, "maxHealth"):
+                try:
+                    hp_ratio = float(cs.health) / max(1.0, float(cs.maxHealth))
+                    if hp_ratio <= 0.35:
+                        tags.append("injured")
+                except Exception:
+                    pass
+
+        if self._is_boss_context(location_key):
+            tags.insert(0, "boss")
+        elif self._is_combat_active():
+            tags.insert(0, "combat")
+        return tags
+
+    def _pick_context_music(self, location_key):
+        best_token = None
+        best_tag = ""
+        best_priority = -999
+        for tag in self._runtime_context_tags(location_key):
+            token = _norm_key(self._context_music.get(_norm_key(tag), ""))
+            if token:
+                prio = self._int_priority(
+                    self._priority_cfg.get("music_context", {}).get(_norm_key(tag), self._prio("music", "context", 64)),
+                    self._prio("music", "context", 64),
+                )
+                if prio > best_priority:
+                    best_priority = prio
+                    best_token = token
+                    best_tag = str(tag)
+        if best_token:
+            return best_token, f"context:{best_tag}", int(best_priority)
+        return None, "", -999
+
+    def _pick_context_ambient(self, location_key):
+        best_token = None
+        best_priority = -999
+        for tag in self._runtime_context_tags(location_key):
+            token = _norm_key(self._context_ambient.get(_norm_key(tag), ""))
+            if token:
+                prio = self._int_priority(
+                    self._priority_cfg.get("ambient_context", {}).get(_norm_key(tag), self._prio("ambient", "context", 62)),
+                    self._prio("ambient", "context", 62),
+                )
+                if prio > best_priority:
+                    best_priority = prio
+                    best_token = token
+        return best_token, int(best_priority)
+
     def _player_in_water(self):
         player = getattr(self.app, "player", None)
         cs = getattr(player, "cs", None) if player else None
@@ -602,33 +874,71 @@ class AudioDirector:
     def _pick_gameplay_music(self):
         location_key = self._location_key()
         biome_key = self._infer_biome_key(location_key)
+        candidates = []
 
-        if self._is_boss_context(location_key):
-            return "boss", biome_key, location_key, "boss_presence"
-
-        combat_active = self._is_combat_active()
-        if combat_active:
-            return "combat", biome_key, location_key, "combat"
+        candidates.append(
+            ("overworld", self._prio("music", "default", 10), "overworld_default")
+        )
 
         loc_music = self._location_music.get(location_key)
         if isinstance(loc_music, str) and loc_music.strip():
-            return _norm_key(loc_music), biome_key, location_key, f"location:{location_key}"
+            candidates.append(
+                (_norm_key(loc_music), self._prio("music", "location", 44), f"location:{location_key}")
+            )
 
-        return "overworld", biome_key, location_key, "overworld_default"
+        context_music, context_reason, context_prio = self._pick_context_music(location_key)
+        if context_music:
+            candidates.append((context_music, context_prio, context_reason))
+
+        if self._is_combat_active():
+            candidates.append(("combat", self._prio("music", "combat", 86), "combat"))
+        if self._is_boss_context(location_key):
+            candidates.append(("boss", self._prio("music", "boss", 96), "boss_presence"))
+
+        now = globalClock.getFrameTime()
+        override = self._route_override if isinstance(self._route_override, dict) else None
+        if override:
+            if now > float(override.get("until", -9999.0)):
+                self._route_override = None
+            else:
+                music_key = _norm_key(override.get("music_key", ""))
+                if music_key:
+                    candidates.append((music_key, int(override.get("priority", 120)), f"override:{override.get('owner', '')}"))
+
+        best = max(candidates, key=lambda row: int(row[1])) if candidates else ("overworld", 10, "overworld_default")
+        return best[0], biome_key, location_key, best[2]
 
     def _pick_gameplay_ambient(self, biome_key, location_key):
+        candidates = []
+        candidates.append(("plains", self._prio("ambient", "default", 12)))
+
+        bio = self._biome_ambient.get(biome_key)
+        biome_token = _norm_key(bio) if isinstance(bio, str) else _norm_key(biome_key)
+        if biome_token:
+            candidates.append((biome_token, self._prio("ambient", "biome", 28)))
+
         loc_ambient = self._location_ambient.get(location_key)
         if isinstance(loc_ambient, str) and loc_ambient.strip():
-            key = _norm_key(loc_ambient)
-        else:
-            bio = self._biome_ambient.get(biome_key)
-            key = _norm_key(bio) if isinstance(bio, str) else _norm_key(biome_key)
+            candidates.append((_norm_key(loc_ambient), self._prio("ambient", "location", 46)))
+
+        context_ambient, context_prio = self._pick_context_ambient(location_key)
+        if context_ambient:
+            candidates.append((context_ambient, context_prio))
 
         if self._player_in_water():
-            key = "water"
+            candidates.append(("water", self._prio("ambient", "water", 86)))
         elif self._player_is_flying():
-            key = "wind"
-        return key
+            candidates.append(("wind", self._prio("ambient", "flight", 78)))
+
+        override = self._route_override if isinstance(self._route_override, dict) else None
+        now = globalClock.getFrameTime()
+        if override and now <= float(override.get("until", -9999.0)):
+            ambient_key = _norm_key(override.get("ambient_key", ""))
+            if ambient_key:
+                candidates.append((ambient_key, int(override.get("priority", 110))))
+
+        best = max(candidates, key=lambda row: int(row[1])) if candidates else ("plains", 12)
+        return best[0]
 
     def _choose_targets(self):
         state_mgr = getattr(self.app, "state_mgr", None)
@@ -673,8 +983,106 @@ class AudioDirector:
             ambient_gain *= self._mix_boss_ambient_duck
         elif self._is_combat_active():
             ambient_gain *= self._mix_combat_ambient_duck
+        self._cleanup_voice_instances()
+        if self._active_voice:
+            music_gain *= self._mix_voice_music_duck
+            ambient_gain *= self._mix_voice_ambient_duck
 
         return _clamp01(music_gain), _clamp01(ambient_gain)
+
+    def play_voice_path(self, path, volume=1.0, rate=1.0):
+        resolved = self._resolve_path(path)
+        if not resolved:
+            self._warn_missing_once(f"voice:{path}")
+            return False
+        try:
+            snd = self.app.loader.loadSfx(resolved)
+        except Exception as exc:
+            logger.warning(f"[Audio] Failed to load voice clip '{path}': {exc}")
+            return False
+        if not snd:
+            self._warn_missing_once(f"voice:{path}")
+            return False
+        try:
+            final_volume, final_rate = self._voice_delivery(float(volume) * self._voice_volume, base_rate=rate)
+            snd.setVolume(final_volume)
+            try:
+                snd.setPlayRate(final_rate)
+            except Exception:
+                pass
+            snd.play()
+            self._active_voice.append(snd)
+            return True
+        except Exception as exc:
+            logger.warning(f"[Audio] Failed to play voice clip '{path}': {exc}")
+            return False
+
+    def play_voice_key(self, voice_key, volume=1.0, rate=1.0):
+        token = str(voice_key or "").strip().replace("\\", "/")
+        if not token:
+            return False
+        base = str(self._voices_path or "data/audio/voices").strip().replace("\\", "/")
+        low = token.lower()
+        if low.endswith((".ogg", ".mp3", ".wav")):
+            candidate = token
+            if not token.startswith(base):
+                candidate = f"{base}/{token}"
+            return self.play_voice_path(candidate, volume=volume, rate=rate)
+        for ext in (".ogg", ".mp3", ".wav"):
+            candidate = f"{base}/{token}{ext}"
+            if self.play_voice_path(candidate, volume=volume, rate=rate):
+                return True
+        return False
+
+    def warmup_cache(self, include_sfx=True, sfx_limit=14):
+        """Preload key audio clips to avoid first-play hitching after lazy world boot."""
+        warmed = 0
+        seen_music = set()
+        seen_sfx = set()
+
+        def _prime_loop(mapping, use_music):
+            nonlocal warmed
+            if not isinstance(mapping, dict):
+                return
+            for spec in mapping.values():
+                path, _ = self._resolve_spec(spec)
+                if not path:
+                    continue
+                if path in seen_music:
+                    continue
+                seen_music.add(path)
+                try:
+                    snd = self.app.loader.loadMusic(path) if use_music else self.app.loader.loadSfx(path)
+                except Exception:
+                    snd = None
+                if snd:
+                    warmed += 1
+
+        _prime_loop(self._music, use_music=True)
+        _prime_loop(self._ambient, use_music=False)
+
+        if include_sfx:
+            remaining = max(0, int(sfx_limit or 0))
+            for spec in self._sfx.values():
+                if remaining <= 0:
+                    break
+                path, _ = self._resolve_spec(spec)
+                if not path or path in seen_sfx:
+                    continue
+                seen_sfx.add(path)
+                pool = self._sfx_pool.setdefault(path, [])
+                if pool:
+                    remaining -= 1
+                    continue
+                try:
+                    snd = self.app.loader.loadSfx(path)
+                except Exception:
+                    snd = None
+                if snd:
+                    pool.append(snd)
+                    warmed += 1
+                    remaining -= 1
+        return warmed
 
     def update(self, dt):
         self._music_channel.set_fade_time(self._crossfade_time)
