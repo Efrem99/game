@@ -46,6 +46,8 @@ def _release_single_instance():
 
 def _prepare_runtime(root):
     os.chdir(root)
+    if root not in sys.path:
+        sys.path.insert(0, root)
     src = os.path.join(root, "src")
     if src not in sys.path:
         sys.path.insert(0, src)

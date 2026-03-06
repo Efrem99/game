@@ -20,6 +20,9 @@ build/
 build-cpp/
 cmake-build*/
 dist/
+release/build/
+release/dist/
+release/out/
 *.obj
 *.ilk
 *.pdb

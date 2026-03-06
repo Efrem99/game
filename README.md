@@ -35,3 +35,19 @@ This project is a simple game developed using Panda3D, a powerful game engine th
 - **Contributing**: Contributions are welcome! Please open an issue or submit a pull request with your changes.
 
 For detailed documentation, refer to the [Panda3D Documentation](https://docs.panda3d.org/).
+
+## Workspace Modes
+
+- **Dev workspace (mandatory):** this repository and its source folders are the authoritative development environment.
+- **Player build:** generated separately from `release/` (EXE bundle + installer).
+
+### Player Build (Windows)
+
+1. Build EXE bundle:
+   ```
+   powershell -ExecutionPolicy Bypass -File release/build_player_exe.ps1
+   ```
+2. Build installer:
+   ```
+   powershell -ExecutionPolicy Bypass -File release/build_installer.ps1
+   ```
