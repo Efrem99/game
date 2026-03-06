@@ -495,12 +495,18 @@ class BaseMenu:
                 return bool(self.app.save_mgr.has_save())
             except Exception:
                 pass
+        base_dir = Path("saves")
+        if hasattr(self.app, "save_mgr") and hasattr(self.app.save_mgr, "save_dir"):
+            try:
+                base_dir = Path(self.app.save_mgr.save_dir)
+            except Exception:
+                base_dir = Path("saves")
         candidates = [
-            Path("saves/slot1.json"),
-            Path("saves/slot2.json"),
-            Path("saves/slot3.json"),
-            Path("saves/latest.json"),
-            Path("saves/autosave.json"),
+            base_dir / "slot1.json",
+            base_dir / "slot2.json",
+            base_dir / "slot3.json",
+            base_dir / "latest.json",
+            base_dir / "autosave.json",
             Path("savegame.json"),
         ]
         return any(path.exists() for path in candidates)
@@ -527,8 +533,14 @@ class BaseMenu:
                 pass
 
         out = []
+        base_dir = Path("saves")
+        if hasattr(self.app, "save_mgr") and hasattr(self.app.save_mgr, "save_dir"):
+            try:
+                base_dir = Path(self.app.save_mgr.save_dir)
+            except Exception:
+                base_dir = Path("saves")
         for idx in range(1, 4):
-            path = Path(f"saves/slot{idx}.json")
+            path = base_dir / f"slot{idx}.json"
             out.append(
                 {
                     "slot": idx,

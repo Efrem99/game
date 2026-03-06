@@ -14,9 +14,10 @@ from utils.logger import logger
 
 # Global Panda3D Configuration
 loadPrcFileData("", "window-type normal")
-loadPrcFileData("", "window-title XBot RPG Ultimate - Enhanced Edition")
+loadPrcFileData("", "window-title King Wizard")
 loadPrcFileData("", "win-size 1280 720")
 loadPrcFileData("", "win-origin 100 100")
+loadPrcFileData("", "icon-filename assets/textures/kw_logo.ico")
 loadPrcFileData("", "background-color 0.2 0.3 0.5")
 loadPrcFileData("", "show-frame-rate-meter #t")
 loadPrcFileData("", "sync-video #t")

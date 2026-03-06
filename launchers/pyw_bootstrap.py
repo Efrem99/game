@@ -9,6 +9,13 @@ from pathlib import Path
 from launchers.bootstrap import show_messagebox_error
 
 
+def _runtime_log_hint():
+    user_root = str(os.environ.get("XBOT_USER_DATA_DIR", "") or "").strip()
+    if user_root:
+        return str(Path(user_root) / "logs" / "game.log")
+    return "logs/game.log"
+
+
 def _normalize_exit_code(raw_code):
     if raw_code is None:
         return 0
@@ -43,7 +50,7 @@ def run_launcher_script(script_name, *, window_title="XBot Launcher Error"):
     except Exception as exc:
         show_messagebox_error(
             window_title,
-            f"FATAL ERROR in {script_path.name}:\n{exc}\n\nSee logs/game.log for details.",
+            f"FATAL ERROR in {script_path.name}:\n{exc}\n\nSee {_runtime_log_hint()} for details.",
         )
         try:
             from utils.logger import logger

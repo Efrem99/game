@@ -43,6 +43,7 @@ from entities.player_state_machine_mixin import PlayerStateMachineMixin
 from entities.character_brain import CharacterBrain
 from render.model_visuals import ensure_model_visual_defaults
 from utils.logger import logger
+from utils.runtime_paths import is_user_data_mode, runtime_file
 
 
 class Player(
@@ -912,7 +913,10 @@ class Player(
         return max(0.0, min(8.0, duration))
 
     def _write_animation_coverage_report(self):
-        report_path = Path("data/states/ANIMATION_COVERAGE.md")
+        if is_user_data_mode():
+            report_path = runtime_file("logs", "ANIMATION_COVERAGE.md")
+        else:
+            report_path = Path("data/states/ANIMATION_COVERAGE.md")
         try:
             report_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception:

@@ -7,6 +7,7 @@ from pathlib import Path
 from panda3d.core import LColor, Material, PNMImage, Texture, TextureStage
 
 from utils.logger import logger
+from utils.runtime_paths import is_user_data_mode, runtime_file
 
 try:
     import complexpbr
@@ -353,6 +354,10 @@ def audit_node_visual_health(node, *, max_nodes=2500, report_path="logs/scene_vi
 
     try:
         path = Path(report_path)
+        if not path.is_absolute() and is_user_data_mode():
+            normalized = str(path).replace("\\", "/")
+            if normalized.startswith("logs/"):
+                path = runtime_file(*path.parts)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as exc:

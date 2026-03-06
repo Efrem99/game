@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 
 from utils.logger import logger
+from utils.runtime_paths import runtime_file
 
 
 class PreloadManager:
@@ -21,7 +22,7 @@ class PreloadManager:
         self.assets = {}  # Runtime cache: {path: model/actor}
         self._pending_started = {}
         self._hot_scores = {}
-        self._cache_path = Path(getattr(self.app, "project_root", ".")) / self.CACHE_REL_PATH
+        self._cache_path = runtime_file("cache", "preload_manifest.json")
         self._load_cache_profile()
 
     def _norm(self, path):

@@ -10,6 +10,7 @@ from entities.animation_manifest import (
     validate_player_manifest,
 )
 from entities.player_animation_config import STATE_ANIM_FALLBACK
+from utils.runtime_paths import is_user_data_mode, runtime_file
 
 
 def _safe_read_json(path):
@@ -25,6 +26,12 @@ def _safe_write_text(path, content):
         Path(path).write_text(str(content), encoding="utf-8")
     except Exception:
         pass
+
+
+def _runtime_log_path(project_root, filename):
+    if is_user_data_mode():
+        return runtime_file("logs", str(filename))
+    return Path(project_root) / "logs" / str(filename)
 
 
 def run_animation_preflight(project_root):
@@ -135,8 +142,8 @@ def run_animation_preflight(project_root):
     else:
         report_md.append("- None")
 
-    _safe_write_text(root / "logs" / "animation_preflight.json", json.dumps(report, ensure_ascii=False, indent=2))
-    _safe_write_text(root / "logs" / "animation_preflight.md", "\n".join(report_md))
+    _safe_write_text(_runtime_log_path(root, "animation_preflight.json"), json.dumps(report, ensure_ascii=False, indent=2))
+    _safe_write_text(_runtime_log_path(root, "animation_preflight.md"), "\n".join(report_md))
     return report
 
 
@@ -235,8 +242,8 @@ def run_visual_asset_preflight(project_root):
         report_md.extend(["", "## Missing Texture References"])
         report_md.extend([f"- `{item}`" for item in missing_texture_refs[:80]])
 
-    _safe_write_text(root / "logs" / "visual_asset_preflight.json", json.dumps(report, ensure_ascii=False, indent=2))
-    _safe_write_text(root / "logs" / "visual_asset_preflight.md", "\n".join(report_md))
+    _safe_write_text(_runtime_log_path(root, "visual_asset_preflight.json"), json.dumps(report, ensure_ascii=False, indent=2))
+    _safe_write_text(_runtime_log_path(root, "visual_asset_preflight.md"), "\n".join(report_md))
     return report
 
 
@@ -340,8 +347,8 @@ def run_player_model_preflight(project_root):
         report_md.extend(["", "## Missing Candidates"])
         report_md.extend([f"- `{item}`" for item in missing[:40]])
 
-    _safe_write_text(root / "logs" / "player_model_preflight.json", json.dumps(report, ensure_ascii=False, indent=2))
-    _safe_write_text(root / "logs" / "player_model_preflight.md", "\n".join(report_md))
+    _safe_write_text(_runtime_log_path(root, "player_model_preflight.json"), json.dumps(report, ensure_ascii=False, indent=2))
+    _safe_write_text(_runtime_log_path(root, "player_model_preflight.md"), "\n".join(report_md))
     return report
 
 
@@ -372,7 +379,7 @@ def run_startup_preflight(project_root, logger=None, strict=False):
         "warning_count": len(warnings),
     }
 
-    _safe_write_text(root / "logs" / "startup_preflight.json", json.dumps(report, ensure_ascii=False, indent=2))
+    _safe_write_text(_runtime_log_path(root, "startup_preflight.json"), json.dumps(report, ensure_ascii=False, indent=2))
 
     if logger:
         logger.info(

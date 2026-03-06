@@ -23,3 +23,4 @@ This folder is for player-facing artifacts only.
 
 - This is a production scaffold and may need tuning for final art/audio payload.
 - `game_core.pyd` is included automatically when present in project root.
+- Exact file map: `release/SETUP_FILE_MAP.md`.

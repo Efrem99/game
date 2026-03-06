@@ -10,6 +10,13 @@ _INSTANCE_MUTEX_NAME = "Global\\AntiGravity.XBotRPG.SingleInstance"
 _INSTANCE_MUTEX_HANDLE = None
 
 
+def _runtime_log_hint():
+    user_root = str(os.environ.get("XBOT_USER_DATA_DIR", "") or "").strip()
+    if user_root:
+        return os.path.join(user_root, "logs", "game.log")
+    return "logs/game.log"
+
+
 def show_messagebox_error(title, message):
     try:
         ctypes.windll.user32.MessageBoxW(0, message, title, 0x10)
@@ -51,6 +58,23 @@ def _prepare_runtime(root):
     src = os.path.join(root, "src")
     if src not in sys.path:
         sys.path.insert(0, src)
+    os.environ.setdefault("XBOT_PROJECT_ROOT", root)
+
+    # Player installs (frozen exe) should never write runtime artifacts into Program Files.
+    if getattr(sys, "frozen", False):
+        user_root = str(os.environ.get("XBOT_USER_DATA_DIR", "") or "").strip()
+        if not user_root:
+            local_app_data = str(os.environ.get("LOCALAPPDATA", "") or "").strip()
+            if local_app_data:
+                user_root = os.path.join(local_app_data, "KingWizardRPG")
+            else:
+                user_root = os.path.join(os.path.expanduser("~"), "KingWizardRPG")
+            os.environ["XBOT_USER_DATA_DIR"] = user_root
+        try:
+            for folder in ("logs", "saves", "cache"):
+                os.makedirs(os.path.join(user_root, folder), exist_ok=True)
+        except Exception:
+            pass
 
 
 def run_app(startup_tag, error_handler=None, pause_on_error=False):
@@ -106,7 +130,7 @@ def run_app(startup_tag, error_handler=None, pause_on_error=False):
             return 0
         except Exception as exc:
             details = traceback.format_exc()
-            error_text = f"FATAL ERROR during startup:\n{exc}\n\nSee logs/game.log for details."
+            error_text = f"FATAL ERROR during startup:\n{exc}\n\nSee {_runtime_log_hint()} for details."
             try:
                 logger.error(error_text)
                 logger.error(details)

@@ -3,12 +3,11 @@ from logging.handlers import RotatingFileHandler
 import sys
 import os
 from datetime import datetime
+from utils.runtime_paths import runtime_dir
 
 def setup_logger():
     # Create log directory if it doesn't exist
-    log_dir = "logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    log_dir = runtime_dir("logs")
 
     logger = logging.getLogger("XBotRPG")
     if logger.handlers:
@@ -29,7 +28,7 @@ def setup_logger():
         stream_handler.setFormatter(formatter)
         logger.addHandler(stream_handler)
 
-    log_file = os.path.join(log_dir, "game.log")
+    log_file = str(log_dir / "game.log")
     file_handler = None
     try:
         # Keep logs bounded to avoid multi-hundred-MB growth during long sessions.
@@ -43,7 +42,7 @@ def setup_logger():
     except Exception:
         # Fallback for locked/invalid file states.
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        fallback = os.path.join(log_dir, f"game_{ts}_{os.getpid()}.log")
+        fallback = str(log_dir / f"game_{ts}_{os.getpid()}.log")
         try:
             file_handler = RotatingFileHandler(
                 fallback,
@@ -59,7 +58,7 @@ def setup_logger():
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-    logger.info("Logger initialized. Outputting to console and logs/game.log")
+    logger.info(f"Logger initialized. Outputting to console and {log_file}")
     return logger
 
 # Global logger instance

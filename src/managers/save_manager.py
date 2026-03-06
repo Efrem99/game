@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from utils.logger import logger
+from utils.runtime_paths import runtime_dir
 
 
 class SaveManager:
@@ -11,9 +12,12 @@ class SaveManager:
     SLOT_COUNT = 3
     SAVE_VERSION = 3
 
-    def __init__(self, app, save_dir="saves"):
+    def __init__(self, app, save_dir=None):
         self.app = app
-        self.save_dir = Path(save_dir)
+        if save_dir:
+            self.save_dir = Path(save_dir)
+        else:
+            self.save_dir = runtime_dir("saves")
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.autosave_path = self.save_dir / "autosave.json"
         self.latest_path = self.save_dir / "latest.json"

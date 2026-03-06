@@ -54,6 +54,7 @@ $args = @(
     "--noconfirm",
     "--clean",
     "--windowed",
+    "--icon", "release/icons/king_wizard.ico",
     "--name", "KingWizardRPG",
     "--paths", "src",
     "--distpath", $DistPath,
