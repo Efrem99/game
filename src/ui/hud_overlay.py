@@ -2,7 +2,7 @@
 import os
 
 from direct.gui.DirectGui import DirectFrame, OnscreenImage, OnscreenText
-from panda3d.core import CardMaker, TextNode, TransparencyAttrib
+from panda3d.core import CardMaker, PNMImage, TextNode, Texture, TransparencyAttrib
 
 from ui.design_system import THEME, body_font, title_font, place_ui_on_top
 
@@ -19,14 +19,13 @@ class HUDOverlay:
         self._skill_hover_idx = None
         self._skill_preview_idx = None
         self._skill_icon_cache = {}
-        wheel_key = (
-            self.app.data_mgr.get_binding("skill_wheel")
-            or self.app.data_mgr.get_binding("attack_thrust")
-            or "tab"
-        )
+        wheel_key = self.app.data_mgr.get_binding("skill_wheel") or "tab"
         self._skill_wheel_hint_key = str(wheel_key).upper()
         lock_key = self.app.data_mgr.get_binding("target_lock") or "t"
         self._target_lock_hint_key = str(lock_key).upper()
+        self._cast_hint_key = "LMB"
+        self._ultimate_hint_key = "Q"
+        self._refresh_control_hint_tokens()
         self._xp = 0
         self._gold = 0
         self._checkpoint_pulse = 0.0
@@ -47,6 +46,30 @@ class HUDOverlay:
         except Exception:
             self._npc_scene_debug_max = 5
         self._npc_scene_debug_ttl = 9.0
+        self._bar_values = {
+            "hp": 1.0,
+            "stamina": 1.0,
+            "mana": 1.0,
+        }
+        self._bar_seeded = False
+        self._reticle_pulse = 0.0
+        self._hp_ring_segments = []
+        self._stamina_ring_segments = []
+        self._mana_ring_segments = []
+        self._ring_style = {
+            "hp": {
+                "active": (0.92, 0.30, 0.30, 0.96),
+                "inactive": (0.20, 0.08, 0.08, 0.36),
+            },
+            "stamina": {
+                "active": (0.36, 0.86, 0.40, 0.95),
+                "inactive": (0.08, 0.20, 0.09, 0.34),
+            },
+            "mana": {
+                "active": (0.38, 0.58, 0.98, 0.96),
+                "inactive": (0.08, 0.13, 0.24, 0.34),
+            },
+        }
 
         self.root = DirectFrame(
             frameColor=(0, 0, 0, 0),
@@ -65,6 +88,7 @@ class HUDOverlay:
         self._create_targeting_reticle()
         self._create_tutorial_hint()
         self._create_mount_hint()
+        self._create_stealth_hint()
         self._create_skill_wheel()
         self._create_autosave_badge()
         self._create_npc_scene_debug()
@@ -168,8 +192,224 @@ class HUDOverlay:
             mayChange=True,
             font=b_font,
         )
-        for node in (self.hp_label, self.sp_label, self.mp_label):
+        self.hp_value = OnscreenText(
+            text="",
+            pos=(-0.95, -0.83),
+            scale=0.027,
+            fg=THEME["text_main"],
+            shadow=(0, 0, 0, 0.72),
+            align=TextNode.ARight,
+            parent=self.root,
+            mayChange=True,
+            font=b_font,
+        )
+        self.sp_value = OnscreenText(
+            text="",
+            pos=(-0.95, -0.88),
+            scale=0.027,
+            fg=THEME["text_main"],
+            shadow=(0, 0, 0, 0.72),
+            align=TextNode.ARight,
+            parent=self.root,
+            mayChange=True,
+            font=b_font,
+        )
+        self.mp_value = OnscreenText(
+            text="",
+            pos=(-0.95, -0.93),
+            scale=0.027,
+            fg=THEME["text_main"],
+            shadow=(0, 0, 0, 0.72),
+            align=TextNode.ARight,
+            parent=self.root,
+            mayChange=True,
+            font=b_font,
+        )
+        for node in (
+            self.hp_label,
+            self.sp_label,
+            self.mp_label,
+            self.hp_value,
+            self.sp_value,
+            self.mp_value,
+        ):
             place_ui_on_top(node, 84)
+
+        # Legacy linear bars are kept for compatibility, but hidden in current radial HUD layout.
+        for node in (self.hp_bg, self.sp_bg, self.mp_bg, self.hp_fill, self.sp_fill, self.mp_fill):
+            node.hide()
+        for node in (self.hp_label, self.sp_label, self.mp_label):
+            node.hide()
+
+        self.hp_value.setPos(-1.18, -0.72)
+        self.sp_value.setPos(-1.32, -0.87)
+        self.mp_value.setPos(-1.04, -0.87)
+        self.hp_value.setFg((0.95, 0.82, 0.82, 0.95))
+        self.sp_value.setFg((0.82, 0.95, 0.84, 0.95))
+        self.mp_value.setFg((0.82, 0.88, 0.98, 0.95))
+        self._create_vitals_orb()
+
+    def _build_circle_texture(
+        self,
+        tex_name,
+        *,
+        size=128,
+        inner=0.0,
+        outer=1.0,
+        rgb=(1.0, 1.0, 1.0),
+        alpha=1.0,
+        feather=0.02,
+    ):
+        img = PNMImage(size, size, 4)
+        cx = (size - 1) * 0.5
+        cy = (size - 1) * 0.5
+        inv = 1.0 / max(1.0, float(cx))
+        inner = max(0.0, min(1.0, float(inner)))
+        outer = max(inner, min(1.0, float(outer)))
+        feather = max(0.0001, float(feather))
+        r0 = max(0.0, outer - feather)
+        r1 = min(1.0, outer + feather)
+        i0 = max(0.0, inner - feather)
+        i1 = min(1.0, inner + feather)
+
+        for py in range(size):
+            for px in range(size):
+                dx = (float(px) - cx) * inv
+                dy = (float(py) - cy) * inv
+                dist = math.sqrt((dx * dx) + (dy * dy))
+                if dist < inner or dist > outer:
+                    a = 0.0
+                else:
+                    a = float(alpha)
+                    if dist > r0:
+                        edge = max(0.0, min(1.0, (r1 - dist) / max(1e-6, (r1 - r0))))
+                        a *= edge
+                    if dist < i1:
+                        edge = max(0.0, min(1.0, (dist - i0) / max(1e-6, (i1 - i0))))
+                        a *= edge
+                img.setXelA(px, py, float(rgb[0]), float(rgb[1]), float(rgb[2]), a)
+
+        tex = Texture(tex_name)
+        tex.load(img)
+        tex.setMinfilter(Texture.FTLinearMipmapLinear)
+        tex.setMagfilter(Texture.FTLinear)
+        return tex
+
+    def _create_ring_segments(self, parent, radius, thickness, *, segments=56, color=(1.0, 1.0, 1.0, 1.0)):
+        out = []
+        seg_count = max(12, int(segments))
+        arc_step = (math.pi * 2.0) / float(seg_count)
+        seg_len = max(0.003, ((2.0 * math.pi * float(radius)) / float(seg_count)) * 0.88)
+        for idx in range(seg_count):
+            angle = (math.pi * 0.5) - (float(idx) * arc_step)
+            x = math.cos(angle) * float(radius)
+            z = math.sin(angle) * float(radius)
+            seg = DirectFrame(
+                frameColor=color,
+                frameSize=(-seg_len * 0.5, seg_len * 0.5, -thickness * 0.5, thickness * 0.5),
+                pos=(x, 0, z),
+                parent=parent,
+            )
+            seg.setR((-math.degrees(angle)) + 90.0)
+            place_ui_on_top(seg, 84)
+            out.append(seg)
+        return out
+
+    def _set_ring_fill(self, segments, pct, active_color, inactive_color):
+        if not segments:
+            return
+        pct = max(0.0, min(1.0, float(pct or 0.0)))
+        total = len(segments)
+        exact = pct * float(total)
+        full = int(math.floor(exact))
+        partial = exact - float(full)
+        for idx, node in enumerate(segments):
+            if idx < full:
+                node["frameColor"] = active_color
+            elif idx == full and partial > 0.0 and full < total:
+                node["frameColor"] = (
+                    inactive_color[0] + ((active_color[0] - inactive_color[0]) * partial),
+                    inactive_color[1] + ((active_color[1] - inactive_color[1]) * partial),
+                    inactive_color[2] + ((active_color[2] - inactive_color[2]) * partial),
+                    inactive_color[3] + ((active_color[3] - inactive_color[3]) * partial),
+                )
+            else:
+                node["frameColor"] = inactive_color
+
+    def _create_vitals_orb(self):
+        self.vitals_root = DirectFrame(
+            frameColor=(0, 0, 0, 0),
+            frameSize=(-0.24, 0.24, -0.24, 0.24),
+            pos=(-1.18, 0, -0.86),
+            parent=self.root,
+        )
+        place_ui_on_top(self.vitals_root, 84)
+
+        avatar_ring_tex = self._build_circle_texture(
+            "hud_avatar_ring",
+            size=128,
+            inner=0.82,
+            outer=1.0,
+            rgb=(0.90, 0.78, 0.42),
+            alpha=0.95,
+            feather=0.04,
+        )
+        avatar_disc_tex = self._build_circle_texture(
+            "hud_avatar_disc",
+            size=128,
+            inner=0.0,
+            outer=1.0,
+            rgb=(0.09, 0.09, 0.12),
+            alpha=0.90,
+            feather=0.02,
+        )
+        avatar_core_tex = self._build_circle_texture(
+            "hud_avatar_core",
+            size=128,
+            inner=0.0,
+            outer=1.0,
+            rgb=(0.20, 0.18, 0.15),
+            alpha=0.65,
+            feather=0.05,
+        )
+        self.avatar_disc = OnscreenImage(image=avatar_disc_tex, pos=(0, 0, 0), scale=0.084, parent=self.vitals_root)
+        self.avatar_core = OnscreenImage(image=avatar_core_tex, pos=(0, 0, 0), scale=0.074, parent=self.vitals_root)
+        self.avatar_ring = OnscreenImage(image=avatar_ring_tex, pos=(0, 0, 0), scale=0.090, parent=self.vitals_root)
+        self.avatar_monogram = OnscreenText(
+            text="SW",
+            pos=(0.0, -0.018),
+            scale=0.045,
+            fg=THEME["gold_soft"],
+            shadow=(0, 0, 0, 0.78),
+            align=TextNode.ACenter,
+            parent=self.vitals_root,
+            mayChange=False,
+            font=title_font(self.app),
+        )
+        for node in (self.avatar_disc, self.avatar_core, self.avatar_ring, self.avatar_monogram):
+            place_ui_on_top(node, 85)
+
+        self._hp_ring_segments = self._create_ring_segments(
+            self.vitals_root,
+            radius=0.126,
+            thickness=0.010,
+            segments=58,
+            color=self._ring_style["hp"]["inactive"],
+        )
+        self._stamina_ring_segments = self._create_ring_segments(
+            self.vitals_root,
+            radius=0.109,
+            thickness=0.009,
+            segments=54,
+            color=self._ring_style["stamina"]["inactive"],
+        )
+        self._mana_ring_segments = self._create_ring_segments(
+            self.vitals_root,
+            radius=0.092,
+            thickness=0.008,
+            segments=50,
+            color=self._ring_style["mana"]["inactive"],
+        )
 
     def _create_combo(self):
         self.combo_text = OnscreenText(
@@ -576,18 +816,23 @@ class HUDOverlay:
             place_ui_on_top(node, 86)
 
     def _update_targeting_reticle(self, dt, target_info=None):
-        _ = dt
+        dt = max(0.0, float(dt or 0.0))
+        self._reticle_pulse = (self._reticle_pulse + dt * 4.0) % (math.pi * 4.0)
         base = (0.88, 0.86, 0.80, 0.34)
         line_color = base
         dot_color = (0.90, 0.88, 0.82, 0.45)
         label = ""
         hint = ""
+        pulse_boost = 0.0
+        track_target = False
 
         if isinstance(target_info, dict):
+            track_target = True
             kind = str(target_info.get("kind", "")).strip().lower()
             name = str(target_info.get("name", "") or "").strip()
             locked = bool(target_info.get("locked", False))
             if locked:
+                pulse_boost = 0.95
                 line_color = (0.96, 0.42, 0.36, 0.95)
                 dot_color = (1.0, 0.58, 0.52, 0.98)
                 label = f"{self.app.data_mgr.t('hud.target_locked', 'LOCKED')}: {name or kind.title()}"
@@ -596,6 +841,7 @@ class HUDOverlay:
                     f"Press {self._target_lock_hint_key} to release",
                 )
             else:
+                pulse_boost = 0.42
                 tone = (0.95, 0.83, 0.44, 0.72)
                 if kind == "enemy":
                     tone = (0.96, 0.57, 0.42, 0.76)
@@ -610,6 +856,19 @@ class HUDOverlay:
                     "hud.target_lock_hint",
                     f"Press {self._target_lock_hint_key} to lock",
                 )
+
+        pulse = (0.5 + 0.5 * math.sin(self._reticle_pulse * (2.4 if pulse_boost > 0.8 else 1.7))) if track_target else 0.0
+        offset = (0.0012 + 0.0026 * pulse) * pulse_boost
+        inner = 0.010 + offset
+        outer = 0.026 + offset
+        thickness = 0.0016 + (0.0003 * pulse * pulse_boost)
+        dot_half = 0.0018 + (0.0007 * pulse * max(0.3, pulse_boost))
+        self.reticle_root.setScale(1.0 + (0.07 * pulse * pulse_boost))
+        self.reticle_line_top["frameSize"] = (-thickness, thickness, inner, outer)
+        self.reticle_line_bottom["frameSize"] = (-thickness, thickness, -outer, -inner)
+        self.reticle_line_left["frameSize"] = (-outer, -inner, -thickness, thickness)
+        self.reticle_line_right["frameSize"] = (inner, outer, -thickness, thickness)
+        self.reticle_dot["frameSize"] = (-dot_half, dot_half, -dot_half, dot_half)
 
         for node in (
             self.reticle_line_top,
@@ -635,6 +894,20 @@ class HUDOverlay:
             font=body_font(self.app),
         )
         place_ui_on_top(self.mount_hint_text, 84)
+
+    def _create_stealth_hint(self):
+        self.stealth_text = OnscreenText(
+            text="",
+            pos=(-1.36, -0.72),
+            scale=0.026,
+            fg=THEME["text_muted"],
+            shadow=(0, 0, 0, 0.82),
+            align=TextNode.ALeft,
+            parent=self.root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        place_ui_on_top(self.stealth_text, 84)
 
     def _create_tutorial_hint(self):
         self.tutorial_panel = DirectFrame(
@@ -1395,9 +1668,37 @@ class HUDOverlay:
         else:
             self.skill_center_text.setText("No learned skills")
 
+        self._refresh_control_hint_tokens()
         self.skill_controls_text.setText(
-            f"Hold {self._skill_wheel_hint_key}: Skill Wheel  |  LMB: Cast  |  F: Ultimate"
+            f"Hold {self._skill_wheel_hint_key}: Skill Wheel  |  {self._cast_hint_key}: Cast  |  {self._ultimate_hint_key}: Ultimate"
         )
+
+    def _fmt_key_hint(self, token):
+        raw = str(token or "").strip().lower()
+        if not raw:
+            return "?"
+        if raw == "mouse1":
+            return "LMB"
+        if raw == "mouse2":
+            return "RMB"
+        if raw in {"mouse3", "middlemouse"}:
+            return "MMB"
+        if raw.startswith("arrow_"):
+            return raw.replace("arrow_", "ARROW ").upper()
+        return raw.upper()
+
+    def _refresh_control_hint_tokens(self):
+        dm = getattr(self.app, "data_mgr", None)
+        if not dm:
+            return
+        wheel = dm.get_binding("skill_wheel") or "tab"
+        cast = dm.get_binding("attack_light") or "mouse1"
+        ultimate = dm.get_binding("block") or "q"
+        lock = dm.get_binding("target_lock") or "t"
+        self._skill_wheel_hint_key = self._fmt_key_hint(wheel)
+        self._cast_hint_key = self._fmt_key_hint(cast)
+        self._ultimate_hint_key = self._fmt_key_hint(ultimate)
+        self._target_lock_hint_key = self._fmt_key_hint(lock)
 
     def _create_autosave_badge(self):
         logo_path = "assets/textures/kw_logo.png"
@@ -1507,6 +1808,7 @@ class HUDOverlay:
         self.npc_scene_debug_text.setText("")
 
     def refresh_locale(self):
+        self._refresh_control_hint_tokens()
         self.hp_label.setText(self.app.data_mgr.t("stats.health", "Health"))
         self.sp_label.setText(self.app.data_mgr.t("stats.stamina", "Stamina"))
         self.mp_label.setText(self.app.data_mgr.t("stats.mana", "Mana"))
@@ -1532,6 +1834,36 @@ class HUDOverlay:
     def _set_fill(self, fill, pct):
         width = 0.34 * max(0.0, min(1.0, pct))
         fill["frameSize"] = (0.0, width, -0.011, 0.011)
+        if fill is self.hp_fill:
+            self._set_ring_fill(
+                self._hp_ring_segments,
+                pct,
+                self._ring_style["hp"]["active"],
+                self._ring_style["hp"]["inactive"],
+            )
+        elif fill is self.sp_fill:
+            self._set_ring_fill(
+                self._stamina_ring_segments,
+                pct,
+                self._ring_style["stamina"]["active"],
+                self._ring_style["stamina"]["inactive"],
+            )
+        elif fill is self.mp_fill:
+            self._set_ring_fill(
+                self._mana_ring_segments,
+                pct,
+                self._ring_style["mana"]["active"],
+                self._ring_style["mana"]["inactive"],
+            )
+
+    def _smooth_ratio(self, current, target, dt, speed=9.0):
+        target = max(0.0, min(1.0, float(target or 0.0)))
+        current = max(0.0, min(1.0, float(current or 0.0)))
+        dt = max(0.0, float(dt or 0.0))
+        if dt <= 0.0:
+            return target
+        alpha = 1.0 - math.exp(-max(0.01, float(speed)) * dt)
+        return current + (target - current) * alpha
 
     def _refresh_profile_text(self):
         self.xp_text.setText(f"{self._xp_label_text}: {self._xp}")
@@ -1614,6 +1946,7 @@ class HUDOverlay:
         tutorial_message=None,
         tutorial_state=None,
         target_info=None,
+        stealth_state=None,
     ):
         if not isinstance(profile, dict):
             profile = getattr(self.app, "profile", {})
@@ -1651,6 +1984,14 @@ class HUDOverlay:
                 self._logo_spin = (self._logo_spin + dt * 100.0) % 360.0
                 self.autosave_logo.setR(self._logo_spin)
             self.damage_text.setText("")
+            self.hp_value.setText("")
+            self.sp_value.setText("")
+            self.mp_value.setText("")
+            self._bar_seeded = False
+            self._set_fill(self.hp_fill, 0.0)
+            self._set_fill(self.sp_fill, 0.0)
+            self._set_fill(self.mp_fill, 0.0)
+            self.quest_header.hide()
             self.checkpoint_text.setText("")
             self.checkpoint_hint_text.setText("")
             self._checkpoint_marker_root.hide()
@@ -1659,10 +2000,27 @@ class HUDOverlay:
             self.minimap_hint.setText("")
             self._update_targeting_reticle(dt, target_info=None)
             self._clear_tutorial_hint()
+            self.stealth_text.setText("")
             return
-        self._set_fill(self.hp_fill, char_state.health / max(1.0, char_state.maxHealth))
-        self._set_fill(self.sp_fill, char_state.stamina / max(1.0, char_state.maxStamina))
-        self._set_fill(self.mp_fill, char_state.mana / max(1.0, char_state.maxMana))
+        hp_ratio = char_state.health / max(1.0, char_state.maxHealth)
+        sp_ratio = char_state.stamina / max(1.0, char_state.maxStamina)
+        mp_ratio = char_state.mana / max(1.0, char_state.maxMana)
+        if not self._bar_seeded:
+            self._bar_values["hp"] = hp_ratio
+            self._bar_values["stamina"] = sp_ratio
+            self._bar_values["mana"] = mp_ratio
+            self._bar_seeded = True
+        else:
+            self._bar_values["hp"] = self._smooth_ratio(self._bar_values.get("hp", hp_ratio), hp_ratio, dt)
+            self._bar_values["stamina"] = self._smooth_ratio(self._bar_values.get("stamina", sp_ratio), sp_ratio, dt)
+            self._bar_values["mana"] = self._smooth_ratio(self._bar_values.get("mana", mp_ratio), mp_ratio, dt)
+
+        self._set_fill(self.hp_fill, self._bar_values["hp"])
+        self._set_fill(self.sp_fill, self._bar_values["stamina"])
+        self._set_fill(self.mp_fill, self._bar_values["mana"])
+        self.hp_value.setText(f"{int(round(self._bar_values['hp'] * 100.0))}%")
+        self.sp_value.setText(f"{int(round(self._bar_values['stamina'] * 100.0))}%")
+        self.mp_value.setText(f"{int(round(self._bar_values['mana'] * 100.0))}%")
 
         combo_count = int(getattr(char_state, "comboCount", 0))
         if combo_count > 1:
@@ -1686,8 +2044,14 @@ class HUDOverlay:
                     lines.append(f"  {status}: {objective} ({dist_txt})")
                 elif title:
                     lines.append(title)
-            self.quest_text.setText("\n".join(lines))
+            if lines:
+                self.quest_header.show()
+                self.quest_text.setText("\n".join(lines))
+            else:
+                self.quest_header.hide()
+                self.quest_text.setText("")
         else:
+            self.quest_header.hide()
             self.quest_text.setText("")
         resolved_player_pos = self._coerce_vec3(player_pos) or self._get_player_world_pos(char_state)
         self._update_checkpoint_tracker(dt, quest_data or [], resolved_player_pos)
@@ -1698,6 +2062,27 @@ class HUDOverlay:
             self.mount_hint_text.setText(mount_hint)
         else:
             self.mount_hint_text.setText("")
+
+        if isinstance(stealth_state, dict) and stealth_state.get("active", False):
+            state_name = str(stealth_state.get("state", "exposed") or "exposed").strip().lower()
+            stealth_lvl = max(0.0, min(1.0, float(stealth_state.get("stealth_level", 0.0) or 0.0)))
+            noise_lvl = max(0.0, min(1.0, float(stealth_state.get("noise", 1.0) or 1.0)))
+            header = self.app.data_mgr.t("hud.stealth", "STEALTH")
+            if state_name == "hidden":
+                state_label = self.app.data_mgr.t("hud.stealth_hidden", "Hidden")
+                color = (0.50, 0.88, 0.62, 0.95)
+            elif state_name == "cautious":
+                state_label = self.app.data_mgr.t("hud.stealth_cautious", "Cautious")
+                color = (0.92, 0.82, 0.42, 0.95)
+            else:
+                state_label = self.app.data_mgr.t("hud.stealth_exposed", "Exposed")
+                color = (0.94, 0.54, 0.44, 0.95)
+            pct = int(round(stealth_lvl * 100.0))
+            noise_pct = int(round(noise_lvl * 100.0))
+            self.stealth_text.setText(f"{header}: {state_label}  {pct}%  |  {self.app.data_mgr.t('hud.noise', 'Noise')}: {noise_pct}%")
+            self.stealth_text.setFg(color)
+        else:
+            self.stealth_text.setText("")
 
         self._update_tutorial_hint(dt, tutorial_state=tutorial_state, tutorial_message=tutorial_message)
         self._update_npc_scene_debug(dt)

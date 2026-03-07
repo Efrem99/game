@@ -256,6 +256,22 @@
             "priority": 45,
             "can_move": true,
             "can_act": true
+        },
+        {
+            "name": "crouch_idle",
+            "animation": "crouch_idle",
+            "layer": "locomotion",
+            "priority": 45,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "crouch_move",
+            "animation": "crouch_move",
+            "layer": "locomotion",
+            "priority": 45,
+            "can_move": true,
+            "can_act": true
         }
     ],
     "rules": [
@@ -403,6 +419,8 @@
                 "idle",
                 "walking",
                 "running",
+                "crouch_idle",
+                "crouch_move",
                 "jumping",
                 "falling",
                 "landing"
@@ -416,6 +434,8 @@
                 "idle",
                 "walking",
                 "running",
+                "crouch_idle",
+                "crouch_move",
                 "jumping",
                 "falling"
             ],
@@ -427,7 +447,9 @@
             "from": [
                 "idle",
                 "walking",
-                "running"
+                "running",
+                "crouch_idle",
+                "crouch_move"
             ],
             "to": "blocking",
             "trigger": "block_start",
@@ -437,7 +459,9 @@
             "from": [
                 "idle",
                 "walking",
-                "running"
+                "running",
+                "crouch_idle",
+                "crouch_move"
             ],
             "to": "casting",
             "trigger": "cast_spell",
@@ -496,6 +520,8 @@
                 "idle",
                 "walking",
                 "running",
+                "crouch_idle",
+                "crouch_move",
                 "jumping",
                 "falling",
                 "landing",
@@ -545,7 +571,9 @@
             "from": [
                 "idle",
                 "walking",
-                "running"
+                "running",
+                "crouch_idle",
+                "crouch_move"
             ],
             "to": "jumping",
             "trigger": "jump",

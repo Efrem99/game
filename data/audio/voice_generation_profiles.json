@@ -5,6 +5,9 @@
       "rate": "-2%",
       "pitch": "-3Hz",
       "expressiveness": 0.9,
+      "openai_voice": "ash",
+      "openai_speed": 0.99,
+      "openai_instructions": "Voice Affect: Firm and disciplined. Tone: authoritative and alert. Pacing: measured and clear.",
       "pyttsx3_rate": 168,
       "pyttsx3_volume": 0.9
     },
@@ -13,6 +16,9 @@
       "rate": "-11%",
       "pitch": "-14Hz",
       "expressiveness": 1.25,
+      "openai_voice": "onyx",
+      "openai_speed": 0.95,
+      "openai_instructions": "Voice Affect: Heavy and intimidating. Tone: menacing and controlled. Pacing: deliberate with short pauses.",
       "pyttsx3_rate": 152,
       "pyttsx3_volume": 0.92
     },
@@ -21,6 +27,9 @@
       "rate": "+2%",
       "pitch": "+4Hz",
       "expressiveness": 1.2,
+      "openai_voice": "marin",
+      "openai_speed": 1.04,
+      "openai_instructions": "Voice Affect: Lively and persuasive. Tone: friendly with subtle urgency. Pacing: brisk but articulate.",
       "pyttsx3_rate": 188,
       "pyttsx3_volume": 0.95
     },
@@ -29,6 +38,9 @@
       "rate": "+1%",
       "pitch": "+4Hz",
       "expressiveness": 1.2,
+      "openai_voice": "marin",
+      "openai_speed": 1.03,
+      "openai_instructions": "Voice Affect: Lively and persuasive. Tone: friendly and opportunistic. Pacing: brisk and clear.",
       "pyttsx3_rate": 186,
       "pyttsx3_volume": 0.95
     },
@@ -37,6 +49,9 @@
       "rate": "-1%",
       "pitch": "+1Hz",
       "expressiveness": 1.05,
+      "openai_voice": "sage",
+      "openai_speed": 0.98,
+      "openai_instructions": "Voice Affect: Wise and grounded. Tone: calm and guiding. Pacing: steady with light pauses.",
       "pyttsx3_rate": 170,
       "pyttsx3_volume": 0.92
     },
@@ -45,6 +60,9 @@
       "rate": "+0%",
       "pitch": "+0Hz",
       "expressiveness": 1.0,
+      "openai_voice": "cedar",
+      "openai_speed": 1.0,
+      "openai_instructions": "Voice Affect: Human and natural. Tone: focused and emotionally restrained. Pacing: steady and clear.",
       "pyttsx3_rate": 176,
       "pyttsx3_volume": 0.93
     }
@@ -55,6 +73,9 @@
       "rate": "-3%",
       "pitch": "+2Hz",
       "expressiveness": 1.08,
+      "openai_voice": "sage",
+      "openai_speed": 0.97,
+      "openai_instructions": "Voice Affect: Warm and wise. Tone: thoughtful and reassuring. Pacing: smooth with gentle pauses.",
       "pyttsx3_rate": 166,
       "pyttsx3_volume": 0.91
     },
@@ -63,6 +84,9 @@
       "rate": "+2%",
       "pitch": "+4Hz",
       "expressiveness": 1.2,
+      "openai_voice": "marin",
+      "openai_speed": 1.04,
+      "openai_instructions": "Voice Affect: Charming and fast-thinking. Tone: persuasive and upbeat. Pacing: brisk but readable.",
       "pyttsx3_rate": 188,
       "pyttsx3_volume": 0.95
     }

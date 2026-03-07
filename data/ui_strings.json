@@ -9,7 +9,12 @@
         "health_label": "HEALTH",
         "mana_label": "MANA",
         "xp_label": "XP",
-        "active_quests": "ACTIVE QUESTS"
+        "active_quests": "ACTIVE QUESTS",
+        "stealth": "STEALTH",
+        "stealth_hidden": "Hidden",
+        "stealth_cautious": "Cautious",
+        "stealth_exposed": "Exposed",
+        "noise": "Noise"
     },
     "inventory": {
         "title": "PERSONAL GEAR",

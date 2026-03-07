@@ -145,6 +145,9 @@ class NPCManager:
             "activity_story": "",
             "activity_seed": self._rng.uniform(0.0, 1.0),
             "anim": "idle",
+            "suspicion": 0.0,
+            "alerted": False,
+            "detected_player": False,
         }
 
     def _apply_appearance_tint(self, actor, appearance):
@@ -302,6 +305,22 @@ class NPCManager:
             idle_scale *= 1.24
 
         activity = str(unit.get("activity", "idle") or "idle").strip().lower()
+        alerted = bool(unit.get("alerted", False))
+        suspicion = float(unit.get("suspicion", 0.0) or 0.0)
+        if alerted:
+            if is_guard:
+                speed_scale *= 1.22
+                wander_scale *= 1.34
+                idle_scale *= 0.72
+            else:
+                speed_scale *= 1.08
+                wander_scale *= 0.48
+                idle_scale *= 1.15
+        elif suspicion >= 0.35 and is_guard:
+            speed_scale *= 1.08
+            wander_scale *= 1.12
+            idle_scale *= 0.90
+
         if activity in {"patrol", "inspect", "escort"}:
             speed_scale *= 1.14
             wander_scale *= 1.28
@@ -500,6 +519,74 @@ class NPCManager:
         except Exception:
             return None
 
+    def _update_player_detection(self, unit, dt, stealth_state):
+        if not isinstance(stealth_state, dict):
+            stealth_state = {}
+        actor = unit.get("actor")
+        if not actor:
+            return
+
+        is_guard = self._is_guard_role(unit.get("role", ""))
+        dist = self._distance_to_player(actor)
+        if dist is None:
+            return
+
+        base_range = 18.5 if is_guard else 12.5
+        range_mult = float(stealth_state.get("detection_radius_mult", 1.0) or 1.0)
+        awareness_gain_mult = float(stealth_state.get("awareness_gain_mult", 1.0) or 1.0)
+        awareness_decay_mult = float(stealth_state.get("awareness_decay_mult", 1.0) or 1.0)
+        exposure = max(0.0, min(1.0, float(stealth_state.get("exposure", 0.9) or 0.9)))
+        noise = max(0.0, min(1.0, float(stealth_state.get("noise", 0.9) or 0.9)))
+
+        detect_range = max(3.5, base_range * max(0.4, min(1.6, range_mult)))
+        suspicion = float(unit.get("suspicion", 0.0) or 0.0)
+
+        if dist <= detect_range:
+            proximity = 1.0 - (dist / detect_range)
+            gain = (0.30 + (proximity * 0.95) + (exposure * 0.50) + (noise * 0.42)) * awareness_gain_mult
+            if is_guard:
+                gain *= 1.10
+            else:
+                gain *= 0.72
+            suspicion += max(0.0, float(dt)) * gain
+        else:
+            decay = (0.20 if is_guard else 0.28) * awareness_decay_mult
+            suspicion -= max(0.0, float(dt)) * decay
+
+        suspicion = max(0.0, min(1.0, suspicion))
+        was_alerted = bool(unit.get("alerted", False))
+        now_alerted = suspicion >= 0.74
+        unit["suspicion"] = suspicion
+        unit["detected_player"] = bool(suspicion >= 0.92)
+        unit["alerted"] = now_alerted
+
+        if now_alerted:
+            if is_guard:
+                unit["activity"] = "inspect"
+                unit["activity_timer"] = max(2.0, float(unit.get("activity_timer", 0.0) or 0.0))
+            else:
+                unit["activity"] = "shelter"
+                unit["activity_timer"] = max(2.0, float(unit.get("activity_timer", 0.0) or 0.0))
+
+        if was_alerted != now_alerted:
+            bus = getattr(self.app, "event_bus", None)
+            if bus and hasattr(bus, "emit"):
+                try:
+                    bus.emit(
+                        "npc.stealth.alert",
+                        {
+                            "npc_id": str(unit.get("id", "") or ""),
+                            "name": str(unit.get("name", "") or ""),
+                            "alerted": bool(now_alerted),
+                            "suspicion": float(suspicion),
+                            "distance": float(dist),
+                            "is_guard": bool(is_guard),
+                        },
+                        immediate=False,
+                    )
+                except Exception:
+                    pass
+
     def _update_activity_state(self, unit, world_state, dt):
         actor = unit.get("actor")
         if not actor:
@@ -555,13 +642,14 @@ class NPCManager:
         except Exception:
             pass
 
-    def update(self, dt, world_state=None):
+    def update(self, dt, world_state=None, stealth_state=None):
         dt = max(0.0, float(dt))
         ws = world_state if isinstance(world_state, dict) else {}
         for unit in self.units:
             actor = unit.get("actor")
             if not actor:
                 continue
+            self._update_player_detection(unit, dt, stealth_state if isinstance(stealth_state, dict) else {})
             self._update_activity_state(unit, ws, dt)
             modifiers = self._world_motion_modifiers(unit, ws) if ws else {
                 "speed_scale": 1.0,

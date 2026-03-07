@@ -23,7 +23,8 @@ Useful hub examples:
 - `python launcher_test_hub.py --list`
 - `python launcher_test_hub.py --test parkour`
 - `python launcher_test_hub.py --test voice_report`
-- `python scripts/voice_dialog_report.py --synthesize-all --force-regenerate --engine auto`
+- `python scripts/voice_dialog_report.py --synthesize-all --force-regenerate --engine speech`
+- `python scripts/voice_dialog_report.py --synthesize-missing --engine speech --dry-run-synthesis`
 
 Each launcher sets:
 

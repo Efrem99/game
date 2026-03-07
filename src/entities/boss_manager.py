@@ -449,7 +449,12 @@ class EnemyUnit:
         if not ring:
             return
 
-        active_ring = self.state in {"telegraph", "attack", "recover", "hit"} or self._is_engaged
+        # Keep telegraph visuals readable without turning every enemy into a moving square.
+        # "show_engaged_ring" can be enabled per unit config for debug/high-clarity testing.
+        show_engaged_ring = bool(self.cfg.get("show_engaged_ring", False))
+        active_ring = self.state in {"telegraph", "attack", "recover", "hit"} or (
+            show_engaged_ring and self._is_engaged
+        )
         if active_ring:
             ring.show()
         else:

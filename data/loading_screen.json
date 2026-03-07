@@ -1,0 +1,52 @@
+﻿{
+  "default_context": "startup",
+  "tips": {
+    "default": [
+      "Tip: Keep moving after each strike to avoid stamina drain spikes.",
+      "Tip: Target lock helps in duels, free aim helps in crowds.",
+      "Tip: Night is darker by design - carry light or move slower."
+    ],
+    "startup": [
+      "Tip: Q blocks and triggers ultimate reaction, F is world interaction.",
+      "Tip: Light attacks adapt to context; forward pressure can turn into thrust.",
+      "Tip: Open the Codex to track characters, factions, events, and locations."
+    ],
+    "sharuan": [
+      "Tip: From the hill roads, visibility is higher but you are easier to spot.",
+      "Tip: Forest near the river gives stealth cover but noisy footing.",
+      "Tip: Port district has denser NPC activity and heavier audio layering."
+    ],
+    "opening_memory": [
+      "Tip: Opening memory sets the emotional baseline for Sherward.",
+      "Tip: Tutorial banners start right after the memory cutscene."
+    ],
+    "travel": [
+      "Tip: Region bundles are mounted before world rebuild to reduce hitching.",
+      "Tip: Contextual loading keeps startup fast while preserving rich scenes."
+    ]
+  },
+  "art_images": {
+    "default": [
+      "assets/textures/kw_logo.png",
+      "assets/textures/antigravity_logo.png"
+    ],
+    "startup": [
+      "assets/textures/antigravity_logo_1770458268618.png",
+      "assets/textures/kw_logo.png"
+    ],
+    "sharuan": [
+      "assets/textures/foliage_seamless_texture_5435.jpg",
+      "assets/textures/stone_with_moss_texture.jpg",
+      "assets/textures/sand_seamless_texture_1771.jpg"
+    ],
+    "opening_memory": [
+      "assets/textures/kw_logo.png",
+      "assets/textures/skills/ward.png"
+    ],
+    "combat": [
+      "assets/textures/skills/fireball.png",
+      "assets/textures/skills/lightning.png",
+      "assets/textures/skills/meteor.png"
+    ]
+  }
+}

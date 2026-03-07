@@ -2,6 +2,10 @@
   "id": "opening_memory_sherward_morning",
   "phase": "morning_argument_with_father",
   "lead": "sherward",
+  "opening_environment": {
+    "time_preset": "morning",
+    "weather_preset": "clear"
+  },
   "dialogue_asset": "dialogues/opening_memory_sherward_morning.json",
   "voice_keys": [
     {

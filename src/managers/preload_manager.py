@@ -2,6 +2,8 @@ import json
 import time
 from pathlib import Path
 
+from panda3d.core import Filename, VirtualFileSystem
+
 from utils.logger import logger
 
 
@@ -32,7 +34,17 @@ class PreloadManager:
         if not token:
             return False
         root = Path(getattr(self.app, "project_root", "."))
-        return (root / token).exists()
+        if (root / token).exists():
+            return True
+        try:
+            vfs = VirtualFileSystem.get_global_ptr()
+            fname = Filename(token)
+            if vfs.exists(fname):
+                return True
+            fname_os = Filename.from_os_specific(token)
+            return bool(vfs.exists(fname_os))
+        except Exception:
+            return False
 
     def _load_cache_profile(self):
         self._hot_scores = {}
@@ -149,13 +161,18 @@ class PreloadManager:
             self._pending_started[path] = time.perf_counter()
             self.loader.loadModel(path, callback=self._item_loaded, extraArgs=[path])
 
-    def preload_area(self, area_name, callback=None):
+    def preload_area(self, area_name, callback=None, extra_assets=None):
         """Preloads assets specific to a game area."""
         area_assets = {
             "SHARUAN": ["assets/models/xbot/Xbot.glb"],
             "DUNGEON": ["assets/models/props/torch.glb", "assets/models/props/chest.glb"],
         }
-        paths = area_assets.get(str(area_name or "").upper(), [])
+        paths = list(area_assets.get(str(area_name or "").upper(), []))
+        if isinstance(extra_assets, (list, tuple)):
+            for raw in extra_assets:
+                token = self._norm(raw)
+                if token:
+                    paths.append(token)
         self.preload_assets(paths, callback)
 
     def is_cached(self, path):

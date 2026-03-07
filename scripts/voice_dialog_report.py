@@ -1,19 +1,39 @@
-﻿"""Dialogue voice coverage audit + optional synthesis for missing clips."""
+"""Dialogue voice coverage audit + synthesis via speech skill CLI."""
+
+from __future__ import annotations
 
 import argparse
-import asyncio
-import hashlib
 import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 
 EXTENSIONS = (".ogg", ".mp3", ".wav")
 INLINE_TAG_RE = re.compile(r"\|([a-z_]+)\s*=\s*([^|]+)\|", re.IGNORECASE)
+DEFAULT_MODEL = "gpt-4o-mini-tts-2025-12-15"
+DEFAULT_VOICE = "cedar"
+DEFAULT_RPM = 24
+ALLOWED_OPENAI_VOICES = {
+    "alloy",
+    "ash",
+    "ballad",
+    "cedar",
+    "coral",
+    "echo",
+    "fable",
+    "marin",
+    "nova",
+    "onyx",
+    "sage",
+    "shimmer",
+    "verse",
+}
 
 
-def _load_json(path):
+def _load_json(path: Path):
     try:
         return json.loads(path.read_text(encoding="utf-8-sig"))
     except Exception:
@@ -31,7 +51,7 @@ def _safe_print(text):
     print(payload)
 
 
-def _voice_candidates(voices_root, voice_key):
+def _voice_candidates(voices_root: Path, voice_key: str):
     token = str(voice_key or "").strip().replace("\\", "/")
     out = []
     for ext in EXTENSIONS:
@@ -70,85 +90,6 @@ def _extract_dialog_text(raw_text):
     return cleaned, tags
 
 
-def _parse_percent(token, default):
-    text = str(token or "").strip()
-    if text.endswith("%"):
-        return _coerce_float(text[:-1], default)
-    return _coerce_float(text, default)
-
-
-def _parse_hz(token, default):
-    text = str(token or "").strip().lower()
-    if text.endswith("hz"):
-        return _coerce_float(text[:-2], default)
-    return _coerce_float(text, default)
-
-
-def _stable_unit(row, salt):
-    seed = f"{row.get('voice_key', '')}|{row.get('text', '')}|{salt}".encode("utf-8", errors="ignore")
-    digest = hashlib.sha1(seed).digest()
-    return int.from_bytes(digest[:8], "big") / float(1 << 64)
-
-
-def _derive_delivery(row, profile):
-    text, tags = _extract_dialog_text(row.get("text", ""))
-    if not text:
-        text = str(row.get("text", "") or "").strip()
-
-    expressiveness = _clamp(_coerce_float(profile.get("expressiveness", 1.0), 1.0), 0.0, 1.7)
-    base_rate_pct = _parse_percent(profile.get("rate", "+0%"), 0.0)
-    base_pitch_hz = _parse_hz(profile.get("pitch", "+0Hz"), 0.0)
-    base_pyttsx_rate = int(_coerce_float(profile.get("pyttsx3_rate", 178), 178))
-    base_pyttsx_volume = _clamp(_coerce_float(profile.get("pyttsx3_volume", 0.94), 0.94), 0.55, 1.0)
-
-    exclam = text.count("!")
-    question = text.count("?")
-    dots = text.count("...")
-    comma = text.count(",")
-    semicolon = text.count(";")
-
-    pace_shift = 0.0
-    pitch_shift = 0.0
-    if exclam:
-        pace_shift += min(9.0, 2.0 * exclam)
-        pitch_shift += min(18.0, 4.0 * exclam)
-    if question:
-        pace_shift += min(4.0, 1.2 * question)
-        pitch_shift += min(14.0, 3.0 * question)
-    if dots:
-        pace_shift -= min(9.0, 3.0 * dots)
-    if comma or semicolon:
-        pace_shift -= min(4.0, 0.6 * (comma + semicolon))
-    if len(text) >= 140:
-        pace_shift -= 3.0
-
-    tagged_rate = _coerce_float(tags.get("rate", 0.0), 0.0)
-    if tagged_rate > 0.0:
-        pace_shift += ((tagged_rate / 170.0) - 1.0) * 100.0
-    tagged_pitch = tags.get("pitch")
-    if tagged_pitch is not None:
-        pitch_shift += _coerce_float(tagged_pitch, 0.0)
-
-    # Deterministic per-line jitter keeps takes varied without changing every run.
-    jitter = (_stable_unit(row, "rate") - 0.5) * (10.0 * expressiveness)
-    pitch_jitter = (_stable_unit(row, "pitch") - 0.5) * (12.0 * expressiveness)
-    volume_jitter = (_stable_unit(row, "volume") - 0.5) * (0.10 * expressiveness)
-
-    final_rate_pct = _clamp(base_rate_pct + pace_shift + jitter, -35.0, 35.0)
-    final_pitch_hz = _clamp(base_pitch_hz + pitch_shift + pitch_jitter, -32.0, 32.0)
-    edge_rate_int = int(round(final_rate_pct))
-    edge_pitch_int = int(round(final_pitch_hz))
-    py_rate = int(_clamp(base_pyttsx_rate + final_rate_pct * 0.7, 120, 235))
-    py_volume = _clamp(base_pyttsx_volume + volume_jitter, 0.6, 1.0)
-    return {
-        "text": text,
-        "edge_rate": f"{edge_rate_int:+d}%",
-        "edge_pitch": f"{edge_pitch_int:+d}Hz",
-        "pyttsx_rate": py_rate,
-        "pyttsx_volume": py_volume,
-    }
-
-
 def _iter_dialogue_nodes(dialog_payload, file_path):
     if not isinstance(dialog_payload, dict):
         return
@@ -173,7 +114,7 @@ def _iter_dialogue_nodes(dialog_payload, file_path):
         }
 
 
-def _audit(dialogues_dir, voices_dir):
+def _audit(dialogues_dir: Path, voices_dir: Path):
     entries = []
     files = sorted(dialogues_dir.glob("*.json"))
     for file_path in files:
@@ -193,14 +134,13 @@ def _audit(dialogues_dir, voices_dir):
                     "text": row["text"],
                     "exists": bool(existing),
                     "resolved_path": str(existing).replace("\\", "/") if existing else "",
-                    "preferred_output_wav": str(candidates[1]).replace("\\", "/"),
-                    "preferred_output_mp3": str(candidates[2]).replace("\\", "/"),
+                    "preferred_output_mp3": str(candidates[1]).replace("\\", "/"),
                 }
             )
     return entries
 
 
-def _load_voice_profiles(root, rel_path):
+def _load_voice_profiles(root: Path, rel_path: str):
     profile_path = (root / rel_path).resolve()
     payload = _load_json(profile_path)
     if not isinstance(payload, dict):
@@ -208,26 +148,78 @@ def _load_voice_profiles(root, rel_path):
     return payload
 
 
+def _legacy_edge_to_openai(edge_voice: str) -> str:
+    token = str(edge_voice or "").strip().lower()
+    if "guy" in token:
+        return "onyx"
+    if "christopher" in token or "eric" in token:
+        return "cedar"
+    if "jenny" in token:
+        return "marin"
+    if "ana" in token or "aria" in token:
+        return "coral"
+    return DEFAULT_VOICE
+
+
+def _normalize_openai_voice(value: str | None, fallback: str = DEFAULT_VOICE) -> str:
+    token = str(value or "").strip().lower()
+    if token in ALLOWED_OPENAI_VOICES:
+        return token
+    return fallback
+
+
 def _default_profile_for_row(row):
     npc_id = str(row.get("npc_id", "")).strip().lower()
     speaker = str(row.get("speaker", "")).strip().lower()
-    voice = "en-US-AriaNeural"
+    voice = "cedar"
+    speed = 1.0
+    style = (
+        "Voice Affect: Natural grounded fantasy dialogue. "
+        "Tone: cinematic but restrained. "
+        "Pacing: steady and clear."
+    )
     if any(token in npc_id for token in ("dragon", "golem", "boss")):
-        voice = "en-US-GuyNeural"
-    elif any(token in npc_id for token in ("guard", "captain", "knight")):
-        voice = "en-US-ChristopherNeural"
+        voice = "onyx"
+        speed = 0.96
+        style = (
+            "Voice Affect: Heavy and intimidating. "
+            "Tone: menacing and controlled. "
+            "Pacing: deliberate with short pauses."
+        )
     elif any(token in npc_id for token in ("merchant", "trader")):
-        voice = "en-US-JennyNeural"
+        voice = "marin"
+        speed = 1.04
+        style = (
+            "Voice Affect: Lively and persuasive. "
+            "Tone: friendly with subtle urgency. "
+            "Pacing: brisk but articulate."
+        )
+    elif any(token in npc_id for token in ("guard", "captain", "knight")):
+        voice = "ash"
+        speed = 0.99
+        style = (
+            "Voice Affect: Firm and disciplined. "
+            "Tone: authoritative and alert. "
+            "Pacing: measured and clear."
+        )
     elif "elder" in speaker:
-        voice = "en-US-AnaNeural"
-    elif "king wizard" in speaker or "player" in npc_id:
-        voice = "en-US-EricNeural"
+        voice = "sage"
+        speed = 0.97
+        style = (
+            "Voice Affect: Wise and calm. "
+            "Tone: warm and thoughtful. "
+            "Pacing: smooth with gentle pauses."
+        )
+    elif "player" in npc_id or "sherward" in speaker:
+        voice = "cedar"
+        speed = 1.0
+
     return {
-        "edge_voice": voice,
-        "rate": "+0%",
-        "pitch": "+0Hz",
-        "pyttsx3_rate": 178,
-        "pyttsx3_volume": 0.94,
+        "openai_voice": voice,
+        "openai_speed": speed,
+        "openai_instructions": style,
+        # Keep legacy keys for backward-compat in older profile files.
+        "edge_voice": "",
         "expressiveness": 1.0,
     }
 
@@ -248,113 +240,264 @@ def _merge_voice_profile(row, profiles):
     return merged
 
 
-async def _edge_render_one(delivery, out_path, profile):
-    import edge_tts
+def _derive_openai_job(row, profile, fallback_voice):
+    text, tags = _extract_dialog_text(row.get("text", ""))
+    if not text:
+        text = str(row.get("text", "") or "").strip()
+    if not text:
+        return None
 
-    voice = str(profile.get("edge_voice", "en-US-AriaNeural"))
-    communicator = edge_tts.Communicate(
-        text=delivery["text"],
-        voice=voice,
-        rate=delivery["edge_rate"],
-        pitch=delivery["edge_pitch"],
+    raw_voice = profile.get("openai_voice")
+    if not raw_voice:
+        raw_voice = _legacy_edge_to_openai(profile.get("edge_voice", ""))
+    voice = _normalize_openai_voice(raw_voice, fallback=fallback_voice)
+
+    speed = _coerce_float(profile.get("openai_speed", 1.0), 1.0)
+    tagged_rate = _coerce_float(tags.get("rate", 0.0), 0.0)
+    if tagged_rate > 0:
+        speed *= tagged_rate / 170.0
+    if text.count("...") > 0:
+        speed -= 0.03
+    if text.count("!") > 0:
+        speed += 0.02
+    speed = _clamp(speed, 0.8, 1.2)
+
+    instructions = str(profile.get("openai_instructions", "") or "").strip()
+    if not instructions:
+        instructions = (
+            "Voice Affect: Natural grounded fantasy dialogue. "
+            "Tone: cinematic but restrained. "
+            "Pacing: steady and clear."
+        )
+
+    # Keep each line self-sufficient for batch generation quality.
+    instructions = (
+        f"{instructions} "
+        "Emotion: Match punctuation and scene tension naturally. "
+        "Pronunciation: Keep names and places clear."
     )
-    await communicator.save(str(out_path))
+
+    return {
+        "input": text,
+        "voice": voice,
+        "speed": round(float(speed), 3),
+        "instructions": instructions,
+        "response_format": "mp3",
+        "out": f"{row['voice_key']}.mp3",
+    }
 
 
-def _target_out_path(voices_dir, row, engine):
-    suffix = ".mp3" if engine == "edge" else ".wav"
-    return voices_dir / f"{row['voice_key']}{suffix}"
+def _resolve_speech_cli(explicit_path: str | None):
+    probes = []
+    if explicit_path:
+        probes.append(Path(explicit_path).expanduser())
+    env_hint = os.getenv("XBOT_SPEECH_CLI", "").strip()
+    if env_hint:
+        probes.append(Path(env_hint).expanduser())
+    codex_home = os.getenv("CODEX_HOME", "").strip()
+    if codex_home:
+        probes.append(Path(codex_home) / "skills" / "speech" / "scripts" / "text_to_speech.py")
+    probes.append(Path.home() / ".codex" / "skills" / "speech" / "scripts" / "text_to_speech.py")
+
+    for candidate in probes:
+        if candidate and candidate.exists():
+            return candidate.resolve()
+    return None
 
 
-def _synthesize_with_edge_tts(rows, voices_dir, profiles, overwrite=False):
-    try:
-        import edge_tts  # noqa: F401
-    except Exception as exc:
-        return {"enabled": False, "generated": 0, "failed": len(rows), "error": str(exc), "engine": "edge", "skipped": 0}
-
-    generated = 0
-    failed = 0
-    skipped = 0
-    first_error = ""
-    for row in rows:
-        out_path = _target_out_path(voices_dir, row, "edge")
-        if out_path.exists() and not overwrite:
-            skipped += 1
-            continue
-        profile = _merge_voice_profile(row, profiles)
-        delivery = _derive_delivery(row, profile)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            asyncio.run(_edge_render_one(delivery, out_path, profile))
-            generated += 1
-            row["exists"] = True
-            row["resolved_path"] = str(out_path).replace("\\", "/")
-        except Exception as exc:
-            failed += 1
-            if not first_error:
-                first_error = str(exc)
-    return {"enabled": True, "generated": generated, "failed": failed, "error": first_error, "engine": "edge", "skipped": skipped}
+def _write_jobs_jsonl(path: Path, jobs):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for row in jobs:
+        lines.append(json.dumps(row, ensure_ascii=False))
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 
 
-def _synthesize_with_pyttsx3(rows, voices_dir, profiles, overwrite=False):
-    try:
-        import pyttsx3
-    except Exception as exc:
+def _run_speech_batch(*, cli_path, jobs_path, out_dir, model, default_voice, rpm, force, dry_run):
+    cmd = [
+        sys.executable,
+        str(cli_path),
+        "speak-batch",
+        "--input",
+        str(jobs_path),
+        "--out-dir",
+        str(out_dir),
+        "--model",
+        str(model),
+        "--voice",
+        str(default_voice),
+        "--response-format",
+        "mp3",
+        "--rpm",
+        str(int(rpm)),
+    ]
+    if force:
+        cmd.append("--force")
+    if dry_run:
+        cmd.append("--dry-run")
+
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "utf-8"
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+        env=env,
+    )
+    return {
+        "ok": result.returncode == 0,
+        "returncode": int(result.returncode),
+        "stdout": str(result.stdout or "").strip(),
+        "stderr": str(result.stderr or "").strip(),
+        "command": " ".join(cmd),
+    }
+
+
+def _synthesize_with_speech_skill(
+    *,
+    rows,
+    root,
+    voices_dir,
+    profiles,
+    overwrite,
+    skill_cli_path,
+    model,
+    default_voice,
+    rpm,
+    dry_run,
+    keep_tmp_jsonl,
+):
+    if not rows:
         return {
-            "enabled": False,
+            "enabled": True,
+            "engine": "speech",
             "generated": 0,
-            "failed": len(rows),
-            "error": str(exc),
-            "engine": "pyttsx3",
+            "failed": 0,
+            "error": "",
             "skipped": 0,
+            "requested": 0,
+            "cli_path": "",
+            "command": "",
         }
 
-    engine = pyttsx3.init()
-    generated = 0
-    failed = 0
+    cli_path = _resolve_speech_cli(skill_cli_path)
+    if not cli_path:
+        return {
+            "enabled": False,
+            "engine": "speech",
+            "generated": 0,
+            "failed": len(rows),
+            "error": "speech skill CLI not found (text_to_speech.py).",
+            "skipped": 0,
+            "requested": len(rows),
+            "cli_path": "",
+            "command": "",
+        }
+    if not dry_run and not os.getenv("OPENAI_API_KEY"):
+        return {
+            "enabled": False,
+            "engine": "speech",
+            "generated": 0,
+            "failed": len(rows),
+            "error": "OPENAI_API_KEY is not set.",
+            "skipped": 0,
+            "requested": len(rows),
+            "cli_path": str(cli_path).replace("\\", "/"),
+            "command": "",
+        }
+
+    default_voice = _normalize_openai_voice(default_voice, fallback=DEFAULT_VOICE)
+    jobs = []
+    targets = []
     skipped = 0
-    first_error = ""
+
     for row in rows:
-        out_path = _target_out_path(voices_dir, row, "pyttsx3")
+        out_path = voices_dir / f"{row['voice_key']}.mp3"
         if out_path.exists() and not overwrite:
             skipped += 1
             continue
         profile = _merge_voice_profile(row, profiles)
-        delivery = _derive_delivery(row, profile)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
+        job = _derive_openai_job(row, profile, default_voice)
+        if not job:
+            skipped += 1
+            continue
+        jobs.append(job)
+        targets.append((row, out_path))
+
+    if not jobs:
+        return {
+            "enabled": True,
+            "engine": "speech",
+            "generated": 0,
+            "failed": 0,
+            "error": "",
+            "skipped": skipped,
+            "requested": 0,
+            "cli_path": str(cli_path).replace("\\", "/"),
+            "command": "",
+        }
+
+    jobs_path = (root / "tmp" / "speech" / "dialogue_jobs.jsonl").resolve()
+    _write_jobs_jsonl(jobs_path, jobs)
+
+    run = _run_speech_batch(
+        cli_path=cli_path,
+        jobs_path=jobs_path,
+        out_dir=voices_dir,
+        model=model,
+        default_voice=default_voice,
+        rpm=max(1, min(50, int(rpm))),
+        force=overwrite,
+        dry_run=dry_run,
+    )
+
+    if not keep_tmp_jsonl:
         try:
-            engine.setProperty("rate", int(delivery["pyttsx_rate"]))
-            engine.setProperty("volume", float(delivery["pyttsx_volume"]))
-            engine.save_to_file(delivery["text"], str(out_path))
-            engine.runAndWait()
+            jobs_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    if dry_run:
+        return {
+            "enabled": bool(run["ok"]),
+            "engine": "speech",
+            "generated": 0,
+            "failed": 0 if run["ok"] else len(jobs),
+            "error": "" if run["ok"] else (run["stderr"] or run["stdout"] or "speech batch dry-run failed"),
+            "skipped": skipped,
+            "requested": len(jobs),
+            "cli_path": str(cli_path).replace("\\", "/"),
+            "command": run["command"],
+        }
+
+    generated = 0
+    failed = 0
+    for row, out_path in targets:
+        if out_path.exists():
             generated += 1
             row["exists"] = True
             row["resolved_path"] = str(out_path).replace("\\", "/")
-        except Exception as exc:
+        else:
             failed += 1
-            if not first_error:
-                first_error = str(exc)
-    try:
-        engine.stop()
-    except Exception:
-        pass
-    return {"enabled": True, "generated": generated, "failed": failed, "error": first_error, "engine": "pyttsx3", "skipped": skipped}
 
+    err = ""
+    if not run["ok"]:
+        err = run["stderr"] or run["stdout"] or f"speech batch failed with code={run['returncode']}"
 
-def _synthesize_rows(rows, voices_dir, profiles, engine, overwrite):
-    token = str(engine or "auto").strip().lower()
-    if token in {"edge", "edge_tts"}:
-        return _synthesize_with_edge_tts(rows, voices_dir, profiles, overwrite=overwrite)
-    if token in {"pyttsx3", "offline"}:
-        return _synthesize_with_pyttsx3(rows, voices_dir, profiles, overwrite=overwrite)
-
-    # auto: prefer edge-tts for more natural cadence, fallback to pyttsx3.
-    out = _synthesize_with_edge_tts(rows, voices_dir, profiles, overwrite=overwrite)
-    if out.get("enabled", False) and int(out.get("generated", 0)) > 0:
-        return out
-    if out.get("enabled", False) and int(out.get("failed", 0)) == 0:
-        return out
-    return _synthesize_with_pyttsx3(rows, voices_dir, profiles, overwrite=overwrite)
+    return {
+        "enabled": bool(run["ok"]),
+        "engine": "speech",
+        "generated": generated,
+        "failed": failed if run["ok"] else max(failed, len(jobs) - generated),
+        "error": err,
+        "skipped": skipped,
+        "requested": len(jobs),
+        "cli_path": str(cli_path).replace("\\", "/"),
+        "command": run["command"],
+    }
 
 
 def _write_reports(report, logs_dir):
@@ -366,6 +509,7 @@ def _write_reports(report, logs_dir):
     lines = []
     lines.append("# Voice Dialogue Report")
     lines.append("")
+    lines.append("- note: dialogue voice clips are AI-generated (OpenAI TTS).")
     lines.append(f"- total_lines: {report.get('total_lines', 0)}")
     lines.append(f"- voiced_lines: {report.get('voiced_lines', 0)}")
     lines.append(f"- missing_lines: {report.get('missing_lines', 0)}")
@@ -379,6 +523,9 @@ def _write_reports(report, logs_dir):
             f"skipped={int(synthesis.get('skipped', 0))}, "
             f"failed={int(synthesis.get('failed', 0))}"
         )
+        cli_path = str(synthesis.get("cli_path", "") or "").strip()
+        if cli_path:
+            lines.append(f"- speech_cli: `{cli_path}`")
     lines.append("")
     if report.get("missing_rows"):
         lines.append("## Missing Clips")
@@ -395,7 +542,7 @@ def _write_reports(report, logs_dir):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Audit dialogue voice coverage.")
+    parser = argparse.ArgumentParser(description="Audit dialogue voice coverage and synthesize missing lines.")
     parser.add_argument("--dialogues-dir", default="data/dialogues", help="Path to dialogue JSON files.")
     parser.add_argument("--voices-dir", default="data/audio/voices", help="Path to voice clips root.")
     parser.add_argument(
@@ -403,15 +550,16 @@ def main(argv=None):
         default="data/audio/voice_generation_profiles.json",
         help="Optional npc/speaker voice profile map.",
     )
-    parser.add_argument("--synthesize-missing", action="store_true", help="Generate missing lines with TTS.")
-    parser.add_argument("--synthesize-all", action="store_true", help="Generate voice clips for all dialogue lines.")
+    parser.add_argument("--synthesize-missing", action="store_true", help="Generate missing lines with speech skill.")
+    parser.add_argument("--synthesize-all", action="store_true", help="Generate clips for all dialogue lines.")
     parser.add_argument("--force-regenerate", action="store_true", help="Overwrite existing generated clips.")
-    parser.add_argument(
-        "--engine",
-        default="auto",
-        choices=["auto", "edge", "pyttsx3"],
-        help="TTS engine for synthesis mode.",
-    )
+    parser.add_argument("--engine", default="speech", help="Compatibility flag; uses speech skill in all modes.")
+    parser.add_argument("--skill-cli", default="", help="Optional explicit path to speech skill text_to_speech.py.")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help=f"OpenAI TTS model (default: {DEFAULT_MODEL}).")
+    parser.add_argument("--default-voice", default=DEFAULT_VOICE, help=f"Fallback voice (default: {DEFAULT_VOICE}).")
+    parser.add_argument("--rpm", type=int, default=DEFAULT_RPM, help="Batch requests/min cap (1..50).")
+    parser.add_argument("--dry-run-synthesis", action="store_true", help="Validate payloads without API calls.")
+    parser.add_argument("--keep-temp-jsonl", action="store_true", help="Do not delete tmp/speech/dialogue_jobs.jsonl.")
     args = parser.parse_args(argv)
 
     root = Path(__file__).resolve().parents[1]
@@ -421,7 +569,17 @@ def main(argv=None):
     profiles = _load_voice_profiles(root, args.voice_profiles)
 
     rows = _audit(dialogues_dir, voices_dir)
-    synthesis = {"enabled": False, "generated": 0, "failed": 0, "error": "", "engine": "none", "requested": 0, "skipped": 0}
+    synthesis = {
+        "enabled": False,
+        "generated": 0,
+        "failed": 0,
+        "error": "",
+        "engine": "none",
+        "requested": 0,
+        "skipped": 0,
+        "cli_path": "",
+        "command": "",
+    }
 
     targets = []
     if args.synthesize_all:
@@ -430,14 +588,20 @@ def main(argv=None):
         targets = [row for row in rows if not bool(row.get("exists", False))]
 
     if targets:
-        synthesis = _synthesize_rows(
-            targets,
-            voices_dir,
-            profiles,
-            args.engine,
+        synthesis = _synthesize_with_speech_skill(
+            rows=targets,
+            root=root,
+            voices_dir=voices_dir,
+            profiles=profiles,
             overwrite=bool(args.force_regenerate),
+            skill_cli_path=args.skill_cli,
+            model=args.model,
+            default_voice=args.default_voice,
+            rpm=args.rpm,
+            dry_run=bool(args.dry_run_synthesis),
+            keep_tmp_jsonl=bool(args.keep_temp_jsonl),
         )
-        synthesis["requested"] = len(targets)
+        synthesis["requested"] = int(synthesis.get("requested", len(targets)) or 0)
 
     missing = [row for row in rows if not bool(row.get("exists", False))]
     report = {
@@ -452,11 +616,12 @@ def main(argv=None):
     json_path, md_path = _write_reports(report, logs_dir)
 
     _safe_print(f"[VoiceReport] total={report['total_lines']} voiced={report['voiced_lines']} missing={report['missing_lines']}")
-    if synthesis.get("enabled", False):
+    if synthesis.get("requested", 0):
         _safe_print(
             f"[VoiceReport] synth engine={synthesis.get('engine', 'none')} "
             f"requested={synthesis.get('requested', 0)} generated={synthesis.get('generated', 0)} "
-            f"skipped={synthesis.get('skipped', 0)} failed={synthesis.get('failed', 0)}"
+            f"skipped={synthesis.get('skipped', 0)} failed={synthesis.get('failed', 0)} "
+            f"enabled={bool(synthesis.get('enabled', False))}"
         )
         if synthesis.get("error"):
             _safe_print(f"[VoiceReport] synth_error={synthesis['error']}")
