@@ -1,0 +1,115 @@
+﻿{
+  "version": 1,
+  "multifile_root": "assets/mf",
+  "mount_point": "/",
+  "location_profiles": {
+    "sharuan": "sharuan",
+    "town": "sharuan",
+    "forest": "sharuan"
+  },
+  "profiles": {
+    "startup": {
+      "bundles": [
+        "core_ui",
+        "core_characters",
+        "audio_core"
+      ],
+      "prewarm": [
+        "assets/models/bosses/dragon_evolved.glb",
+        "assets/models/enemies/golem_boss.glb"
+      ]
+    },
+    "sharuan": {
+      "bundles": [
+        "world_sharuan",
+        "enemies_bosses"
+      ],
+      "prewarm": [
+        "assets/models/bosses/dragon_evolved.glb",
+        "assets/models/enemies/golem_boss.glb",
+        "assets/models/enemies/goblin_raider.glb"
+      ]
+    },
+    "opening_memory": {
+      "bundles": [
+        "audio_voices_opening"
+      ]
+    },
+    "combat": {
+      "bundles": [
+        "enemies_bosses"
+      ],
+      "prewarm": [
+        "assets/models/enemies/golem_boss.glb",
+        "assets/models/bosses/dragon_evolved.glb"
+      ]
+    }
+  },
+  "bundles": {
+    "core_ui": {
+      "mf": "core_ui.mf",
+      "sources": [
+        "assets/textures/kw_logo.png",
+        "assets/textures/game_cursor.png",
+        "assets/textures/flare.png",
+        "assets_raw/textures/ui/*.png"
+      ],
+      "prewarm": []
+    },
+    "core_characters": {
+      "mf": "core_characters.mf",
+      "sources": [
+        "assets/models/xbot/*.glb",
+        "assets/models/hero/sherward/*.glb"
+      ],
+      "prewarm": [
+        "assets/models/xbot/Xbot.glb",
+        "assets/models/xbot/idle.glb",
+        "assets/models/xbot/walk.glb",
+        "assets/models/xbot/run.glb",
+        "assets/models/hero/sherward/sherward.glb"
+      ]
+    },
+    "enemies_bosses": {
+      "mf": "enemies_bosses.mf",
+      "sources": [
+        "assets/models/enemies/*.glb",
+        "assets/models/bosses/*.glb"
+      ],
+      "prewarm": [
+        "assets/models/enemies/golem_boss.glb",
+        "assets/models/enemies/goblin_raider.glb",
+        "assets/models/bosses/dragon_evolved.glb"
+      ]
+    },
+    "audio_core": {
+      "mf": "audio_core.mf",
+      "sources": [
+        "data/audio/main_menu.mp3",
+        "data/audio/ambient.mp3",
+        "data/audio/battle_music.mp3"
+      ],
+      "prewarm": []
+    },
+    "audio_voices_opening": {
+      "mf": "audio_opening_memory.mf",
+      "sources": [
+        "data/audio/voices/opening_memory/*.mp3"
+      ],
+      "prewarm": []
+    },
+    "world_sharuan": {
+      "mf": "world_sharuan.mf",
+      "sources": [
+        "assets/textures/foliage_seamless_texture_5435.jpg",
+        "assets/textures/sand_seamless_texture_1771.jpg",
+        "assets/textures/stone_with_moss_texture.jpg",
+        "assets/textures/heightfield.png",
+        "data/world/layout.json",
+        "data/world/locations.json",
+        "data/water_config.json"
+      ],
+      "prewarm": []
+    }
+  }
+}

@@ -309,6 +309,7 @@ class PlayerStateMachineMixin:
         context = {
             "speed":               speed,
             "shift_pressed":       shift_pressed,
+            "is_crouched":         bool(getattr(self, "_stealth_crouch", False)),
             "on_ground":           on_ground,
             "hp":                  hp,
             "mounted":             mounted,
@@ -370,6 +371,8 @@ class PlayerStateMachineMixin:
         if not on_ground:
             vz = float(getattr(self.cs.velocity, "z", 0.0)) if self.cs else 0.0
             return "falling" if vz < -0.35 else "jumping"
+        if bool(context.get("is_crouched", False)):
+            return "crouch_move" if speed > 0.08 else "crouch_idle"
         if speed > 6.0:
             return "running"
         if speed > 0.5:
@@ -531,6 +534,7 @@ class PlayerStateMachineMixin:
         locomotion_states = {
             "idle", "idle_relaxed", "idle_combat",
             "walking", "walk", "running", "run", "sprinting", "sprint",
+            "crouch_idle", "crouch_move",
             "jumping", "jump", "in_air",
             "falling", "landing", "land_soft",
             "mounted_idle", "mounted_move", "mounted_ship_idle", "mounted_ship_move",

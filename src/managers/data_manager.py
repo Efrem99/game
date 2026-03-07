@@ -23,6 +23,8 @@ class DataManager:
         self.skill_trees = {}
         self.character_logic = {}
         self.combat_styles = {}
+        self.loading_screen_config = {}
+        self.asset_multifiles_config = {}
         self.language = "en"
 
         self.load_all()
@@ -57,6 +59,8 @@ class DataManager:
         self.world_layout = self._load_file("world/layout.json")
         self.character_logic = self._load_file("logic/character_brain.json")
         self.combat_styles = self._load_file("combat/styles.json")
+        self.loading_screen_config = self._load_file("loading_screen.json")
+        self.asset_multifiles_config = self._load_file("asset_multifiles.json")
         self.locales = {
             "en": self._load_file("locales/en.json"),
             "ru": self._load_file("locales/ru.json"),

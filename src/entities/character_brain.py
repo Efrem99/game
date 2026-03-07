@@ -226,6 +226,8 @@ class CharacterBrain:
             return "combat"
         if bool(sensors.get("parkour", False)):
             return "parkour"
+        if bool(sensors.get("is_crouched", False)) or bool(sensors.get("stealth_context", False)):
+            return "stealth"
 
         hp_ratio = self._coerce_float(sensors.get("hp_ratio", 1.0), 1.0)
         if hp_ratio <= 0.34:
@@ -252,6 +254,9 @@ class CharacterBrain:
 
         if context == "combat":
             confidence = min(1.0, confidence + 0.01)
+        elif context == "stealth":
+            fear = min(1.0, fear + 0.004)
+            confidence = min(1.0, confidence + 0.004)
         if context == "panic":
             fear = min(1.0, fear + 0.02)
 
@@ -384,6 +389,8 @@ class CharacterBrain:
         balance_choice, balance_scores = self._select_balance_recovery(instability, surface_risk, injury_mod)
 
         cautious_mult = 1.0 - (surface_risk * 0.20) - ((1.0 - confidence) * 0.16) - ((1.0 - self.mental["risk_tolerance"]) * 0.10)
+        if self.context_state == "stealth":
+            cautious_mult *= 0.74
         gait_speed_mult = max(0.58, min(1.08, cautious_mult * injury_mod["speed_modifier"]))
 
         plan = {

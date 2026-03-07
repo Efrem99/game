@@ -4,7 +4,7 @@ from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpColorScaleI
 from panda3d.core import (
     WindowProperties, AmbientLight, DirectionalLight,
     Vec3, Vec4, LPoint3, LColor, Fog, AntialiasAttrib,
-    Texture, TransparencyAttrib, PNMImage, MouseButton,
+    Texture, TransparencyAttrib, PNMImage, MouseButton, InputDevice,
     loadPrcFileData
 )
 import complexpbr
@@ -15,9 +15,12 @@ from utils.logger import logger
 # Global Panda3D Configuration
 loadPrcFileData("", "window-type normal")
 loadPrcFileData("", "window-title King Wizard")
+if os.path.exists("assets/textures/king_wizard.ico"):
+    loadPrcFileData("", "icon-filename assets/textures/king_wizard.ico")
+elif os.path.exists("assets/textures/kw_logo.png"):
+    loadPrcFileData("", "icon-filename assets/textures/kw_logo.png")
 loadPrcFileData("", "win-size 1280 720")
 loadPrcFileData("", "win-origin 100 100")
-loadPrcFileData("", "icon-filename assets/textures/kw_logo.ico")
 loadPrcFileData("", "background-color 0.2 0.3 0.5")
 loadPrcFileData("", "show-frame-rate-meter #t")
 loadPrcFileData("", "sync-video #t")
@@ -56,6 +59,7 @@ from managers.movement_tutorial_manager import MovementTutorialManager
 from managers.dialog_cinematic_manager import DialogCinematicManager
 from managers.npc_interaction_manager import NPCInteractionManager
 from managers.skill_tree_manager import SkillTreeManager
+from managers.stealth_manager import StealthManager
 from render.model_visuals import ensure_model_visual_defaults, audit_node_visual_health
 from ui.menu_main import MainMenu
 from ui.menu_pause import PauseMenu
@@ -64,6 +68,7 @@ from ui.loading_screen import LoadingScreen
 from ui.ui_intro import IntroUI
 from ui.hud_overlay import HUDOverlay
 from managers.preload_manager import PreloadManager
+from managers.asset_bundle_manager import AssetBundleManager
 
 class XBotApp(ShowBase):
     GameState = GameState # Shortcut
@@ -76,6 +81,14 @@ class XBotApp(ShowBase):
         self._last_fs_toggle_time = -999.0
         self._test_profile = str(os.environ.get("XBOT_TEST_PROFILE", "")).strip().lower()
         self._test_location_raw = str(os.environ.get("XBOT_TEST_LOCATION", "")).strip()
+        self._gamepad_device = None
+        self._gp_deadzone = 0.18
+        self._gp_axes = {
+            "move_x": 0.0,
+            "move_y": 0.0,
+            "look_x": 0.0,
+            "look_y": 0.0,
+        }
 
         # Force a window to open
         logger.info("Calling ShowBase.__init__...")
@@ -102,6 +115,8 @@ class XBotApp(ShowBase):
         self._cam_angles_cache = (self._cam_yaw, self._cam_pitch)
         self._cam_yaw_rad = math.radians(self._cam_yaw)
         self._cam_pitch_rad = math.radians(self._cam_pitch)
+        self._cam_mouse_sens = 150.0
+        self._cam_invert_y = False
         self._gfx_quality = "Medium"
 
         # Advanced complexpbr Rendering
@@ -181,6 +196,18 @@ class XBotApp(ShowBase):
             self.data_mgr.graphics_settings.get("quality", "High"),
             persist=False,
         )
+        camera_cfg = (
+            self.data_mgr.graphics_settings.get("camera", {})
+            if isinstance(self.data_mgr.graphics_settings, dict)
+            else {}
+        )
+        if not isinstance(camera_cfg, dict):
+            camera_cfg = {}
+        try:
+            self._cam_mouse_sens = max(40.0, min(320.0, float(camera_cfg.get("mouse_sensitivity", 150.0) or 150.0)))
+        except Exception:
+            self._cam_mouse_sens = 150.0
+        self._cam_invert_y = bool(camera_cfg.get("invert_y", False))
         self.sky_mgr = SkyManager(self)
 
         # Apply Saved Audio Settings Early
@@ -219,11 +246,13 @@ class XBotApp(ShowBase):
         self.state_mgr = StateManager(self)
         self.quest_mgr = QuestManager(self, self.data_mgr.quests)
         self.preload_mgr = PreloadManager(self)
+        self.asset_bundle_mgr = AssetBundleManager(self)
         self.save_mgr = SaveManager(self)
         self.vehicle_mgr = VehicleManager(self)
         self.npc_mgr = NPCManager(self)
         self.npc_activity_director = NPCActivityDirector(self)
         self.skill_tree_mgr = SkillTreeManager(self)
+        self.stealth_mgr = StealthManager(self)
         self.movement_tutorial = MovementTutorialManager(self)
         self._tutorial_quest_id = "movement_tutorial"
         self._tutorial_core_complete_sent = False
@@ -245,7 +274,10 @@ class XBotApp(ShowBase):
         self._aim_target_info = None
         self._lock_target_kind = ""
         self._lock_target_id = ""
+        self._aim_highlight_node = None
+        self._aim_highlight_prev_color = None
         self._last_codex_location = ""
+        self._stealth_state_cache = {}
 
         # -- UI --
         self.main_menu = MainMenu(self)
@@ -295,6 +327,8 @@ class XBotApp(ShowBase):
         self._dev_location_idx = 0
         self.accept("f9", self._dev_transition_next)
         self.accept("window-event", self._on_window_event)
+        self.accept("connect-device", self._on_input_device_change)
+        self.accept("disconnect-device", self._on_input_device_change)
         self.accept("escape", self._on_escape_pressed)
         self.accept("f5", self._save_slot_hotkey, [1])
         self.accept("f6", self._save_slot_hotkey, [2])
@@ -307,10 +341,114 @@ class XBotApp(ShowBase):
 
         self.accept("wheel_up", self._zoom_camera, [-2.0])
         self.accept("wheel_down", self._zoom_camera, [2.0])
+        self._setup_gamepad_input()
 
     def _zoom_camera(self, delta):
         if self.state_mgr.is_playing():
             self._cam_dist = max(5.0, min(50.0, self._cam_dist + delta))
+
+    def _clear_gamepad_axes(self):
+        self._gp_axes["move_x"] = 0.0
+        self._gp_axes["move_y"] = 0.0
+        self._gp_axes["look_x"] = 0.0
+        self._gp_axes["look_y"] = 0.0
+
+    def _apply_axis_deadzone(self, value):
+        try:
+            v = float(value or 0.0)
+        except Exception:
+            return 0.0
+        d = max(0.01, min(0.4, float(getattr(self, "_gp_deadzone", 0.18) or 0.18)))
+        a = abs(v)
+        if a <= d:
+            return 0.0
+        return math.copysign((a - d) / max(1e-6, (1.0 - d)), v)
+
+    def _axis_value(self, device, axis):
+        if not device:
+            return 0.0
+        try:
+            axis_node = device.findAxis(axis)
+            if axis_node:
+                return float(axis_node.value)
+        except Exception:
+            pass
+        return 0.0
+
+    def _setup_gamepad_input(self):
+        self._attach_primary_gamepad()
+
+    def _on_input_device_change(self, *_args):
+        self._attach_primary_gamepad()
+
+    def _attach_primary_gamepad(self):
+        devices = []
+        try:
+            devices = self.devices.getDevices(InputDevice.DeviceClass.gamepad)
+        except Exception:
+            devices = []
+
+        target = None
+        for dev in devices:
+            try:
+                if dev and dev.isConnected():
+                    target = dev
+                    break
+            except Exception:
+                continue
+
+        current = getattr(self, "_gamepad_device", None)
+        if current and target and current == target:
+            return
+
+        if current:
+            try:
+                self.detachInputDevice(current)
+            except Exception:
+                pass
+            self._gamepad_device = None
+
+        if target:
+            try:
+                self.attachInputDevice(target, prefix="gamepad")
+                self._gamepad_device = target
+                logger.info(f"[Input] Gamepad attached: {target}")
+            except Exception as exc:
+                self._gamepad_device = None
+                logger.debug(f"[Input] Failed to attach gamepad: {exc}")
+                self._clear_gamepad_axes()
+                return
+        else:
+            self._clear_gamepad_axes()
+
+    def _sample_gamepad_axes(self):
+        device = getattr(self, "_gamepad_device", None)
+        if not device:
+            self._attach_primary_gamepad()
+            device = getattr(self, "_gamepad_device", None)
+        if not device:
+            self._clear_gamepad_axes()
+            return
+        try:
+            if not device.isConnected():
+                self._attach_primary_gamepad()
+                device = getattr(self, "_gamepad_device", None)
+        except Exception:
+            self._attach_primary_gamepad()
+            device = getattr(self, "_gamepad_device", None)
+        if not device:
+            self._clear_gamepad_axes()
+            return
+
+        lx = self._axis_value(device, InputDevice.Axis.left_x)
+        ly = self._axis_value(device, InputDevice.Axis.left_y)
+        rx = self._axis_value(device, InputDevice.Axis.right_x)
+        ry = self._axis_value(device, InputDevice.Axis.right_y)
+
+        self._gp_axes["move_x"] = self._apply_axis_deadzone(lx)
+        self._gp_axes["move_y"] = -self._apply_axis_deadzone(ly)
+        self._gp_axes["look_x"] = self._apply_axis_deadzone(rx)
+        self._gp_axes["look_y"] = -self._apply_axis_deadzone(ry)
 
     def _remove_screenspace_nodes(self):
         try:
@@ -438,7 +576,7 @@ class XBotApp(ShowBase):
 
     def _setup_window(self, initial=False):
         props = WindowProperties()
-        props.setTitle("XBot RPG Ultimate - Enhanced Edition")
+        props.setTitle("King Wizard")
         if initial:
             props.setOpen(True)
         if not self._is_fullscreen:
@@ -532,6 +670,12 @@ class XBotApp(ShowBase):
     def _on_window_event(self, window):
         if window != self.win or not self.win:
             return
+        try:
+            wp = WindowProperties()
+            wp.setCursorHidden(True)
+            self.win.requestProperties(wp)
+        except Exception:
+            pass
         props = self.win.getProperties()
         self._is_fullscreen = bool(props.getFullscreen())
         if not self._is_fullscreen:
@@ -676,11 +820,30 @@ class XBotApp(ShowBase):
                 out.append(token)
         return out
 
+    def _merge_asset_targets(self, *groups):
+        out = []
+        seen = set()
+        for group in groups:
+            for raw in list(group or []):
+                token = str(raw or "").strip().replace("\\", "/")
+                if not token or token in seen:
+                    continue
+                seen.add(token)
+                out.append(token)
+        return out
+
     def start_game_loading(self):
         logger.info("Starting Game - Queueing heavy assets for preloading...")
-        self.loading_screen.show()
+        self.loading_screen.show(context="startup")
         self.hud.set_autosave(True)
         preload_targets = self._collect_startup_preload_assets()
+        if getattr(self, "asset_bundle_mgr", None):
+            try:
+                bundle_targets = self.asset_bundle_mgr.activate_profile("startup")
+                loc_targets = self.asset_bundle_mgr.activate_for_location("sharuan")
+                preload_targets = self._merge_asset_targets(preload_targets, bundle_targets, loc_targets)
+            except Exception as exc:
+                logger.debug(f"[AssetBundle] Startup activation skipped: {exc}")
         if hasattr(self.preload_mgr, "merge_with_cached"):
             try:
                 preload_targets = self.preload_mgr.merge_with_cached(preload_targets, limit=56)
@@ -961,6 +1124,24 @@ class XBotApp(ShowBase):
                 details = str(row.get("details", "") or "").strip()
                 self._codex_mark(section_key, token or title, title, details)
 
+    def _apply_opening_memory_environment(self, package):
+        sky = getattr(self, "sky_mgr", None)
+        if not sky:
+            return
+        env = package.get("opening_environment", {}) if isinstance(package, dict) else {}
+        if not isinstance(env, dict):
+            env = {}
+        time_key = str(env.get("time_preset", "morning") or "morning").strip().lower()
+        weather_key = str(env.get("weather_preset", "clear") or "clear").strip().lower()
+        try:
+            sky.set_time_preset(time_key)
+        except Exception as exc:
+            logger.debug(f"[OpeningMemory] Failed to apply time preset '{time_key}': {exc}")
+        try:
+            sky.set_weather_preset(weather_key)
+        except Exception as exc:
+            logger.debug(f"[OpeningMemory] Failed to apply weather preset '{weather_key}': {exc}")
+
     def _start_opening_memory_sequence(self):
         if self._norm_test_mode():
             return False
@@ -970,10 +1151,16 @@ class XBotApp(ShowBase):
         package = self._load_opening_memory_package()
         if not isinstance(package, dict) or not package:
             return False
+        if getattr(self, "asset_bundle_mgr", None):
+            try:
+                self.asset_bundle_mgr.activate_profile("opening_memory")
+            except Exception as exc:
+                logger.debug(f"[AssetBundle] opening_memory activation skipped: {exc}")
 
         self._opening_memory_started = True
         self._opening_memory_finished = False
         self._tutorial_flow_blocked_by_opening = True
+        self._apply_opening_memory_environment(package)
 
         phase = str(package.get("phase", "morning_argument_with_father") or "morning_argument_with_father").strip()
         lead = str(package.get("lead", "sherward") or "sherward").strip()
@@ -1590,6 +1777,13 @@ class XBotApp(ShowBase):
         """Triggers a cinematic seamless transition to a new location."""
         logger.info(f"Transitioning to location: {loc_name}")
         self.hud.set_autosave(True)
+        context_tag = str(loc_name or "travel").strip().lower() or "travel"
+        bundle_targets = []
+        if getattr(self, "asset_bundle_mgr", None):
+            try:
+                bundle_targets = self.asset_bundle_mgr.activate_for_location(context_tag)
+            except Exception as exc:
+                logger.debug(f"[AssetBundle] Location activation skipped: {exc}")
 
         # 1. Fade out current world & Show Loading Screen
         self.loading_screen.set_progress(0, f"Travelling to {loc_name}...")
@@ -1597,9 +1791,9 @@ class XBotApp(ShowBase):
         # Cinematic sequence: Fade to black -> Show Loading -> Load -> Fade In
         Sequence(
             LerpColorScaleInterval(self.render, 0.5, LColor(0,0,0,1), LColor(1,1,1,1)),
-            Func(self.loading_screen.show),
+            Func(self.loading_screen.show, context_tag),
             Wait(0.1),
-            Func(self.preload_mgr.preload_area, loc_name, lambda: self._start_world_rebuild(loc_name))
+            Func(self.preload_mgr.preload_area, loc_name, lambda: self._start_world_rebuild(loc_name), bundle_targets)
         ).start()
 
     def _start_world_rebuild(self, loc_name):
@@ -1948,6 +2142,65 @@ class XBotApp(ShowBase):
         self._lock_target_kind = ""
         self._lock_target_id = ""
 
+    def _clear_aim_target_highlight(self):
+        node = getattr(self, "_aim_highlight_node", None)
+        prev = getattr(self, "_aim_highlight_prev_color", None)
+        self._aim_highlight_node = None
+        self._aim_highlight_prev_color = None
+        if not node:
+            return
+        try:
+            if hasattr(node, "isEmpty") and node.isEmpty():
+                return
+            if isinstance(prev, tuple) and len(prev) == 4:
+                node.setColorScale(float(prev[0]), float(prev[1]), float(prev[2]), float(prev[3]))
+            else:
+                node.clearColorScale()
+        except Exception:
+            return
+
+    def _apply_aim_target_highlight(self, target_info):
+        if not isinstance(target_info, dict):
+            self._clear_aim_target_highlight()
+            return
+        node = target_info.get("node")
+        if not node:
+            self._clear_aim_target_highlight()
+            return
+        try:
+            if hasattr(node, "isEmpty") and node.isEmpty():
+                self._clear_aim_target_highlight()
+                return
+        except Exception:
+            self._clear_aim_target_highlight()
+            return
+
+        locked = bool(target_info.get("locked", False))
+        kind = str(target_info.get("kind", "") or "").strip().lower()
+        if locked:
+            color = (1.0, 0.86, 0.42, 1.0)
+        elif kind == "enemy":
+            color = (1.0, 0.68, 0.62, 1.0)
+        elif kind == "npc":
+            color = (0.82, 0.98, 0.84, 1.0)
+        else:
+            color = (0.84, 0.90, 1.0, 1.0)
+
+        if node is not self._aim_highlight_node:
+            self._clear_aim_target_highlight()
+            prev = None
+            try:
+                p = node.getColorScale()
+                prev = (float(p[0]), float(p[1]), float(p[2]), float(p[3]))
+            except Exception:
+                prev = None
+            self._aim_highlight_node = node
+            self._aim_highlight_prev_color = prev
+        try:
+            node.setColorScale(float(color[0]), float(color[1]), float(color[2]), float(color[3]))
+        except Exception:
+            self._clear_aim_target_highlight()
+
     def _update_aim_and_lock(self, dt):
         _ = dt
         candidate = self._scan_aim_target()
@@ -1979,10 +2232,12 @@ class XBotApp(ShowBase):
             if isinstance(locked, dict):
                 locked["locked"] = True
                 self._aim_target_info = locked
+                self._apply_aim_target_highlight(locked)
                 return locked
             self._clear_target_lock()
 
         self._aim_target_info = candidate
+        self._apply_aim_target_highlight(candidate)
         return candidate
 
     def _update_codex_runtime(self, player_pos, tutorial_state=None, target_info=None):
@@ -2122,6 +2377,7 @@ class XBotApp(ShowBase):
             self.hud.hide()
 
         if not self.state_mgr.is_playing() or not self.player:
+            self._clear_aim_target_highlight()
             return Task.cont
 
         if hasattr(self, "influence_mgr") and self.influence_mgr:
@@ -2157,11 +2413,26 @@ class XBotApp(ShowBase):
             if self.water_sim:
                 self.water_sim.update(task.time)
 
+        self._sample_gamepad_axes()
         self.player.update(dt_player, self._cam_yaw)
         player_pos = self.player.actor.getPos()
+        stealth_state = {}
+        if getattr(self, "stealth_mgr", None):
+            try:
+                stealth_state = self.stealth_mgr.update(
+                    dt_world,
+                    self.player,
+                    world_state=world_state,
+                    motion_plan=getattr(self.player, "_motion_plan", {}),
+                )
+            except Exception as exc:
+                logger.debug(f"[StealthManager] Update failed: {exc}")
+                stealth_state = {}
+        self._stealth_state_cache = stealth_state if isinstance(stealth_state, dict) else {}
+
         if getattr(self, "npc_mgr", None):
             try:
-                self.npc_mgr.update(dt_world, world_state=world_state)
+                self.npc_mgr.update(dt_world, world_state=world_state, stealth_state=stealth_state)
             except Exception as exc:
                 logger.warning(f"[NPCManager] Update failed: {exc}")
                 self.npc_mgr = None
@@ -2287,6 +2558,7 @@ class XBotApp(ShowBase):
             tutorial_message=tutorial_message,
             tutorial_state=tutorial_state,
             target_info=target_info,
+            stealth_state=stealth_state,
         )
 
         self._follow_camera(dt_real)
@@ -2297,11 +2569,15 @@ class XBotApp(ShowBase):
         if self.player and self.player.actor:
             profile_cfg = None
             director = getattr(self, "camera_director", None)
+            gp_axes = self._gp_axes if isinstance(getattr(self, "_gp_axes", None), dict) else {}
+            gp_look_x = float(gp_axes.get("look_x", 0.0) or 0.0)
+            gp_look_y = float(gp_axes.get("look_y", 0.0) or 0.0)
             manual_look = bool(
                 self.state_mgr.is_playing()
                 and self.mouseWatcherNode
                 and self.mouseWatcherNode.isButtonDown(MouseButton.three())
             )
+            manual_look = manual_look or (abs(gp_look_x) > 0.04 or abs(gp_look_y) > 0.04)
             shot_active = bool(
                 director
                 and hasattr(director, "is_cutscene_active")
@@ -2335,14 +2611,28 @@ class XBotApp(ShowBase):
                 if (not shot_active) and getattr(self, '_last_mouse_x', None) is not None and manual_look:
                     dx = mouse_x - self._last_mouse_x
                     dy = mouse_y - self._last_mouse_y
-                    self._cam_yaw += dx * -150.0  # Sensitivity
-                    self._cam_pitch -= dy * 150.0
+                    sens = max(40.0, min(320.0, float(getattr(self, "_cam_mouse_sens", 150.0) or 150.0)))
+                    self._cam_yaw += dx * -sens
+                    if bool(getattr(self, "_cam_invert_y", False)):
+                        self._cam_pitch += dy * sens
+                    else:
+                        self._cam_pitch -= dy * sens
 
                     # Clamp pitch
                     self._cam_pitch = max(-80.0, min(80.0, self._cam_pitch))
 
                 self._last_mouse_x = mouse_x
                 self._last_mouse_y = mouse_y
+
+            if (not shot_active) and (abs(gp_look_x) > 0.01 or abs(gp_look_y) > 0.01):
+                sens = max(40.0, min(320.0, float(getattr(self, "_cam_mouse_sens", 150.0) or 150.0)))
+                stick_scale = max(0.0, float(dt or 0.0)) * 1.8
+                self._cam_yaw += (-gp_look_x) * sens * stick_scale
+                if bool(getattr(self, "_cam_invert_y", False)):
+                    self._cam_pitch += gp_look_y * sens * stick_scale
+                else:
+                    self._cam_pitch -= gp_look_y * sens * stick_scale
+                self._cam_pitch = max(-80.0, min(80.0, self._cam_pitch))
 
             self._apply_target_lock_camera(
                 center=center,

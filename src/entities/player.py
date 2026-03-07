@@ -108,6 +108,7 @@ class Player(
         self._trail_id = -1
         self._was_in_water = False
         self._is_flying = False
+        self._stealth_crouch = False
         self._weapon_drawn = False
         self._drawn_hold_timer = 0.0
         self._flight_fx_on = False
@@ -124,6 +125,7 @@ class Player(
         self._has_offhand_visual = False
         self._anim_failed_once = set()
         self._anim_missing_state_once = set()
+        self._anim_no_clip_time = 0.0
         self._motion_plan = {}
         self._last_turn_trigger_time = 0.0
         self._brain_last_pos = None
@@ -155,7 +157,7 @@ class Player(
         self._skill_wheel_open = False
         self._skill_wheel_hover_idx = None
         self._skill_wheel_preview_idx = None
-        skill_wheel_key = self.data_mgr.get_binding("skill_wheel") or self.data_mgr.get_binding("attack_thrust") or "tab"
+        skill_wheel_key = self.data_mgr.get_binding("skill_wheel") or "tab"
         self._skill_wheel_hint_key = str(skill_wheel_key).upper()
         self._spell_type_alias = {
             "fireball": "Fireball",
@@ -1645,19 +1647,49 @@ class Player(
     def _is_skill_wheel_held(self):
         if self._get_action("skill_wheel"):
             return True
-        has_explicit_wheel = bool(
-            getattr(self, "_bindings", {}).get("skill_wheel")
-            or self.data_mgr.get_binding("skill_wheel")
-        )
-        # Legacy fallback only when explicit skill wheel bind is absent.
-        if not has_explicit_wheel:
-            return self._get_action("attack_thrust")
+        return False
+
+    def _should_contextual_thrust(self):
+        # Context-driven thrust: forward intent, grounded melee, and near target.
+        try:
+            if not bool(getattr(self.cs, "grounded", True)):
+                return False
+        except Exception:
+            return False
+        if bool(getattr(self, "_is_flying", False)):
+            return False
+        if bool(getattr(self, "_is_crouching", False)):
+            return False
+
+        mx, my = self._get_move_axes()
+        if float(my) < 0.58 or abs(float(mx)) > 0.42:
+            return False
+
+        style = "unarmed"
+        if hasattr(self, "_weapon_combo_style"):
+            try:
+                style = str(self._weapon_combo_style() or "unarmed").strip().lower()
+            except Exception:
+                style = "unarmed"
+        if style not in {"sword", "staff", "unarmed"}:
+            return False
+
+        info = getattr(getattr(self, "app", None), "_aim_target_info", None)
+        if isinstance(info, dict):
+            try:
+                if float(info.get("distance", 99.0) or 99.0) <= 3.8:
+                    return True
+            except Exception:
+                pass
         return False
 
     def _sync_skill_wheel_hud(self):
         hud = getattr(self.app, "hud", None)
         if not hud or not hasattr(hud, "set_skill_wheel_visible"):
             return
+        wheel_key = str(self.data_mgr.get_binding("skill_wheel") or "tab").strip()
+        if wheel_key:
+            self._skill_wheel_hint_key = wheel_key.upper()
         try:
             hud.set_skill_wheel_visible(
                 self._skill_wheel_open,
@@ -1739,6 +1771,26 @@ class Player(
                 director.emit_impact(tag, intensity=intensity, direction_deg=180.0)
             except Exception:
                 pass
+
+    def _set_stealth_crouch(self, enabled):
+        desired = bool(enabled)
+        if desired == bool(getattr(self, "_stealth_crouch", False)):
+            return
+        self._stealth_crouch = desired
+        if not desired:
+            return
+        # Crouch should not coexist with flight or mounted locomotion.
+        self._is_flying = False
+
+    def _sync_stealth_input(self):
+        if self._once_action("crouch_toggle"):
+            self._set_stealth_crouch(not bool(getattr(self, "_stealth_crouch", False)))
+
+        vehicle_mgr = getattr(self.app, "vehicle_mgr", None)
+        if vehicle_mgr and getattr(vehicle_mgr, "is_mounted", False):
+            self._set_stealth_crouch(False)
+        if bool(getattr(self, "_is_flying", False)):
+            self._set_stealth_crouch(False)
 
         time_fx = getattr(getattr(self, "app", None), "time_fx", None)
         if time_fx and hasattr(time_fx, "trigger"):
@@ -1846,6 +1898,8 @@ class Player(
             "parkour": parkour,
             "combat": combat_now,
             "in_water": in_water,
+            "is_crouched": bool(getattr(self, "_stealth_crouch", False)),
+            "stealth_context": bool(getattr(self.app, "_stealth_state_cache", {}).get("context_override", "") == "stealth"),
             "fatigue": max(0.0, min(1.0, 1.0 - stamina_ratio)),
             "hp_ratio": max(0.0, min(1.0, hp_ratio)),
             "location_name": location_name,
@@ -1886,6 +1940,7 @@ class Player(
             return
 
         mx, my = self._get_move_axes()
+        self._sync_stealth_input()
         self._sync_block_state_edges()
         interacted = self._once_action("interact")
         handled_vehicle = False
@@ -1915,6 +1970,8 @@ class Player(
 
         if self._once_action("flight_toggle"):
             self._is_flying = not self._is_flying
+            if self._is_flying:
+                self._set_stealth_crouch(False)
             self.cs.velocity.z = 0
 
         if self._is_flying:
@@ -1944,11 +2001,18 @@ class Player(
             if self._once_action(f"spell_{i+1}"):
                 self._active_spell_idx = i
 
-        if self._once_action("attack_light"):
+        light_pressed = self._once_action("attack_light")
+        thrust_pressed = self._once_action("attack_thrust")
+
+        if light_pressed:
             if not self._cast_spell_by_index(self._active_spell_idx):
-                self._play_sfx("sword_swing", volume=0.88, rate=1.04)
+                use_thrust = bool(thrust_pressed or self._should_contextual_thrust())
+                if use_thrust:
+                    self._play_sfx("sword_swing", volume=0.84, rate=1.12)
+                else:
+                    self._play_sfx("sword_swing", volume=0.88, rate=1.04)
                 self._on_hit(self.combat.startAttack(self.cs, gc.AttackType.Light, self.enemies))
-                self._queue_state_trigger("attack_light")
+                self._queue_state_trigger("attack_thrust" if use_thrust else "attack_light")
                 self._queue_state_trigger("attack")
             action_used = True
         if self._once_action("attack_heavy"):

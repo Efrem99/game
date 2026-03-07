@@ -42,6 +42,9 @@ class PlayerMovementMixin:
     def _update_ground(self, dt, move):
         self._set_flight_fx(False)
         running = self._get_action("run")
+        crouched = bool(getattr(self, "_stealth_crouch", False) and not bool(getattr(self, "_is_flying", False)))
+        if crouched and running:
+            running = False
         moving = move.len() > 0.01
         motion_plan = getattr(self, "_motion_plan", {}) if isinstance(getattr(self, "_motion_plan", {}), dict) else {}
         motion = motion_plan.get("motion_plan", {}) if isinstance(motion_plan, dict) else {}
@@ -51,7 +54,8 @@ class PlayerMovementMixin:
         except Exception:
             gait_mult = 1.0
         if moving:
-            speed = (self.run_speed if running else self.walk_speed) * gait_mult
+            stealth_mult = 0.56 if crouched else 1.0
+            speed = (self.run_speed if running else self.walk_speed) * gait_mult * stealth_mult
             move_normalized = move.normalized()
             self.cs.velocity.x = move_normalized.x * speed
             self.cs.velocity.y = move_normalized.y * speed
@@ -69,6 +73,8 @@ class PlayerMovementMixin:
 
         if self._once_action("jump"):
             if self.cs.grounded:
+                if crouched:
+                    self._set_stealth_crouch(False)
                 jump_force = float(self.data_mgr.get_move_param("jump_force") or 9.5)
                 try:
                     jump_force *= max(0.35, min(1.25, float(motion.get("jump_modifier", 1.0) or 1.0)))
@@ -109,11 +115,13 @@ class PlayerMovementMixin:
         self._update_footsteps(
             dt,
             moving=moving and bool(self.cs.grounded),
-            running=running,
+            running=running and (not crouched),
             in_water=bool(getattr(self.cs, "inWater", False)),
         )
 
     def _update_flight(self, move):
+        if bool(getattr(self, "_stealth_crouch", False)):
+            self._set_stealth_crouch(False)
         move_speed = self.flight_speed * (2.0 if self._get_action("run") else 1.0)
         if move.len() > 0.01:
             move_normalized = move.normalized()
@@ -143,6 +151,7 @@ class PlayerMovementMixin:
         if grounded and not prev_grounded:
             impact = abs(prev_vz)
             self._last_landing_impact_speed = impact
+            self._landing_anim_hold = 0.16 if impact < 6.0 else 0.26
             if impact >= 10.0:
                 self._queue_state_trigger("hard_landing")
             elif impact >= 3.0:
@@ -175,6 +184,10 @@ class PlayerMovementMixin:
                     pass
         elif grounded:
             self._last_landing_impact_speed = 0.0
+            self._landing_anim_hold = max(
+                0.0,
+                float(getattr(self, "_landing_anim_hold", 0.0) or 0.0) - max(0.0, float(dt or 0.0)),
+            )
             balance = str(motion.get("balance_correction", "") or "").strip().lower()
             if balance in {"stumble", "near_fall", "fall"}:
                 self._queue_state_trigger(balance)
@@ -210,6 +223,36 @@ class PlayerMovementMixin:
             return
 
         self._run_animation_state_machine()
+        mounted_now = bool(getattr(getattr(self, "app", None), "vehicle_mgr", None) and getattr(self.app.vehicle_mgr, "is_mounted", False))
+        landing_hold = float(getattr(self, "_landing_anim_hold", 0.0) or 0.0)
+        if (
+            landing_hold > 0.0
+            and bool(getattr(self.cs, "grounded", False))
+            and not bool(getattr(self, "_is_flying", False))
+            and not mounted_now
+        ):
+            self._landing_anim_hold = max(0.0, landing_hold - max(0.0, float(dt or 0.0)))
+            self._set_anim("landing", loop=False)
+
+        # Runtime guard against silent animation dropouts (visual T-pose symptom).
+        current_anim = ""
+        try:
+            current_anim = str(self.actor.getCurrentAnim() or "").strip()
+        except Exception:
+            current_anim = ""
+        if current_anim:
+            self._anim_no_clip_time = 0.0
+            return
+        self._anim_no_clip_time = float(getattr(self, "_anim_no_clip_time", 0.0) or 0.0) + max(0.0, float(dt or 0.0))
+        no_clip_threshold = 0.35
+        if bool(getattr(self.cs, "grounded", False)) and not bool(getattr(self, "_is_flying", False)):
+            no_clip_threshold = 0.10
+        if self._anim_no_clip_time >= no_clip_threshold:
+            try:
+                self._force_safe_idle_anim()
+            except Exception:
+                pass
+            self._anim_no_clip_time = 0.0
 
     def _proc_animate(self, dt=0.0):
         if not hasattr(self, "_proc_root"):
@@ -282,12 +325,18 @@ class PlayerMovementMixin:
             self._py_velocity_z = 0.0
         if not hasattr(self, "_py_grounded"):
             self._py_grounded = True
+        if not hasattr(self, "_py_landing_timer"):
+            self._py_landing_timer = 0.0
 
         current_pos = self.actor.getPos()
         _ = self._get_terrain_height(current_pos.x, current_pos.y)
 
+        crouched = bool(getattr(self, "_stealth_crouch", False) and not bool(getattr(self, "_is_flying", False)))
+        running = bool(self._get_action("run") and (not crouched))
+
         if abs(mx) > 0.1 or abs(my) > 0.1:
-            speed = (self.run_speed if self._get_action("run") else self.walk_speed) * gait_mult
+            stealth_mult = 0.56 if crouched else 1.0
+            speed = (self.run_speed if running else self.walk_speed) * gait_mult * stealth_mult
             dx, dy = self._camera_move_vector(mx, my, cam_yaw)
 
             new_x = current_pos.x + dx * speed * dt
@@ -312,11 +361,14 @@ class PlayerMovementMixin:
             moving = False
 
         if self._once_action("jump") and self._py_grounded:
+            if crouched:
+                self._set_stealth_crouch(False)
             self._py_velocity_z = 6.5 * jump_mult
             self._py_grounded = False
             self._queue_state_trigger("jump")
             self._play_sfx("jump", volume=0.68)
 
+        prev_vz = float(self._py_velocity_z)
         gravity = 9.8
         self._py_velocity_z -= gravity * dt
         new_z = current_pos.z + self._py_velocity_z * dt
@@ -325,8 +377,16 @@ class PlayerMovementMixin:
         if new_z <= new_terrain_z:
             new_z = new_terrain_z
             if not self._py_grounded:
-                self._queue_state_trigger("animation_finished")
+                impact = abs(prev_vz)
+                self._last_landing_impact_speed = impact
+                self._py_landing_timer = max(float(getattr(self, "_py_landing_timer", 0.0) or 0.0), 0.16 if impact < 6.0 else 0.24)
+                if impact >= 9.5:
+                    self._queue_state_trigger("hard_landing")
+                elif impact >= 3.0:
+                    self._queue_state_trigger("soft_landing")
                 self._play_sfx("land", volume=0.72)
+            else:
+                self._last_landing_impact_speed = 0.0
             self._py_velocity_z = 0.0
             self._py_grounded = True
 
@@ -337,15 +397,21 @@ class PlayerMovementMixin:
                 self._set_anim("jumping", loop=True)
             else:
                 self._set_anim("falling", loop=True)
+        elif float(getattr(self, "_py_landing_timer", 0.0) or 0.0) > 0.0:
+            self._py_landing_timer = max(0.0, float(self._py_landing_timer) - max(0.0, float(dt)))
+            self._set_anim("landing", loop=False)
         elif moving:
-            state = "running" if self._get_action("run") else "walking"
+            if crouched:
+                state = "crouch_move"
+            else:
+                state = "running" if running else "walking"
             self._set_anim(state, loop=True)
         else:
-            self._set_anim("idle", loop=True)
+            self._set_anim("crouch_idle" if crouched else "idle", loop=True)
         self._update_footsteps(
             dt,
             moving=bool(moving and self._py_grounded),
-            running=bool(self._get_action("run")),
+            running=bool(running),
             in_water=False,
         )
         self._tick_anim_blend(dt)
