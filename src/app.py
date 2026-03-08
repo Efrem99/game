@@ -119,6 +119,11 @@ class XBotApp(ShowBase):
         self._cam_mouse_sens = 150.0
         self._cam_invert_y = False
         self._gfx_quality = "Medium"
+        self._advanced_rendering = (
+            str(os.environ.get("XBOT_DISABLE_POSTFX", "0") or "").strip().lower()
+            not in {"1", "true", "yes", "on"}
+        )
+        self._screenspace_ready = False
 
         # Advanced complexpbr Rendering
         logger.info("Initializing complexpbr shaders and screenspace effects...")
@@ -136,19 +141,22 @@ class XBotApp(ShowBase):
         self.render.set_shader_input("displacement_scale", 0.0)
         self.render.set_shader_input("displacement_map", Texture())
 
-        complexpbr.apply_shader(
-            self.render,
-            intensity=1.0,
-            default_lighting=False,
-            custom_dir="shaders/"
-        )
+        if self._advanced_rendering:
+            complexpbr.apply_shader(
+                self.render,
+                intensity=1.0,
+                default_lighting=False,
+                custom_dir="shaders/"
+            )
+        else:
+            logger.info("[Render] PostFX disabled via XBOT_DISABLE_POSTFX.")
 
         # Avoid "Could not find appropriate DisplayRegion to filter" error
-        try:
-            if self.win and self.win.getActiveDisplayRegions():
-                complexpbr.screenspace_init()
-        except Exception as e:
-            logger.warning(f"Could not init screenspace effects immediately: {e}")
+        if self._advanced_rendering:
+            self._safe_screenspace_init()
+        else:
+            self._screenspace_ready = False
+            self._remove_screenspace_nodes()
 
         # Global fallback inputs for complexpbr 0.6.0+ stability
         fallbacks = {
@@ -184,7 +192,7 @@ class XBotApp(ShowBase):
         # not to the static root render graph.
 
         # Configure post-processing on the screen quad
-        if hasattr(self, 'screen_quad'):
+        if self._advanced_rendering and hasattr(self, 'screen_quad'):
             logger.debug("Configuring complexpbr post-processing inputs.")
             self.screen_quad.set_shader_input("bloom_intensity", 1.2)
             for name, val in fallbacks.items():
@@ -459,6 +467,28 @@ class XBotApp(ShowBase):
                     child.removeNode()
         except Exception:
             pass
+        try:
+            for child in self.render2d.getChildren():
+                if "screendisplay" in child.getName().lower():
+                    child.removeNode()
+        except Exception:
+            pass
+
+    def _safe_screenspace_init(self):
+        if not bool(getattr(self, "_advanced_rendering", True)):
+            self._screenspace_ready = False
+            self._remove_screenspace_nodes()
+            return False
+        self._remove_screenspace_nodes()
+        try:
+            if self.win and self.win.getActiveDisplayRegions():
+                complexpbr.screenspace_init()
+                self._screenspace_ready = True
+                return True
+        except Exception as exc:
+            logger.warning(f"[Render] screenspace init failed, keeping base shader only: {exc}")
+        self._screenspace_ready = False
+        return False
 
     def _apply_lighting_from_settings(self, quality_token):
         cfg = {}
@@ -540,13 +570,10 @@ class XBotApp(ShowBase):
             self.render.setAntialias(AntialiasAttrib.MMultisample, aa)
 
         # Toggle heavy screenspace pass.
-        if token in {"high", "ultra"}:
-            try:
-                if self.camNode.getNumDisplayRegions() > 0:
-                    complexpbr.screenspace_init()
-            except Exception:
-                pass
+        if token in {"medium", "high", "ultra"} and getattr(self, "_advanced_rendering", True):
+            self._safe_screenspace_init()
         else:
+            self._screenspace_ready = False
             self._remove_screenspace_nodes()
 
         bloom_intensity = 1.2
@@ -563,7 +590,7 @@ class XBotApp(ShowBase):
         bloom_scale = {"low": 0.72, "medium": 0.9, "high": 1.0, "ultra": 1.08}.get(token, 1.0)
         bloom_intensity *= bloom_scale
 
-        if hasattr(self, "screen_quad"):
+        if getattr(self, "_advanced_rendering", True) and hasattr(self, "screen_quad"):
             try:
                 self.screen_quad.set_shader_input("bloom_intensity", bloom_intensity)
             except Exception:
@@ -1524,6 +1551,8 @@ class XBotApp(ShowBase):
             "movement": ("morning", "clear"),
             "parkour": ("afternoon", "partly_cloudy"),
             "flight": ("dawn", "clear"),
+            "swim": ("afternoon", "partly_cloudy"),
+            "world_art": ("noon", "clear"),
         }
         time_key, weather_key = presets.get(profile, ("noon", "clear"))
         try:
@@ -1938,7 +1967,7 @@ class XBotApp(ShowBase):
 
         self._apply_test_profile()
         opening_started = False
-        if should_run_opening:
+        if should_run_opening and not self._norm_test_mode():
             opening_started = bool(self._start_opening_memory_sequence())
         if not opening_started:
             self._setup_main_game_tutorial()

@@ -4,8 +4,16 @@ from typing import Dict, List, Optional, Tuple
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import LColor, Vec3
 
+from render.model_visuals import ensure_model_visual_defaults
 from utils.logger import logger
 from world.sharuan_world import mk_box, mk_cone, mk_cyl
+
+try:
+    import game_core as gc
+    HAS_CORE = True
+except ImportError:
+    gc = None
+    HAS_CORE = False
 
 
 class VehicleManager:
@@ -332,7 +340,55 @@ class VehicleManager:
 
         vehicle["node"].setH(heading)
         self._apply_vehicle_tuning(vehicle, entry)
+        self._apply_vehicle_textures(vehicle["node"])
+        self._apply_vehicle_visual_defaults(vehicle["node"], debug_label=f"vehicle:{vehicle_id}")
         return vehicle
+
+    def _apply_vehicle_textures(self, node):
+        if not node or node.isEmpty():
+            return
+        world = getattr(self.app, "world", None)
+        tx = getattr(world, "tx", {}) if world else {}
+        bark = tx.get("bark", {}) if isinstance(tx.get("bark"), dict) else {}
+        roof = tx.get("roof", {}) if isinstance(tx.get("roof"), dict) else {}
+        dirt = tx.get("dirt", {}) if isinstance(tx.get("dirt"), dict) else {}
+        bark_tex = bark.get("albedo")
+        cloth_tex = roof.get("albedo") or dirt.get("albedo")
+
+        if not bark_tex and not cloth_tex:
+            return
+
+        for geom_np in node.findAllMatches("**/+GeomNode"):
+            try:
+                name = str(geom_np.getName() or "").strip().lower()
+            except Exception:
+                name = ""
+            tex = cloth_tex if "sail" in name else bark_tex
+            if tex:
+                try:
+                    geom_np.setTexture(tex, 1)
+                except Exception:
+                    pass
+
+    def _apply_vehicle_visual_defaults(self, node, debug_label):
+        if not node or node.isEmpty():
+            return
+        ensure_model_visual_defaults(
+            node,
+            apply_skin=False,
+            force_two_sided=True,
+            debug_label=debug_label,
+        )
+        # Python-only mode: avoid dark fallback from heavy shader pipeline.
+        if not HAS_CORE:
+            try:
+                node.setShaderOff(1002)
+            except Exception:
+                pass
+            try:
+                node.setColorScale(1.0, 1.0, 1.0, 1.0)
+            except Exception:
+                pass
 
     def _normalize_kind(self, kind):
         token = str(kind or "").strip().lower()

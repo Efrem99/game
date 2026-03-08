@@ -22,6 +22,22 @@ except ImportError:
     HAS_CORE = False
 
 from utils.assets_util import _fbm, make_pbr_tex_set
+from utils.logger import logger
+
+
+def should_enable_world_shader(has_core, env=None):
+    """
+    Enable heavy world shader path only when native core is present by default.
+    Can be overridden for explicit testing via env switches.
+    """
+    env_map = os.environ if env is None else env
+    force = str(env_map.get("XBOT_FORCE_WORLD_SHADER", "0") or "").strip().lower()
+    if force in {"1", "true", "yes", "on"}:
+        return True
+    disable = str(env_map.get("XBOT_DISABLE_WORLD_SHADER", "0") or "").strip().lower()
+    if disable in {"1", "true", "yes", "on"}:
+        return False
+    return bool(has_core)
 
 # ─── Mesh builders ─────────────────────────────────────────────────
 def mk_box(nm, sx, sy, sz):
@@ -225,16 +241,22 @@ class SharuanWorld:
         # Stable RNG for procedural decoration jitter (grass, decals, micro-variation).
         self._rng = random.Random(20260308)
 
-        try:
-            self.terrain_shader = Shader.load(
-                Shader.SL_GLSL,
-                "shaders/simple_pbr.vert",
-                "shaders/simple_pbr.frag"
+        self.terrain_shader = None
+        if should_enable_world_shader(HAS_CORE):
+            try:
+                self.terrain_shader = Shader.load(
+                    Shader.SL_GLSL,
+                    "shaders/simple_pbr.vert",
+                    "shaders/simple_pbr.frag"
+                )
+            except Exception as e:
+                logger.error(f"Failed to load terrain fallback shader: {e}")
+                self.terrain_shader = None
+        else:
+            logger.info(
+                "[SharuanWorld] World shader disabled in safe rendering mode. "
+                "Set XBOT_FORCE_WORLD_SHADER=1 to override."
             )
-        except Exception as e:
-            from utils.logger import logger
-            logger.error(f"Failed to load terrain fallback shader: {e}")
-            self.terrain_shader = None
 
         self.tx = {}
         self._gen_steps = [
@@ -522,9 +544,15 @@ class SharuanWorld:
                 decal.set_transparency(TransparencyAttrib.M_alpha)
 
     def _spawn_grass_tuft(self, idx, x, y, z, tex):
-        tint = 0.88 + (self._rng.random() * 0.18)
-        blade_h = 1.2 + (self._rng.random() * 1.1)
-        blade_w = 0.48 + (self._rng.random() * 0.28)
+        rng = getattr(self, "_rng", None)
+        if rng is None:
+            # Safety net for partially initialized instances to avoid startup crashes.
+            rng = random.Random(20260308)
+            self._rng = rng
+
+        tint = 0.88 + (rng.random() * 0.18)
+        blade_h = 1.2 + (rng.random() * 1.1)
+        blade_w = 0.48 + (rng.random() * 0.28)
         front = self._pl(
             mk_plane(f"grass_front_{idx}", blade_w, blade_h, 1.0),
             x,
@@ -536,7 +564,7 @@ class SharuanWorld:
             is_platform=False,
         )
         front.setP(90.0)
-        front.setH(self._rng.uniform(-180.0, 180.0))
+        front.setH(rng.uniform(-180.0, 180.0))
         front.set_transparency(TransparencyAttrib.M_alpha)
         front.setTwoSided(True)
         if tex:

@@ -33,6 +33,12 @@ def _clamp(v, lo, hi):
     return max(lo, min(hi, v))
 
 
+def should_apply_enemy_visual_defaults(node_role):
+    """FX cards (telegraph rings) should bypass model fallback patching."""
+    role = str(node_role or "").strip().lower()
+    return role not in {"telegraph", "ring", "fx"}
+
+
 class EnemyUnit:
     def __init__(self, app, cfg):
         self.app = app
@@ -400,9 +406,15 @@ class EnemyUnit:
                 self._build_shadow()
             else:
                 self._build_goblin()
+        if should_apply_enemy_visual_defaults("model"):
+            ensure_model_visual_defaults(
+                self.root,
+                apply_skin=False,
+                force_two_sided=True,
+                debug_label=f"enemy_root:{self.id}",
+            )
+            self._apply_python_only_visual_fallback(self.root, debug_label=f"enemy_root:{self.id}")
         self._build_telegraph_ring()
-        ensure_model_visual_defaults(self.root, apply_skin=False, force_two_sided=True, debug_label=f"enemy_root:{self.id}")
-        self._apply_python_only_visual_fallback(self.root, debug_label=f"enemy_root:{self.id}")
         self._ensure_proxy()
         logger.info(f"[Enemy] Spawned '{self.name}' kind='{self.kind}' boss={self.is_boss}")
 
@@ -415,7 +427,9 @@ class EnemyUnit:
         ring.setPos(0.0, 0.0, 0.06)
         ring.setTransparency(TransparencyAttrib.MAlpha)
         ring.setLightOff(1)
+        ring.setShaderOff(1002)
         ring.setTwoSided(True)
+        ring.setDepthTest(False)
         ring.setDepthWrite(False)
         ring.setBin("transparent", 30)
         try:
@@ -427,12 +441,6 @@ class EnemyUnit:
         ring.setColorScale(*self._fx_color("idle_color", (1.0, 0.25, 0.15, 0.0)))
         min_scale = self._fx_float("min_scale", 1.2, 0.2, 50.0)
         ring.setScale(max(min_scale, self._stat("attack_range", 2.4)))
-        ensure_model_visual_defaults(
-            ring,
-            apply_skin=False,
-            force_two_sided=True,
-            debug_label=f"enemy:{self.id}:telegraph",
-        )
         # Keep authored alpha values for telegraph and do not force opaque fallback color scale.
         self.nodes["telegraph"] = ring
 

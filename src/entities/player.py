@@ -1293,6 +1293,11 @@ class Player(
         self._flight_fx_root = self.actor.attachNewNode("flight_fx_root")
         self._flight_fx_root.setPos(0.0, -0.28, 1.05)
         self._flight_fx_root.hide()
+        flare_tex = None
+        try:
+            flare_tex = self.loader.loadTexture("assets/textures/flare.png")
+        except Exception:
+            flare_tex = None
 
         self._flight_left = self._make_box(
             self._flight_fx_root, "flight_fx_left", 0.24, 0.02, 0.52, (0.40, 0.75, 1.0, 0.55)
@@ -1313,6 +1318,15 @@ class Player(
         for fx in (self._flight_left, self._flight_right, self._flight_center):
             fx.setTransparency(TransparencyAttrib.MAlpha)
             fx.setLightOff(1)
+            fx.setTwoSided(True)
+            fx.setShaderOff(1002)
+            fx.setDepthWrite(False)
+            fx.setBin("transparent", 35)
+            if flare_tex:
+                try:
+                    fx.setTexture(flare_tex, 1)
+                except Exception:
+                    pass
 
     def _set_flight_fx(self, active):
         state = bool(active)
