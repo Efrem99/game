@@ -4,10 +4,10 @@
   "dialogue_tree": {
     "start": {
       "speaker": "Narrator",
-      "text": "The day begins before dawn. Sherward walks Sharuan in disguise, unseen among his own people.",
+      "text": "Festival morning in Sharuan. Before the throne-room audience, Sherward drifts into memory and walks his city in disguise.",
       "camera": "wide",
       "voice": "opening_memory/narrator_intro",
-      "duration": 4.4,
+      "duration": 4.6,
       "directives": {
         "location_id": "port_market_walk",
         "time_preset": "morning",
@@ -26,10 +26,10 @@
     },
     "adalin_market": {
       "speaker": "Adalin",
-      "text": "Even with a hood, you still move like a prince.",
+      "text": "You still pick up fallen apples before you pick up titles, my prince.",
       "camera": "npc",
       "voice": "opening_memory/adalin_market",
-      "duration": 3.8,
+      "duration": 4.0,
       "directives": {
         "location_id": "port_market_memory",
         "emit_event": "opening_memory_adalin_market",
@@ -46,9 +46,9 @@
     },
     "map_gallery": {
       "speaker": "Narrator",
-      "text": "Before facing his father, Sherward studies the world map: seas, kingdoms, and the blood-red lands of Krimora.",
+      "text": "In his chamber he studies the map: Lorena, Argelia, Doren, Zarandia, and the crimson threat of Krimora.",
       "camera": "wide",
-      "duration": 4.6,
+      "duration": 4.9,
       "directives": {
         "location_id": "world_map_gallery",
         "emit_event": "opening_memory_world_map",
@@ -57,17 +57,24 @@
             "section": "locations",
             "id": "world_map_chamber",
             "title": "World Map Chamber",
-            "details": "The map room where Sherward traces the geography of the realm before court."
+            "details": "Sherward reviews allied and hostile regions before meeting Sebastian in the throne hall."
+          },
+          {
+            "section": "events",
+            "id": "krimora_marked_on_map",
+            "title": "Krimora Marked as Primary Threat",
+            "details": "The morning map review frames Krimora as the core strategic risk to Sharuan."
           }
         ]
       },
-      "next_node": "juice_spill"
+      "next_node": "juice_spill",
+      "voice": "opening_memory/map_gallery"
     },
     "juice_spill": {
       "speaker": "Narrator",
-      "text": "Nervous hands, a spilled cup, stained ceremonial cloth. He changes into a second formal outfit and goes to the laundry wing.",
+      "text": "His hands shake, grape juice spills over formal trousers, and he changes outfits before rushing through the laundry wing.",
       "camera": "wide",
-      "duration": 4.9,
+      "duration": 4.8,
       "directives": {
         "location_id": "royal_laundry",
         "emit_event": "opening_memory_laundry",
@@ -80,13 +87,14 @@
           }
         ]
       },
-      "next_node": "darius_arrival"
+      "next_node": "darius_arrival",
+      "voice": "opening_memory/juice_spill"
     },
     "darius_arrival": {
       "speaker": "Darius",
-      "text": "Breathe, Sherward. A throne is heavy, but fear is heavier.",
+      "text": "Steady breath, Sherward. A crown tests fear before it tests strength.",
       "camera": "npc",
-      "duration": 3.9,
+      "duration": 4.0,
       "directives": {
         "location_id": "prince_chamber",
         "emit_event": "opening_memory_darius_arrives",
@@ -99,7 +107,8 @@
           }
         ]
       },
-      "next_node": "darius_cosmos"
+      "next_node": "darius_cosmos",
+      "voice": "opening_memory/darius_arrival"
     },
     "darius_cosmos": {
       "speaker": "Darius",
@@ -146,10 +155,10 @@
     },
     "father_call": {
       "speaker": "Sebastian",
-      "text": "You leave this house as my son, not as a runaway chasing legends.",
+      "text": "You are late. I heard about your plans after coronation... and this Adalin.",
       "camera": "npc",
       "voice": "opening_memory/sebastian_line_01",
-      "duration": 3.8,
+      "duration": 4.2,
       "directives": {
         "location_id": "prince_chamber",
         "time_preset": "morning",
@@ -159,15 +168,40 @@
     },
     "sherward_reply": {
       "speaker": "Sherward",
-      "text": "Then hear me now. I will not hide while Krimora takes more from us.",
+      "text": "I will rule with duty and love together. I will not be forced to choose one truth over the other.",
       "camera": "player",
       "voice": "opening_memory/sherward_line_01",
-      "duration": 3.8,
+      "duration": 4.1,
+      "next_node": "training_framework"
+    },
+    "training_framework": {
+      "speaker": "Narrator",
+      "text": "Training becomes formal doctrine: two trainers (Adrian and Darius), and boss trials against stone armors and Sebastian.",
+      "camera": "wide",
+      "duration": 5.2,
+      "directives": {
+        "location_id": "training_grounds",
+        "emit_event": "opening_memory_training_framework",
+        "codex_unlocks": [
+          {
+            "section": "tutorial",
+            "id": "training_protocol_four_trials",
+            "title": "Training Protocol: Four Trials",
+            "details": "Core instruction uses Adrian and Darius as trainers, with stone-armored and Sebastian boss trials."
+          },
+          {
+            "section": "events",
+            "id": "training_roster_confirmed",
+            "title": "Training Roster Confirmed",
+            "details": "Opening training codifies trainers, boss checks, and progression in the Codex."
+          }
+        ]
+      },
       "next_node": "training_miniboss"
     },
     "training_miniboss": {
       "speaker": "Sebastian",
-      "text": "If you claim strength, prove it. One exchange. No excuses.",
+      "text": "Sebastian enters the yard as a live boss check: one exchange, no excuses, no ceremony.",
       "camera": "npc",
       "voice": "opening_memory/sebastian_training",
       "duration": 3.7,
@@ -180,6 +214,12 @@
             "id": "opening_training_visit",
             "title": "Sebastian's Training Visit",
             "details": "Sebastian confronts Sherward as a final test of discipline and resolve."
+          },
+          {
+            "section": "events",
+            "id": "sebastian_boss_trial",
+            "title": "Sebastian Boss Trial",
+            "details": "Training progression includes direct pressure tests against Sebastian in person."
           }
         ]
       },
@@ -189,12 +229,13 @@
       "speaker": "Narrator",
       "text": "By the throne, the same man looks older. His shoulders are iron, but his breath is not.",
       "camera": "wide",
-      "duration": 4.4,
+      "duration": 4.5,
       "directives": {
         "location_id": "throne_hall",
         "emit_event": "opening_memory_throne_hall"
       },
-      "next_node": "sebastian_throne"
+      "next_node": "sebastian_throne",
+      "voice": "opening_memory/throne_hall_decline"
     },
     "sebastian_throne": {
       "speaker": "Sebastian",
@@ -208,20 +249,21 @@
       "speaker": "Narrator",
       "text": "The argument breaks. Sherward launches from the walls, forcing wings and will to answer fear.",
       "camera": "wide",
-      "duration": 4.6,
+      "duration": 4.7,
       "directives": {
         "location_id": "castle_flight_edge",
         "time_preset": "dusk",
         "weather_preset": "overcast",
         "emit_event": "opening_memory_flight_escape"
       },
-      "next_node": "crash_landing"
+      "next_node": "crash_landing",
+      "voice": "opening_memory/flight_escape"
     },
     "crash_landing": {
       "speaker": "Narrator",
       "text": "The sky turns red. He falls hard into the Krimorian woods.",
       "camera": "wide",
-      "duration": 4.1,
+      "duration": 4.3,
       "directives": {
         "location_id": "krimora_forest_crash",
         "time_preset": "dusk",
@@ -236,7 +278,8 @@
           }
         ]
       },
-      "next_node": "krimora_speaks"
+      "next_node": "krimora_speaks",
+      "voice": "opening_memory/crash_landing"
     },
     "krimora_speaks": {
       "speaker": "Krimora",
@@ -297,20 +340,21 @@
       "speaker": "Narrator",
       "text": "Together they reach the dwarven entrance: stone gates carved with old craft marks.",
       "camera": "wide",
-      "duration": 4.2,
+      "duration": 4.4,
       "directives": {
         "location_id": "dwarven_caves_gate",
         "time_preset": "night",
         "weather_preset": "overcast",
         "emit_event": "opening_memory_dwarven_gate"
       },
-      "next_node": "dwarven_halls"
+      "next_node": "dwarven_halls",
+      "voice": "opening_memory/dwarven_gate"
     },
     "dwarven_halls": {
       "speaker": "Narrator",
       "text": "Beyond lie vault sectors of treasure, forge chambers, and a beast-yard of gem-born hybrids.",
       "camera": "wide",
-      "duration": 4.8,
+      "duration": 5.0,
       "directives": {
         "location_id": "dwarven_caves_halls",
         "codex_unlocks": [
@@ -322,25 +366,95 @@
           }
         ]
       },
-      "next_node": "dwarven_throne"
+      "next_node": "dwarven_throne",
+      "voice": "opening_memory/dwarven_halls"
     },
     "dwarven_throne": {
       "speaker": "Narrator",
       "text": "At the center rises a cavern throne hall so vast that Sharuan's throne room seems modest beside it.",
       "camera": "wide",
-      "duration": 4.4,
+      "duration": 4.6,
       "directives": {
         "location_id": "dwarven_caves_throne",
         "emit_event": "opening_memory_dwarven_throne"
+      },
+      "next_node": "goblin_march",
+      "voice": "opening_memory/dwarven_throne"
+    },
+    "goblin_march": {
+      "speaker": "Narrator",
+      "text": "Soon after the dwarven caves, Sherward and Adrian march with Torvin and a dwarf detachment into their first major goblin melee.",
+      "camera": "wide",
+      "duration": 5.3,
+      "directives": {
+        "location_id": "old_forest",
+        "emit_event": "opening_memory_goblin_march",
+        "codex_unlocks": [
+          {
+            "section": "characters",
+            "id": "torvin",
+            "title": "Torvin",
+            "details": "Dwarven field leader who commands the detachment supporting Sherward after the cave alliance."
+          },
+          {
+            "section": "factions",
+            "id": "dwarven_warband",
+            "title": "Dwarven Expedition Warband",
+            "details": "Stone-trained strike unit fighting alongside Adrian and Sherward in early field actions."
+          }
+        ]
+      },
+      "next_node": "goblin_melee"
+    },
+    "goblin_melee": {
+      "speaker": "Narrator",
+      "text": "This clash becomes the first large tutorial battle: tight formations, mixed weapons, and real attrition under pressure.",
+      "camera": "wide",
+      "duration": 4.9,
+      "directives": {
+        "location_id": "old_forest",
+        "emit_event": "opening_memory_first_major_brawl",
+        "codex_unlocks": [
+          {
+            "section": "events",
+            "id": "first_major_brawl",
+            "title": "First Major Brawl",
+            "details": "Sherward, Adrian, and Torvin lead a full engagement against goblin forces after the caves."
+          }
+        ]
+      },
+      "next_node": "cleansing_awaken"
+    },
+    "cleansing_awaken": {
+      "speaker": "Sherward",
+      "text": "I can cast only a weak cleanse for now, but it strips corruption long enough to keep the line alive.",
+      "camera": "player",
+      "duration": 4.4,
+      "directives": {
+        "emit_event": "opening_memory_weak_cleansing_unlocked",
+        "codex_unlocks": [
+          {
+            "section": "tutorial",
+            "id": "weak_cleansing_unlocked",
+            "title": "Weak Cleansing Unlocked",
+            "details": "Early battlefield utility skill that removes light corruption and stabilizes allies briefly."
+          },
+          {
+            "section": "events",
+            "id": "cleansing_skill_first_use",
+            "title": "First Cleansing Cast",
+            "details": "The skill first manifests during the post-cave goblin engagement."
+          }
+        ]
       },
       "next_node": "memory_fade"
     },
     "memory_fade": {
       "speaker": "Narrator",
-      "text": "Memory ends at the stone crown below. The world returns. The road starts now.",
+      "text": "Memory fades after the first campaigns of training. The real road starts now.",
       "camera": "wide",
       "voice": "opening_memory/narrator_outro",
-      "duration": 4.0
+      "duration": 4.1
     }
   }
 }
