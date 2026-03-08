@@ -1,4 +1,4 @@
-﻿"""Pyw wrapper for launcher_test_hub.py."""
+"""Single .pyw entry point for all test profiles."""
 
 from launchers.pyw_bootstrap import run_launcher_script
 

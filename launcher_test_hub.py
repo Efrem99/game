@@ -10,6 +10,11 @@ from launchers.bootstrap import run_app
 
 
 RUNTIME_TESTS = {
+    "prototype_v1": {
+        "profile": "prototype_v1",
+        "location": "parkour",
+        "tag": "--- Starting XBot RPG [PROTOTYPE V1 TEST] ---",
+    },
     "dragon": {
         "profile": "dragon",
         "location": "dragon_arena",

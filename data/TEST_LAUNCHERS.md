@@ -1,6 +1,10 @@
 ﻿# Test Launchers
 
-Feature-specific test launchers:
+Primary launcher entry:
+
+- `launcher_tests.pyw` (single executable launcher for all tests, opens Test Hub menu)
+
+CLI equivalents:
 
 - `python launcher_test_hub.py` (single launcher with menu and `--test` / `--list`)
 - `python launchers/tests/launcher_test_dragon.py`
@@ -18,9 +22,12 @@ Feature-specific test launchers:
 - `python launchers/tests/launcher_test_sherward.py` (validates Shervard hero asset slot/config/docs)
 - `python launchers/tests/launcher_test_sherward_prep.py` (builds first-pass Shervard asset via Blender or placeholder copy)
 
+Legacy `launcher_test_*.pyw` wrappers were removed; use `launcher_tests.pyw` as the single executable test entry point.
+
 Useful hub examples:
 
 - `python launcher_test_hub.py --list`
+- `python launcher_test_hub.py --test prototype_v1`
 - `python launcher_test_hub.py --test parkour`
 - `python launcher_test_hub.py --test voice_report`
 - `python scripts/voice_dialog_report.py --synthesize-all --force-regenerate --engine speech`
@@ -43,6 +50,7 @@ Supported location presets:
 - `training` / `training_grounds`
 - `parkour`
 - `flight`
+- `prototype_v1`
 
 You can also pass custom coordinates via env var:
 
