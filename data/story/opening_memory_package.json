@@ -72,44 +72,95 @@
       "id": "dwarven_caves_entry",
       "label": "Entry to dwarven caves",
       "location_id": "dwarven_caves_gate"
+    },
+    {
+      "id": "training_protocol_trials",
+      "label": "Training protocol (Adrian/Darius + stone armors + Sebastian)",
+      "location_id": "training_grounds"
+    },
+    {
+      "id": "first_major_brawl",
+      "label": "First major brawl with Adrian and Torvin warband vs goblins",
+      "location_id": "old_forest"
+    },
+    {
+      "id": "weak_cleansing_unlock",
+      "label": "Weak cleansing skill manifests in live battle",
+      "location_id": "old_forest"
     }
   ],
   "voice_keys": [
     {
-      "id": "narrator_intro",
+      "id": "start",
       "key": "opening_memory/narrator_intro",
       "speaker": "Narrator",
-      "text": "The day begins in memory: a prince in disguise, a city not yet at war."
+      "text": "Festival morning in Sharuan. Before the throne-room audience, Sherward drifts into memory and walks his city in disguise."
     },
     {
       "id": "adalin_market",
       "key": "opening_memory/adalin_market",
       "speaker": "Adalin",
-      "text": "Even in a crowd, you walk like a prince trying not to be one."
+      "text": "You still pick up fallen apples before you pick up titles, my prince."
+    },
+    {
+      "id": "map_gallery",
+      "key": "opening_memory/map_gallery",
+      "speaker": "Narrator",
+      "text": "In his chamber he studies the map: Lorena, Argelia, Doren, Zarandia, and the crimson threat of Krimora."
+    },
+    {
+      "id": "juice_spill",
+      "key": "opening_memory/juice_spill",
+      "speaker": "Narrator",
+      "text": "His hands shake, grape juice spills over formal trousers, and he changes outfits before rushing through the laundry wing."
+    },
+    {
+      "id": "darius_arrival",
+      "key": "opening_memory/darius_arrival",
+      "speaker": "Darius",
+      "text": "Steady breath, Sherward. A crown tests fear before it tests strength."
     },
     {
       "id": "darius_cosmos",
       "key": "opening_memory/darius_cosmos",
       "speaker": "Darius",
-      "text": "Before kingdoms, there was only order, and the fracture that birthed exile."
+      "text": "Before kings and bloodlines, there was only order, and the fracture that made Noctus."
     },
     {
-      "id": "almighty_banishment",
+      "id": "paradise_banishment",
       "key": "opening_memory/almighty_banishment",
       "speaker": "The Almighty",
-      "text": "Noctus, you are cast out from light."
+      "text": "Noctus, you are cast from light. Leave this heaven and carry your own darkness."
     },
     {
       "id": "noctus_echo",
       "key": "opening_memory/noctus_echo",
       "speaker": "Noctus",
-      "text": "Exile me, and I will return as fear."
+      "text": "Then I return as dread, and dread will kneel to me."
     },
     {
-      "id": "sebastian_training",
+      "id": "father_call",
+      "key": "opening_memory/sebastian_line_01",
+      "speaker": "Sebastian",
+      "text": "You are late. I heard about your plans after coronation... and this Adalin."
+    },
+    {
+      "id": "sherward_reply",
+      "key": "opening_memory/sherward_line_01",
+      "speaker": "Sherward",
+      "text": "I will rule with duty and love together. I will not be forced to choose one truth over the other."
+    },
+    {
+      "id": "training_miniboss",
       "key": "opening_memory/sebastian_training",
       "speaker": "Sebastian",
-      "text": "If you claim strength, prove it to me."
+      "text": "Sebastian enters the yard as a live boss check: one exchange, no excuses, no ceremony."
+    },
+    {
+      "id": "throne_hall_decline",
+      "key": "opening_memory/throne_hall_decline",
+      "speaker": "Narrator",
+      "text": "By the throne, the same man looks older. His shoulders are iron, but his breath is not."
     },
     {
       "id": "sebastian_throne",
@@ -118,22 +169,52 @@
       "text": "Power is expensive, son. I paid with blood and years."
     },
     {
-      "id": "krimora_call",
+      "id": "flight_escape",
+      "key": "opening_memory/flight_escape",
+      "speaker": "Narrator",
+      "text": "The argument breaks. Sherward launches from the walls, forcing wings and will to answer fear."
+    },
+    {
+      "id": "crash_landing",
+      "key": "opening_memory/crash_landing",
+      "speaker": "Narrator",
+      "text": "The sky turns red. He falls hard into the Krimorian woods."
+    },
+    {
+      "id": "krimora_speaks",
       "key": "opening_memory/krimora_call",
       "speaker": "Krimora",
-      "text": "Welcome to my forest, child of vows."
+      "text": "Welcome, oathborn prince. Bleed, and this forest will learn your name."
     },
     {
-      "id": "adrian_cage",
+      "id": "adrian_line",
       "key": "opening_memory/adrian_cage",
       "speaker": "Adrian",
-      "text": "Cut these bars and move. This forest feeds on hesitation."
+      "text": "Break it and move. Krimora hunts hesitation first."
     },
     {
-      "id": "narrator_outro",
+      "id": "dwarven_gate",
+      "key": "opening_memory/dwarven_gate",
+      "speaker": "Narrator",
+      "text": "Together they reach the dwarven entrance: stone gates carved with old craft marks."
+    },
+    {
+      "id": "dwarven_halls",
+      "key": "opening_memory/dwarven_halls",
+      "speaker": "Narrator",
+      "text": "Beyond lie vault sectors of treasure, forge chambers, and a beast-yard of gem-born hybrids."
+    },
+    {
+      "id": "dwarven_throne",
+      "key": "opening_memory/dwarven_throne",
+      "speaker": "Narrator",
+      "text": "At the center rises a cavern throne hall so vast that Sharuan's throne room seems modest beside it."
+    },
+    {
+      "id": "memory_fade",
       "key": "opening_memory/narrator_outro",
       "speaker": "Narrator",
-      "text": "Memory ends at the dwarven gate. The real road begins."
+      "text": "Memory fades after the first campaigns of training. The real road starts now."
     }
   ],
   "tutorial_banners": [
@@ -199,6 +280,21 @@
         "id": "flight_crash_krimora",
         "title": "Crash-Landing in Krimora",
         "details": "After learning to fly in panic, Sherward falls into the crimson forests of Krimora."
+      },
+      {
+        "id": "training_roster_confirmed",
+        "title": "Training Roster Confirmed",
+        "details": "Training is tracked as Codex material: Adrian + Darius as trainers, stone armors + Sebastian as boss checks."
+      },
+      {
+        "id": "first_major_brawl",
+        "title": "First Major Brawl",
+        "details": "Post-cave engagement where Sherward, Adrian, and Torvin hold against goblin forces."
+      },
+      {
+        "id": "cleansing_skill_first_use",
+        "title": "First Cleansing Cast",
+        "details": "A weak cleansing skill appears in live combat and stabilizes the allied line."
       }
     ],
     "characters": [
@@ -236,6 +332,11 @@
         "id": "noctus",
         "title": "Noctus",
         "details": "An exiled dark face in the mythic memory of paradise."
+      },
+      {
+        "id": "torvin",
+        "title": "Torvin",
+        "details": "Commander of the dwarf detachment that joins Sherward and Adrian in the first large battle."
       }
     ],
     "locations": [
@@ -285,7 +386,59 @@
         "id": "dwarven_courts",
         "title": "Dwarven Courts",
         "details": "Craft-houses and treasure wardens of the deep stone realms."
+      },
+      {
+        "id": "dwarven_warband",
+        "title": "Dwarven Expedition Warband",
+        "details": "Combat-ready dwarven unit led by Torvin during early anti-goblin operations."
+      }
+    ],
+    "tutorial": [
+      {
+        "id": "training_protocol_four_trials",
+        "title": "Training Protocol: Four Trials",
+        "details": "Training includes two trainers (Adrian, Darius) and two boss-level checks (stone armors, Sebastian)."
+      },
+      {
+        "id": "weak_cleansing_unlocked",
+        "title": "Weak Cleansing Unlocked",
+        "details": "Early cleanse removes light corruption only; designed as a starter support tool."
       }
     ]
-  }
+  },
+  "source_docs": [
+    {
+      "source_id": "book_main_draft_2_1",
+      "file_name": "?????? ????????? (2) (1).docx",
+      "anchors": [
+        162,
+        165,
+        176,
+        249,
+        250,
+        265,
+        274,
+        279,
+        315,
+        321,
+        352,
+        359,
+        390,
+        399,
+        410,
+        432
+      ]
+    },
+    {
+      "source_id": "book_act1_draft_5",
+      "file_name": "??????_???_??????_?????????.docx (5).docx",
+      "anchors": [
+        354,
+        359,
+        428,
+        441,
+        450
+      ]
+    }
+  ]
 }
