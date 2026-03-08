@@ -222,6 +222,8 @@ class SharuanWorld:
         self.colliders = [] # Python-only fallback AABB list
         self._water_surfaces = []
         self._castle_lights = []
+        # Stable RNG for procedural decoration jitter (grass, decals, micro-variation).
+        self._rng = random.Random(20260308)
 
         try:
             self.terrain_shader = Shader.load(
