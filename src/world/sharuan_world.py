@@ -4,13 +4,14 @@ Handles procedural generation, PBR materials, and world entities.
 Wires generated geometry into C++ physics.
 """
 import math
+import os
 import random
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import (
     Vec3, LColor,
     GeomNode, Geom, GeomTriangles, GeomVertexFormat,
     GeomVertexData, GeomVertexWriter, GeomVertexRewriter,
-    TransparencyAttrib, Texture, TextureStage, Material, Shader
+    TransparencyAttrib, Texture, TextureStage, Material, Shader, PointLight
 )
 
 try:
@@ -145,6 +146,39 @@ def mk_terrain(nm, sz, res, hfn):
 def mk_mat(bc=(0.5,0.5,0.5,1), rough=0.8, metal=0.0):
     m=Material(); m.set_base_color(LColor(*bc)); m.set_roughness(rough); m.set_metallic(metal); return m
 
+def sample_polyline_points(points, spacing=3.0):
+    """Sample a polyline into evenly spaced points (keeps corners/endpoints)."""
+    if not isinstance(points, (list, tuple)) or len(points) < 2:
+        return []
+    try:
+        step = max(0.2, float(spacing))
+    except Exception:
+        step = 3.0
+    out = []
+    last = None
+    for i in range(len(points) - 1):
+        a = points[i]
+        b = points[i + 1]
+        if not (isinstance(a, (list, tuple)) and len(a) >= 2 and isinstance(b, (list, tuple)) and len(b) >= 2):
+            continue
+        ax = float(a[0]); ay = float(a[1])
+        bx = float(b[0]); by = float(b[1])
+        dx = bx - ax; dy = by - ay
+        ln = math.sqrt((dx * dx) + (dy * dy))
+        if ln <= 1e-5:
+            continue
+        steps = max(1, int(math.ceil(ln / step)))
+        for s in range(steps + 1):
+            t = float(s) / float(steps)
+            px = ax + (dx * t)
+            py = ay + (dy * t)
+            key = (round(px, 4), round(py, 4))
+            if key == last:
+                continue
+            out.append((float(px), float(py)))
+            last = key
+    return out
+
 class SharuanWorld:
     DEFAULT_RIVER = [
         (30, 65), (25, 55), (20, 45), (15, 38), (10, 32), (5, 25), (0, 18), (-5, 10),
@@ -187,6 +221,7 @@ class SharuanWorld:
         self.active_location = None
         self.colliders = [] # Python-only fallback AABB list
         self._water_surfaces = []
+        self._castle_lights = []
 
         try:
             self.terrain_shader = Shader.load(
@@ -238,13 +273,23 @@ class SharuanWorld:
     def update(self, player_pos):
         self._animate_water(globalClock.getFrameTime())
         next_location = None
-        # Check for location triggers
+        best_score = None
+        best_radius = None
+        # Choose the most specific overlapping zone instead of first match.
         for loc in self.locations:
             lp = loc["pos"]
             dist = (player_pos - Vec3(lp[0], lp[1], lp[2])).length()
-            if dist < loc["radius"]:
-                next_location = loc["name"]
-                break
+            radius = max(0.1, float(loc.get("radius", 1.0) or 1.0))
+            if dist < radius:
+                score = dist / radius
+                if (
+                    best_score is None
+                    or score < best_score
+                    or (abs(score - best_score) <= 0.05 and best_radius is not None and radius < best_radius)
+                ):
+                    best_score = score
+                    best_radius = radius
+                    next_location = loc["name"]
         if self.active_location != next_location and next_location:
             print(f"[World] Entered: {next_location}")
         self.active_location = next_location
@@ -426,6 +471,94 @@ class SharuanWorld:
             py = ay + t * dy
             best = min(best, math.sqrt((x - px) ** 2 + (y - py) ** 2))
         return best
+
+    def _collect_route_points(self):
+        routes_cfg = self.layout.get("routes", {}) if isinstance(self.layout.get("routes"), dict) else {}
+        route_keys = ("serpentine_path", "forest_track", "port_road")
+        bundles = []
+        for key in route_keys:
+            raw = routes_cfg.get(key, [])
+            parsed = []
+            if isinstance(raw, list):
+                for row in raw:
+                    if isinstance(row, (list, tuple)) and len(row) >= 2:
+                        try:
+                            parsed.append((float(row[0]), float(row[1])))
+                        except Exception:
+                            continue
+            if len(parsed) >= 2:
+                bundles.append(parsed)
+        return bundles
+
+    def _scatter_path_decals(self):
+        route_sets = self._collect_route_points()
+        if not route_sets:
+            return
+
+        mud_mat = mk_mat((0.39, 0.31, 0.22, 0.80), 0.96, 0.0)
+        rng = random.Random(40407)
+        for ridx, points in enumerate(route_sets):
+            samples = sample_polyline_points(points, spacing=3.4)
+            for idx, (px, py) in enumerate(samples):
+                if idx % 2 != 0:
+                    continue
+                pz = self._th(px, py)
+                width = 1.3 + rng.uniform(-0.25, 0.55)
+                length = 0.7 + rng.uniform(-0.10, 0.45)
+                decal = self._pl(
+                    mk_plane(f"path_decal_{ridx}_{idx}", width, length, 1.1),
+                    px + rng.uniform(-0.4, 0.4),
+                    py + rng.uniform(-0.4, 0.4),
+                    pz + 0.05,
+                    self.tx["dirt"],
+                    mud_mat,
+                    "Trail Decal",
+                    is_platform=False,
+                )
+                decal.setH(rng.uniform(-180.0, 180.0))
+                decal.setColorScale(0.92, 0.84, 0.72, 0.56)
+                decal.set_transparency(TransparencyAttrib.M_alpha)
+
+    def _spawn_grass_tuft(self, idx, x, y, z, tex):
+        tint = 0.88 + (self._rng.random() * 0.18)
+        blade_h = 1.2 + (self._rng.random() * 1.1)
+        blade_w = 0.48 + (self._rng.random() * 0.28)
+        front = self._pl(
+            mk_plane(f"grass_front_{idx}", blade_w, blade_h, 1.0),
+            x,
+            y,
+            z + (blade_h * 0.42),
+            None,
+            mk_mat((0.24, 0.49, 0.18, 0.74), 0.92, 0.0),
+            "Grass",
+            is_platform=False,
+        )
+        front.setP(90.0)
+        front.setH(self._rng.uniform(-180.0, 180.0))
+        front.set_transparency(TransparencyAttrib.M_alpha)
+        front.setTwoSided(True)
+        if tex:
+            front.setTexture(tex, 1)
+        front.setColorScale(0.82 * tint, 1.0 * tint, 0.78 * tint, 0.62)
+
+        side = self._pl(
+            mk_plane(f"grass_side_{idx}", blade_w, blade_h, 1.0),
+            x,
+            y,
+            z + (blade_h * 0.42),
+            None,
+            mk_mat((0.22, 0.46, 0.16, 0.74), 0.92, 0.0),
+            "Grass",
+            is_platform=False,
+        )
+        side.setP(90.0)
+        side.setH(front.getH() + 90.0)
+        side.set_transparency(TransparencyAttrib.M_alpha)
+        side.setTwoSided(True)
+        if tex:
+            side.setTexture(tex, 1)
+        side.setColorScale(0.78 * tint, 0.96 * tint, 0.74 * tint, 0.58)
+
     def _pl(self, geom, x, y, z, tx_set=None, mat=None, loc_name=None, is_platform=True):
         np = self.render.attach_new_node(geom)
         np.set_pos(x, y, z)
@@ -518,6 +651,163 @@ class SharuanWorld:
         except Exception:
             return False
 
+    def _build_timber_house(
+        self,
+        house_id,
+        x,
+        y,
+        base_z,
+        width,
+        depth,
+        height,
+        wall_mat,
+        roof_mat,
+        wood_mat,
+        loc_name,
+        *,
+        add_porch=False,
+    ):
+        # Medieval house composition: masonry base + timber framing + split roof.
+        body = self._pl(
+            mk_box(f"{house_id}_body", width, depth, height),
+            x,
+            y,
+            base_z + (height * 0.5),
+            self.tx["stone"],
+            wall_mat,
+            loc_name,
+        )
+
+        frame_specs = [
+            (-0.5, -0.5, 0.0),
+            (0.5, -0.5, 0.0),
+            (-0.5, 0.5, 0.0),
+            (0.5, 0.5, 0.0),
+        ]
+        for idx, (sx, sy, _) in enumerate(frame_specs):
+            fx = x + (sx * (width - 0.22))
+            fy = y + (sy * (depth - 0.22))
+            self._pl(
+                mk_box(f"{house_id}_beam_corner_{idx}", 0.16, 0.16, height + 0.10),
+                fx,
+                fy,
+                base_z + (height * 0.5),
+                self.tx["bark"],
+                wood_mat,
+                loc_name,
+                is_platform=False,
+            )
+
+        band_z = base_z + (height * 0.58)
+        self._pl(
+            mk_box(f"{house_id}_beam_band_a", width - 0.12, 0.14, 0.14),
+            x,
+            y - (depth * 0.5) + 0.08,
+            band_z,
+            self.tx["bark"],
+            wood_mat,
+            loc_name,
+            is_platform=False,
+        )
+        self._pl(
+            mk_box(f"{house_id}_beam_band_b", width - 0.12, 0.14, 0.14),
+            x,
+            y + (depth * 0.5) - 0.08,
+            band_z,
+            self.tx["bark"],
+            wood_mat,
+            loc_name,
+            is_platform=False,
+        )
+
+        roof_half_len = max(1.2, (depth * 0.56))
+        roof_pitch = 31.0
+        left_roof = self._pl(
+            mk_box(f"{house_id}_roof_left", width + 0.40, roof_half_len, 0.18),
+            x,
+            y - (depth * 0.12),
+            base_z + height + 0.72,
+            self.tx["roof"],
+            roof_mat,
+            loc_name,
+            is_platform=False,
+        )
+        left_roof.setP(roof_pitch)
+        right_roof = self._pl(
+            mk_box(f"{house_id}_roof_right", width + 0.40, roof_half_len, 0.18),
+            x,
+            y + (depth * 0.12),
+            base_z + height + 0.72,
+            self.tx["roof"],
+            roof_mat,
+            loc_name,
+            is_platform=False,
+        )
+        right_roof.setP(-roof_pitch)
+
+        self._pl(
+            mk_cyl(f"{house_id}_roof_ridge", 0.09, width + 0.24, 9),
+            x,
+            y,
+            base_z + height + 1.02,
+            self.tx["bark"],
+            wood_mat,
+            loc_name,
+            is_platform=False,
+        ).setR(90.0)
+
+        # Front door + two lit windows for readability at dusk/night.
+        self._pl(
+            mk_box(f"{house_id}_door", 0.52, 0.08, 1.24),
+            x,
+            y - (depth * 0.5) + 0.06,
+            base_z + 0.64,
+            self.tx["bark"],
+            wood_mat,
+            loc_name,
+            is_platform=False,
+        )
+        for wi, wx in enumerate((-0.28, 0.28)):
+            glow = self._pl(
+                mk_box(f"{house_id}_window_{wi}", 0.34, 0.06, 0.30),
+                x + (wx * width),
+                y - (depth * 0.5) + 0.05,
+                base_z + (height * 0.58),
+                None,
+                mk_mat((0.96, 0.78, 0.36, 0.92), 0.18, 0.0),
+                loc_name,
+                is_platform=False,
+            )
+            glow.setTransparency(TransparencyAttrib.M_alpha)
+
+        # Stone chimney improves silhouette and reduces "tutorial box" look.
+        chimney = self._pl(
+            mk_box(f"{house_id}_chimney", 0.34, 0.34, 1.2),
+            x + (width * 0.22),
+            y + (depth * 0.08),
+            base_z + height + 1.10,
+            self.tx["stone"],
+            mk_mat((0.42, 0.40, 0.38, 1.0), 0.76, 0.04),
+            loc_name,
+            is_platform=False,
+        )
+        chimney.setH(12.0)
+
+        if add_porch:
+            porch = self._pl(
+                mk_box(f"{house_id}_porch", width * 0.66, 0.90, 0.14),
+                x,
+                y - (depth * 0.5) - 0.40,
+                base_z + 0.08,
+                self.tx["bark"],
+                wood_mat,
+                loc_name,
+                is_platform=False,
+            )
+            porch.setP(2.2)
+
+        return body
+
     def _build_terrain(self):
         t = mk_terrain('terrain', self.terrain_size, self.terrain_res, self._th)
         m = mk_mat((0.25,0.45,0.15,1), 1.0, 0.0)
@@ -532,13 +822,13 @@ class SharuanWorld:
             np.set_tex_scale(ts, 10, 10)
 
     def _build_sea(self):
-        wm = mk_mat((0.15,0.35,0.55,0.85), 0.1, 0.2)
+        wm = mk_mat((0.10, 0.27, 0.44, 0.84), 0.08, 0.22)
         sea_y = float(self.sea_cfg.get("start_y", -50.0) or -50.0)
         sea_level = float(self.sea_cfg.get("level", -1.5) or -1.5)
         sea = mk_plane('sea', self.terrain_size, 72, 4)
         np = self._pl(sea, 0, sea_y - 30.0, sea_level, None, wm, 'Southern Sea', is_platform=False)
         np.set_transparency(TransparencyAttrib.M_alpha)
-        np.setColorScale(0.56, 0.74, 0.95, 0.74)
+        np.setColorScale(0.42, 0.65, 0.90, 0.78)
         self._water_surfaces.append(
             {
                 "kind": "sea",
@@ -549,6 +839,31 @@ class SharuanWorld:
                 "phase": 0.0,
             }
         )
+
+        # Near-shore foam belt adds motion/readability where sea meets coast.
+        foam = self._pl(
+            mk_plane("sea_shore_foam", self.terrain_size * 0.95, 15.0, 10.0),
+            0,
+            sea_y + 2.0,
+            sea_level + 0.04,
+            None,
+            mk_mat((0.94, 0.96, 0.98, 0.38), 0.12, 0.0),
+            "Southern Sea",
+            is_platform=False,
+        )
+        foam.set_transparency(TransparencyAttrib.M_alpha)
+        foam.setColorScale(0.92, 0.95, 1.0, 0.32)
+        self._water_surfaces.append(
+            {
+                "kind": "sea_foam",
+                "node": foam,
+                "base_z": sea_level + 0.04,
+                "amp": 0.03,
+                "speed": 1.45,
+                "phase": 0.75,
+            }
+        )
+
         if self.phys:
             p = gc.Platform()
             p.aabb.min = gc.Vec3(-self.terrain_size * 0.5, sea_y - 60.0, -10)
@@ -572,7 +887,7 @@ class SharuanWorld:
             np = self._pl(seg, mx, my, self._th(mx,my)-0.3, None, wm, 'River Aran', is_platform=False)
             np.set_h(ang)
             np.set_transparency(TransparencyAttrib.M_alpha)
-            np.setColorScale(0.56, 0.78, 0.98, 0.68)
+            np.setColorScale(0.46, 0.72, 0.96, 0.70)
             self._water_surfaces.append(
                 {
                     "kind": "river",
@@ -583,6 +898,18 @@ class SharuanWorld:
                     "phase": i * 0.35,
                 }
             )
+            edge = self._pl(
+                mk_plane(f"river_edge_{i}", w * 1.45, ln * 0.92, 4.0),
+                mx,
+                my,
+                float(np.getZ()) + 0.03,
+                None,
+                mk_mat((0.88, 0.94, 1.0, 0.22), 0.10, 0.0),
+                "River Aran",
+                is_platform=False,
+            )
+            edge.set_h(ang)
+            edge.set_transparency(TransparencyAttrib.M_alpha)
             if self.phys:
                 p = gc.Platform()
                 p.aabb.min = gc.Vec3(mx-w, my-ln*0.5, -5)
@@ -591,17 +918,291 @@ class SharuanWorld:
                 self.phys.addPlatform(p)
 
     def _build_castle(self):
-        sm = mk_mat((0.6,0.58,0.55,1), 0.9, 0.05)
+        sm = mk_mat((0.60, 0.58, 0.55, 1), 0.9, 0.05)
+        floor_mat = mk_mat((0.56, 0.54, 0.50, 1), 0.82, 0.04)
+        wall_mat = mk_mat((0.62, 0.60, 0.56, 1), 0.84, 0.04)
+        trim_mat = mk_mat((0.38, 0.30, 0.22, 1), 0.72, 0.02)
+        gold_mat = mk_mat((0.78, 0.66, 0.32, 1), 0.28, 0.62)
+        flame_mat = mk_mat((0.98, 0.62, 0.22, 0.92), 0.18, 0.04)
         castle_cfg = self.layout.get("castle", {}) if isinstance(self.layout.get("castle"), dict) else {}
         keep = castle_cfg.get("keep", [0.0, 65.0])
         if not (isinstance(keep, list) and len(keep) >= 2):
             keep = [0.0, 65.0]
         cx, cy = float(keep[0]), float(keep[1])
         bz = self._th(cx, cy)
-        self._pl(mk_box('keep',6,6,10), cx,cy, bz+4.5, self.tx['stone'], sm, 'Castle Keep')
-        for tx,ty in [(-5,-5),(5,-5),(-5,5),(5,5)]:
-            tz = self._th(cx+tx, cy+ty)
-            self._pl(mk_cyl('tw',1.8,12,16), cx+tx,cy+ty, tz+5.5, self.tx['stone'], sm, 'Guard Tower')
+        courtyard_z = bz + 0.6
+
+        def zone_xy(zone_id, fallback):
+            zid = str(zone_id or "").strip().lower()
+            zones = self.layout.get("zones", []) if isinstance(self.layout.get("zones"), list) else []
+            for row in zones:
+                if not isinstance(row, dict):
+                    continue
+                row_id = str(row.get("id", "") or "").strip().lower()
+                center = row.get("center", [])
+                if row_id != zid or not (isinstance(center, list) and len(center) >= 2):
+                    continue
+                try:
+                    return float(center[0]), float(center[1])
+                except Exception:
+                    continue
+            return fallback
+
+        def place_torch(tag, tx, ty, tz, label):
+            self._pl(
+                mk_cyl(f"{tag}_handle", 0.05, 0.48, 8),
+                tx,
+                ty,
+                tz + 0.24,
+                self.tx["bark"],
+                trim_mat,
+                label,
+                is_platform=False,
+            )
+            flame = self._pl(
+                mk_sphere(f"{tag}_flame", 0.14, 6, 7),
+                tx,
+                ty,
+                tz + 0.52,
+                None,
+                flame_mat,
+                label,
+                is_platform=False,
+            )
+            flame.set_transparency(TransparencyAttrib.M_alpha)
+            flame.setColorScale(1.0, 0.74, 0.34, 0.88)
+            light = PointLight(f"{tag}_light")
+            light.setColor(LColor(1.0, 0.74, 0.45, 1.0))
+            light.setAttenuation(Vec3(1.0, 0.04, 0.002))
+            lnp = self.render.attachNewNode(light)
+            lnp.setPos(tx, ty, tz + 0.58)
+            self.render.setLight(lnp)
+            self._castle_lights.append(lnp)
+
+        def build_room(room_id, center_x, center_y, width, depth, height, label):
+            room_z = self._th(center_x, center_y)
+            wall_t = 0.38
+            self._pl(
+                mk_box(f"{room_id}_floor", width, depth, 0.46),
+                center_x,
+                center_y,
+                room_z + 0.23,
+                self.tx["stone"],
+                floor_mat,
+                label,
+            )
+            self._pl(
+                mk_box(f"{room_id}_wall_w", wall_t, depth, height),
+                center_x - (width * 0.5) + (wall_t * 0.5),
+                center_y,
+                room_z + (height * 0.5),
+                self.tx["stone"],
+                wall_mat,
+                label,
+            )
+            self._pl(
+                mk_box(f"{room_id}_wall_e", wall_t, depth, height),
+                center_x + (width * 0.5) - (wall_t * 0.5),
+                center_y,
+                room_z + (height * 0.5),
+                self.tx["stone"],
+                wall_mat,
+                label,
+            )
+            self._pl(
+                mk_box(f"{room_id}_wall_n", width, wall_t, height),
+                center_x,
+                center_y + (depth * 0.5) - (wall_t * 0.5),
+                room_z + (height * 0.5),
+                self.tx["stone"],
+                wall_mat,
+                label,
+            )
+            # South wall split for doorway.
+            gap = 1.6
+            seg_w = max(1.4, (width - gap) * 0.5)
+            self._pl(
+                mk_box(f"{room_id}_wall_s_l", seg_w, wall_t, height),
+                center_x - (gap * 0.5) - (seg_w * 0.5),
+                center_y - (depth * 0.5) + (wall_t * 0.5),
+                room_z + (height * 0.5),
+                self.tx["stone"],
+                wall_mat,
+                label,
+            )
+            self._pl(
+                mk_box(f"{room_id}_wall_s_r", seg_w, wall_t, height),
+                center_x + (gap * 0.5) + (seg_w * 0.5),
+                center_y - (depth * 0.5) + (wall_t * 0.5),
+                room_z + (height * 0.5),
+                self.tx["stone"],
+                wall_mat,
+                label,
+            )
+            self._pl(
+                mk_box(f"{room_id}_lintel", gap + 0.3, wall_t, 0.42),
+                center_x,
+                center_y - (depth * 0.5) + (wall_t * 0.5),
+                room_z + height - 0.20,
+                self.tx["stone"],
+                trim_mat,
+                label,
+                is_platform=False,
+            )
+            return room_z
+
+        # Courtyard shell and keep tower.
+        self._pl(
+            mk_box("castle_courtyard_floor", 26.0, 22.0, 0.6),
+            cx,
+            cy,
+            courtyard_z,
+            self.tx["stone"],
+            floor_mat,
+            "Castle Courtyard",
+        )
+        self._pl(mk_box("keep", 6.0, 6.0, 10.0), cx, cy, bz + 4.5, self.tx["stone"], sm, "Castle Keep")
+        for tx, ty in [(-5, -5), (5, -5), (-5, 5), (5, 5)]:
+            tz = self._th(cx + tx, cy + ty)
+            self._pl(mk_cyl(f"tw_{tx}_{ty}", 1.8, 12.0, 16), cx + tx, cy + ty, tz + 5.5, self.tx["stone"], sm, "Guard Tower")
+
+        # Story rooms for intro route.
+        prince_x, prince_y = zone_xy("prince_chamber", (cx + 6.0, cy - 4.0))
+        map_x, map_y = zone_xy("world_map_gallery", (cx - 4.0, cy - 6.0))
+        laundry_x, laundry_y = zone_xy("royal_laundry", (cx - 9.0, cy - 8.0))
+        throne_x, throne_y = zone_xy("throne_hall", (cx, cy + 10.0))
+
+        prince_z = build_room("prince_chamber", prince_x, prince_y, 8.2, 7.2, 4.4, "Prince Chamber")
+        map_z = build_room("world_map_gallery", map_x, map_y, 8.6, 7.6, 4.3, "World Map Gallery")
+        laundry_z = build_room("royal_laundry", laundry_x, laundry_y, 7.6, 6.8, 3.8, "Royal Laundry")
+        throne_z = build_room("throne_hall", throne_x, throne_y, 12.0, 9.5, 5.6, "Throne Hall")
+
+        # Corridors and transitions.
+        corridor_specs = [
+            ("corridor_a", (prince_x + map_x) * 0.5, (prince_y + map_y) * 0.5, 2.6, 7.2, 0.08),
+            ("corridor_b", (map_x + laundry_x) * 0.5, (map_y + laundry_y) * 0.5, 2.3, 6.4, 0.08),
+            ("corridor_c", (prince_x + throne_x) * 0.5, (prince_y + throne_y) * 0.5, 3.2, 12.0, 0.08),
+        ]
+        for cid, px, py, w, d, zoff in corridor_specs:
+            pz = self._th(px, py)
+            cor = self._pl(
+                mk_box(cid, w, d, 0.40),
+                px,
+                py,
+                pz + 0.20 + zoff,
+                self.tx["stone"],
+                floor_mat,
+                "Castle Corridor",
+            )
+            angle = math.degrees(math.atan2((throne_x - prince_x), (throne_y - prince_y)))
+            if cid == "corridor_a":
+                angle = math.degrees(math.atan2((map_x - prince_x), (map_y - prince_y)))
+            elif cid == "corridor_b":
+                angle = math.degrees(math.atan2((laundry_x - map_x), (laundry_y - map_y)))
+            cor.setH(angle)
+
+        # Stairway to throne hall approach.
+        stair_start_x = cx - 1.8
+        stair_start_y = cy + 2.8
+        for step in range(10):
+            sx = stair_start_x + (step * 0.36)
+            sy = stair_start_y + (step * 0.72)
+            sz = self._th(sx, sy) + 0.10 + (step * 0.12)
+            self._pl(
+                mk_box(f"castle_step_{step}", 2.8, 0.82, 0.24),
+                sx,
+                sy,
+                sz,
+                self.tx["stone"],
+                floor_mat,
+                "Castle Stair",
+            )
+
+        # Paintings and map boards.
+        for idx, (px, py, pz, h) in enumerate(
+            [
+                (prince_x - 3.8, prince_y + 1.8, prince_z + 2.0, 90.0),
+                (map_x + 3.9, map_y + 1.4, map_z + 2.0, -90.0),
+                (throne_x - 5.5, throne_y + 2.4, throne_z + 2.4, 90.0),
+            ]
+        ):
+            frame = self._pl(
+                mk_box(f"castle_painting_{idx}", 1.8, 0.08, 1.4),
+                px,
+                py,
+                pz,
+                self.tx["roof"],
+                mk_mat((0.52, 0.22, 0.16, 0.96), 0.34, 0.0),
+                "Castle Painting",
+                is_platform=False,
+            )
+            frame.setH(h)
+
+        map_table = self._pl(
+            mk_box("world_map_table", 2.8, 1.8, 0.74),
+            map_x,
+            map_y + 0.6,
+            map_z + 0.38,
+            self.tx["bark"],
+            trim_mat,
+            "World Map Gallery",
+        )
+        map_table.setH(18.0)
+        map_board = self._pl(
+            mk_plane("world_map_board", 2.4, 1.6, 1.2),
+            map_x,
+            map_y + 0.6,
+            map_z + 0.82,
+            self.tx["dirt"],
+            mk_mat((0.78, 0.70, 0.48, 0.86), 0.62, 0.0),
+            "World Map Gallery",
+            is_platform=False,
+        )
+        map_board.setP(2.5)
+
+        # Statues and throne ornaments.
+        statue_spots = [
+            (throne_x - 3.2, throne_y + 2.8),
+            (throne_x + 3.2, throne_y + 2.8),
+        ]
+        for idx, (sx, sy) in enumerate(statue_spots):
+            sz = self._th(sx, sy)
+            self._pl(mk_cyl(f"statue_base_{idx}", 0.62, 0.55, 10), sx, sy, sz + 0.28, self.tx["stone"], wall_mat, "Throne Hall")
+            self._pl(mk_cyl(f"statue_body_{idx}", 0.30, 1.8, 10), sx, sy, sz + 1.20, self.tx["stone"], wall_mat, "Throne Hall")
+            self._pl(mk_sphere(f"statue_head_{idx}", 0.28, 8, 9), sx, sy, sz + 2.16, self.tx["stone"], wall_mat, "Throne Hall")
+
+        throne_base = self._pl(
+            mk_box("throne_base", 4.4, 2.4, 1.2),
+            throne_x,
+            throne_y + 2.8,
+            throne_z + 0.60,
+            self.tx["stone"],
+            wall_mat,
+            "Throne Hall",
+        )
+        throne_base.setH(180.0)
+        throne_back = self._pl(
+            mk_box("throne_back", 2.4, 0.8, 2.8),
+            throne_x,
+            throne_y + 3.5,
+            throne_z + 2.0,
+            self.tx["stone"],
+            gold_mat,
+            "Throne Hall",
+        )
+        throne_back.setH(180.0)
+
+        # Torches and local warm lighting.
+        torch_points = [
+            (prince_x - 3.6, prince_y - 2.4, prince_z + 1.2, "Prince Chamber"),
+            (prince_x + 3.6, prince_y - 2.4, prince_z + 1.2, "Prince Chamber"),
+            (map_x - 3.6, map_y - 2.4, map_z + 1.2, "World Map Gallery"),
+            (map_x + 3.6, map_y - 2.4, map_z + 1.2, "World Map Gallery"),
+            (throne_x - 5.0, throne_y + 0.6, throne_z + 1.5, "Throne Hall"),
+            (throne_x + 5.0, throne_y + 0.6, throne_z + 1.5, "Throne Hall"),
+        ]
+        for tidx, (tx, ty, tz, label) in enumerate(torch_points):
+            place_torch(f"castle_torch_{tidx}", tx, ty, tz, label)
 
     def _build_city_wall(self):
         sm = mk_mat((0.50,0.47,0.43,1), 0.9, 0.05)
@@ -634,6 +1235,7 @@ class SharuanWorld:
     def _build_districts(self):
         wall_mat = mk_mat((0.56, 0.52, 0.46, 1), 0.82, 0.04)
         roof_mat = mk_mat((0.52, 0.22, 0.18, 1), 0.7, 0.02)
+        wood_mat = mk_mat((0.36, 0.24, 0.14, 1.0), 0.78, 0.02)
         castle_cfg = self.layout.get("castle", {}) if isinstance(self.layout.get("castle"), dict) else {}
         keep = castle_cfg.get("keep", [0.0, 65.0])
         if not (isinstance(keep, list) and len(keep) >= 2):
@@ -650,15 +1252,18 @@ class SharuanWorld:
             width = 5.0 + (idx % 3) * 0.8
             depth = 4.4 + ((idx + 1) % 3) * 0.7
             height = 3.5 + (idx % 2) * 0.6
-            self._pl(
-                mk_box(f"house_{idx}", width, depth, height),
-                x, y, base_z + height * 0.5,
-                self.tx["stone"], wall_mat, "City District"
-            )
-            self._pl(
-                mk_cone(f"roof_{idx}", max(width, depth) * 0.45, 2.6, 10),
-                x, y, base_z + height + 1.0,
-                self.tx["roof"], roof_mat, "City District", is_platform=False
+            self._build_timber_house(
+                f"house_{idx}",
+                x,
+                y,
+                base_z,
+                width,
+                depth,
+                height,
+                wall_mat,
+                roof_mat,
+                wood_mat,
+                "City District",
             )
 
         inner = castle_cfg.get("inner_buildings", [])
@@ -677,15 +1282,18 @@ class SharuanWorld:
                 bw = 3.8 + (idx % 2) * 0.6
                 bd = 3.2 + ((idx + 1) % 2) * 0.6
                 bh = 3.0 + (idx % 3) * 0.35
-                self._pl(
-                    mk_box(f"castle_inner_{idx}", bw, bd, bh),
-                    x, y, bz + bh * 0.5,
-                    self.tx["stone"], wall_mat, "Castle Courtyard"
-                )
-                self._pl(
-                    mk_cone(f"castle_inner_roof_{idx}", max(bw, bd) * 0.36, 2.2, 10),
-                    x, y, bz + bh + 0.85,
-                    self.tx["roof"], roof_mat, "Castle Courtyard", is_platform=False
+                self._build_timber_house(
+                    f"castle_inner_{idx}",
+                    x,
+                    y,
+                    bz,
+                    bw,
+                    bd,
+                    bh,
+                    wall_mat,
+                    roof_mat,
+                    wood_mat,
+                    "Castle Courtyard",
                 )
 
     def _build_port_town(self):
@@ -762,15 +1370,19 @@ class SharuanWorld:
                 bw = 4.2 + ((idx % 2) * 0.8)
                 bd = 3.4 + (((idx + 1) % 3) * 0.45)
                 bh = 3.1 + ((idx % 3) * 0.35)
-                self._pl(
-                    mk_box(f"port_house_{idx}", bw, bd, bh),
-                    px, py, pz + bh * 0.5,
-                    self.tx["stone"], wall_mat, "Port Market"
-                )
-                self._pl(
-                    mk_cone(f"port_house_roof_{idx}", max(bw, bd) * 0.42, 2.0, 10),
-                    px, py, pz + bh + 0.80,
-                    self.tx["roof"], roof_mat, "Port Market", is_platform=False
+                self._build_timber_house(
+                    f"port_house_{idx}",
+                    px,
+                    py,
+                    pz,
+                    bw,
+                    bd,
+                    bh,
+                    wall_mat,
+                    roof_mat,
+                    wood_mat,
+                    "Port Market",
+                    add_porch=True,
                 )
 
         stalls = port_cfg.get("market_stalls", [])
@@ -796,6 +1408,69 @@ class SharuanWorld:
                     px, py - 0.2, pz + 2.06,
                     self.tx["roof"], roof_mat, "Port Market", is_platform=False
                 )
+                # Merchant props.
+                for crate_i in range(2):
+                    cdx = -0.65 + (crate_i * 1.30)
+                    self._pl(
+                        mk_box(f"port_stall_crate_{idx}_{crate_i}", 0.46, 0.46, 0.46),
+                        px + cdx,
+                        py + 0.68,
+                        pz + 0.23,
+                        self.tx["bark"],
+                        wood_mat,
+                        "Port Market",
+                        is_platform=False,
+                    )
+                barrel = self._pl(
+                    mk_cyl(f"port_stall_barrel_{idx}", 0.22, 0.58, 10),
+                    px + 0.92,
+                    py + 0.62,
+                    pz + 0.30,
+                    self.tx["bark"],
+                    wood_mat,
+                    "Port Market",
+                    is_platform=False,
+                )
+                barrel.setH(11.0)
+
+        # Moored boats for coastline readability.
+        for bidx in range(4):
+            bx = cx - 10.0 + (bidx * 7.5)
+            by = cy - 10.5 - (bidx % 2) * 2.8
+            water_z = self.sample_water_height(bx, by)
+            hull = self._pl(
+                mk_box(f"port_boat_hull_{bidx}", 4.8, 1.4, 0.52),
+                bx,
+                by,
+                water_z + 0.12,
+                self.tx["bark"],
+                wood_mat,
+                "Port Docks",
+                is_platform=False,
+            )
+            hull.setH(12.0 if bidx % 2 == 0 else -14.0)
+            mast = self._pl(
+                mk_cyl(f"port_boat_mast_{bidx}", 0.08, 2.6, 9),
+                bx,
+                by,
+                water_z + 1.48,
+                self.tx["bark"],
+                wood_mat,
+                "Port Docks",
+                is_platform=False,
+            )
+            mast.setP(3.0 if bidx % 2 else -2.0)
+            sail = self._pl(
+                mk_box(f"port_boat_sail_{bidx}", 0.05, 1.5, 1.1),
+                bx + 0.05,
+                by + 0.05,
+                water_z + 1.52,
+                None,
+                mk_mat((0.88, 0.82, 0.72, 0.86), 0.54, 0.0),
+                "Port Docks",
+                is_platform=False,
+            )
+            sail.setTransparency(TransparencyAttrib.M_alpha)
 
         # S-shaped hill-to-forest trail from layout route points.
         serp = routes_cfg.get("serpentine_path", [])
@@ -987,6 +1662,9 @@ class SharuanWorld:
                     )
             except Exception:
                 pass
+
+        # Soft dirt decals make routes readable without hard geometry changes.
+        self._scatter_path_decals()
 
     def _build_movement_training_ground(self):
         """Dedicated test arena for movement tutorial and animation state validation."""
@@ -1580,7 +2258,21 @@ class SharuanWorld:
                         )
                     )
 
-        for idx, (x, y) in enumerate(tree_positions[:36]):
+        tree_positions.sort(key=lambda p: (p[1], p[0]))
+        foliage_tex = None
+        for token in (
+            "assets/textures/foliage_seamless_texture_5435.jpg",
+            "assets/textures/flare.png",
+        ):
+            try:
+                if os.path.exists(token):
+                    foliage_tex = self.loader.loadTexture(token)
+                    if foliage_tex:
+                        break
+            except Exception:
+                foliage_tex = None
+
+        for idx, (x, y) in enumerate(tree_positions[:72]):
             z = self._th(x, y)
             trunk_h = rng.uniform(2.1, 3.7)
             trunk_r = rng.uniform(0.18, 0.30)
@@ -1603,3 +2295,52 @@ class SharuanWorld:
                     x, y, z + trunk_h + trunk_h * 0.32,
                     self.tx["leaf"], leaf_mat, "Wild Grove", is_platform=False
                 )
+
+            # A small warm leaf highlight helps readability in low light.
+            if idx % 6 == 0:
+                glow = self._pl(
+                    mk_sphere(f"leaf_glow_{idx}", trunk_h * 0.18, 7, 8),
+                    x,
+                    y,
+                    z + trunk_h + trunk_h * 0.42,
+                    None,
+                    mk_mat((0.98, 0.88, 0.62, 0.58), 0.24, 0.0),
+                    "Foliage Glow",
+                    is_platform=False,
+                )
+                glow.set_transparency(TransparencyAttrib.M_alpha)
+
+            # Light shafts through canopy for atmosphere.
+            if idx % 8 == 0:
+                shaft = self._pl(
+                    mk_cone(f"leaf_shaft_{idx}", trunk_h * 0.30, trunk_h * 1.9, 10),
+                    x + rng.uniform(-0.5, 0.5),
+                    y + rng.uniform(-0.5, 0.5),
+                    z + trunk_h + (trunk_h * 0.78),
+                    None,
+                    mk_mat((0.95, 0.90, 0.70, 0.34), 0.12, 0.0),
+                    "Leaf Shaft",
+                    is_platform=False,
+                )
+                shaft.setP(180.0)
+                shaft.set_transparency(TransparencyAttrib.M_alpha)
+                shaft.setColorScale(1.0, 0.94, 0.76, 0.20)
+
+        # Dense grass band around traversable ground, avoiding river and sea edge.
+        grass_rng = random.Random(20260308)
+        grass_idx = 0
+        for _ in range(280):
+            x = grass_rng.uniform(-92.0, 92.0)
+            y = grass_rng.uniform(-38.0, 88.0)
+            if y < -40.0:
+                continue
+            if self._distance_to_river(x, y) < 4.3:
+                continue
+            z = self._th(x, y)
+            if z < -0.8:
+                continue
+            # Keep castle foreground cleaner.
+            if (x * x + ((y - 65.0) * (y - 65.0))) < 460.0:
+                continue
+            self._spawn_grass_tuft(grass_idx, x, y, z, foliage_tex)
+            grass_idx += 1

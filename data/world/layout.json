@@ -73,6 +73,12 @@
             "radius": 14.0
         },
         {
+            "id": "castle_interior",
+            "name": "Castle Interior",
+            "center": [0.0, 79.0, 24.0],
+            "radius": 18.0
+        },
+        {
             "id": "prince_chamber",
             "name": "Prince Chamber",
             "center": [6.0, 74.0, 24.0],
