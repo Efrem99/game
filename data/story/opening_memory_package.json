@@ -7,42 +7,133 @@
     "weather_preset": "clear"
   },
   "dialogue_asset": "dialogues/opening_memory_sherward_morning.json",
+  "story_beats": [
+    {
+      "id": "incognito_city_walk",
+      "label": "Incognito city walk",
+      "location_id": "port_market_walk"
+    },
+    {
+      "id": "adalin_market_memory",
+      "label": "Adalin market memory",
+      "location_id": "port_market_memory"
+    },
+    {
+      "id": "world_map_room",
+      "label": "Sherward studies world map",
+      "location_id": "world_map_gallery"
+    },
+    {
+      "id": "juice_spill_and_laundry",
+      "label": "Juice spill, wardrobe change, laundry",
+      "location_id": "royal_laundry"
+    },
+    {
+      "id": "morning_argument_with_father",
+      "label": "Morning argument with Sebastian",
+      "location_id": "prince_chamber"
+    },
+    {
+      "id": "sharuan_forest_dream",
+      "label": "Dream in Sharuan forest",
+      "location_id": "sharuan_forest_bridge"
+    },
+    {
+      "id": "cosmology_vision",
+      "label": "Darius cosmology: paradise and Noctus",
+      "location_id": "paradise_vision"
+    },
+    {
+      "id": "training_miniboss",
+      "label": "Training yard, Sebastian visits as miniboss",
+      "location_id": "training_grounds"
+    },
+    {
+      "id": "throne_decline",
+      "label": "Corridors to throne hall, Sebastian looks ill",
+      "location_id": "throne_hall"
+    },
+    {
+      "id": "flight_escape_and_crash",
+      "label": "Sherward escapes, learns flight, crash-lands",
+      "location_id": "krimora_forest_crash"
+    },
+    {
+      "id": "krimora_conversation",
+      "label": "Conversation with Krimora",
+      "location_id": "krimora_forest_cage"
+    },
+    {
+      "id": "adrian_rescue",
+      "label": "Adrian rescued from cage",
+      "location_id": "krimora_forest_cage"
+    },
+    {
+      "id": "dwarven_caves_entry",
+      "label": "Entry to dwarven caves",
+      "location_id": "dwarven_caves_gate"
+    }
+  ],
   "voice_keys": [
     {
       "id": "narrator_intro",
       "key": "opening_memory/narrator_intro",
       "speaker": "Narrator",
-      "text": "Morning in Sherward's memory was not quiet."
+      "text": "The day begins in memory: a prince in disguise, a city not yet at war."
     },
     {
-      "id": "sebastian_line_01",
-      "key": "opening_memory/sebastian_line_01",
+      "id": "adalin_market",
+      "key": "opening_memory/adalin_market",
+      "speaker": "Adalin",
+      "text": "Even in a crowd, you walk like a prince trying not to be one."
+    },
+    {
+      "id": "darius_cosmos",
+      "key": "opening_memory/darius_cosmos",
+      "speaker": "Darius",
+      "text": "Before kingdoms, there was only order, and the fracture that birthed exile."
+    },
+    {
+      "id": "almighty_banishment",
+      "key": "opening_memory/almighty_banishment",
+      "speaker": "The Almighty",
+      "text": "Noctus, you are cast out from light."
+    },
+    {
+      "id": "noctus_echo",
+      "key": "opening_memory/noctus_echo",
+      "speaker": "Noctus",
+      "text": "Exile me, and I will return as fear."
+    },
+    {
+      "id": "sebastian_training",
+      "key": "opening_memory/sebastian_training",
       "speaker": "Sebastian",
-      "text": "You leave this house as my son, not as a runaway chasing legends."
+      "text": "If you claim strength, prove it to me."
     },
     {
-      "id": "sherward_line_01",
-      "key": "opening_memory/sherward_line_01",
-      "speaker": "Sherward",
-      "text": "I will not spend my life hiding while Krimora takes more from us."
-    },
-    {
-      "id": "sebastian_line_02",
-      "key": "opening_memory/sebastian_line_02",
+      "id": "sebastian_throne",
+      "key": "opening_memory/sebastian_throne",
       "speaker": "Sebastian",
-      "text": "Pride is quick to speak and slow to bury the dead."
+      "text": "Power is expensive, son. I paid with blood and years."
     },
     {
-      "id": "sherward_line_02",
-      "key": "opening_memory/sherward_line_02",
-      "speaker": "Sherward",
-      "text": "I leave at dawn, and I return only when fear no longer rules us."
+      "id": "krimora_call",
+      "key": "opening_memory/krimora_call",
+      "speaker": "Krimora",
+      "text": "Welcome to my forest, child of vows."
+    },
+    {
+      "id": "adrian_cage",
+      "key": "opening_memory/adrian_cage",
+      "speaker": "Adrian",
+      "text": "Cut these bars and move. This forest feeds on hesitation."
     },
     {
       "id": "narrator_outro",
       "key": "opening_memory/narrator_outro",
       "speaker": "Narrator",
-      "text": "The memory breaks. The world returns."
+      "text": "Memory ends at the dwarven gate. The real road begins."
     }
   ],
   "tutorial_banners": [
@@ -55,7 +146,7 @@
       "title_key": "ui.opening_tutorial_move_title",
       "title_default": "Move and Observe",
       "text_key": "ui.opening_tutorial_move_text",
-      "text_default": "Walk a few steps and center the camera before pushing deeper into the valley.",
+      "text_default": "Walk a few steps, keep your aim stable, and read the environment before rushing forward.",
       "keys": [
         "W",
         "A",
@@ -65,82 +156,135 @@
       ]
     },
     {
-      "id": "codex_prompt",
+      "id": "interaction_prompt",
       "delay": 0.9,
       "duration": 5.4,
       "header_key": "ui.opening_tutorial_header",
       "header_default": "Field Notes",
-      "title_key": "ui.opening_tutorial_codex_title",
-      "title_default": "Use the Codex",
-      "text_key": "ui.opening_tutorial_codex_text",
-      "text_default": "Open the Journal to read Characters, Locations, Events, and Factions as they unlock.",
+      "title_key": "ui.opening_tutorial_interact_title",
+      "title_default": "Inspect and Interact",
+      "text_key": "ui.opening_tutorial_interact_text",
+      "text_default": "Use Action near context objects, and track important people, places, and events through the Codex.",
       "keys": [
+        "F",
+        "T",
         "I"
       ]
     },
     {
-      "id": "interaction_prompt",
+      "id": "combat_readiness",
       "delay": 0.8,
       "duration": 5.2,
       "header_key": "ui.opening_tutorial_header",
       "header_default": "Field Notes",
-      "title_key": "ui.opening_tutorial_interact_title",
-      "title_default": "Read the World",
-      "text_key": "ui.opening_tutorial_interact_text",
-      "text_default": "Look at NPCs or threats in your reticle to register them in the Codex.",
+      "title_key": "ui.opening_tutorial_combat_title",
+      "title_default": "Stay Ready",
+      "text_key": "ui.opening_tutorial_combat_text",
+      "text_default": "Block with Q, attack with context-sensitive strikes, and keep stamina for recovery moves.",
       "keys": [
-        "X",
-        "T"
+        "Q",
+        "LMB",
+        "SPACE"
       ]
     }
   ],
   "codex_seed": {
     "events": [
       {
-        "id": "opening_memory_sherward_morning",
-        "title": "Opening Memory: Morning Argument",
-        "details": "Sherward remembers his dawn conflict with his father Sebastian before setting out."
+        "id": "opening_memory_sherward_origin",
+        "title": "Opening Memory: Sherward's Origin Arc",
+        "details": "Sherward recalls his final morning before exile: Adalin, Sebastian, Krimora, Adrian, and the dwarven gate."
+      },
+      {
+        "id": "flight_crash_krimora",
+        "title": "Crash-Landing in Krimora",
+        "details": "After learning to fly in panic, Sherward falls into the crimson forests of Krimora."
       }
     ],
     "characters": [
       {
         "id": "sherward",
         "title": "Sherward",
-        "details": "Protagonist whose journey begins with a vow to leave home and face Krimora."
+        "details": "Heir torn between duty and defiance, entering the world through memory and collapse."
       },
       {
         "id": "sebastian",
         "title": "Sebastian",
-        "details": "Sherward's father. Stern, protective, and marked by older losses."
+        "details": "Sherward's father: formidable in the yard, visibly fading in the throne hall."
+      },
+      {
+        "id": "darius",
+        "title": "Darius",
+        "details": "Ancient elf elder with a youthful face, carrying the long memory of creation."
       },
       {
         "id": "adalin",
         "title": "Adalin",
-        "details": "Core narrative figure tied to Sherward's main arc."
+        "details": "A grounding light in Sherward's memories, met at the market in secret."
+      },
+      {
+        "id": "adrian",
+        "title": "Adrian",
+        "details": "Captured in Krimora's forest and freed at the edge of the dwarven routes."
+      },
+      {
+        "id": "krimora",
+        "title": "Krimora (The Red Death)",
+        "details": "A crimson force whose anger ignites like flame, and whose forests consume fear."
+      },
+      {
+        "id": "noctus",
+        "title": "Noctus",
+        "details": "An exiled dark face in the mythic memory of paradise."
       }
     ],
     "locations": [
       {
-        "id": "sherward_home",
-        "title": "Sherward Homestead",
-        "details": "The household where the opening memory takes place."
+        "id": "port_market",
+        "title": "Sharuan Port Market",
+        "details": "Crowded waterfront district where Sherward moves in disguise before the court summons him."
       },
       {
-        "id": "krimora_borderlands",
-        "title": "Krimora Borderlands",
-        "details": "A feared region whose pressure shapes Sherward's resolve."
+        "id": "prince_chamber",
+        "title": "Prince Chamber",
+        "details": "Private royal room where Darius delivers the cosmology of the world."
+      },
+      {
+        "id": "sharuan_forest_bridge",
+        "title": "Sharuan Forest Bridge",
+        "details": "A bridge over the stream inside Sherward's dreamlike memory forest."
+      },
+      {
+        "id": "throne_hall",
+        "title": "Throne Hall of Sharuan",
+        "details": "Seat of visible power, where Sebastian's strength shows cracks."
+      },
+      {
+        "id": "krimora_forest",
+        "title": "Krimora Forest",
+        "details": "Crimson skies, burgundy shadows, and predatory silence after the crash-landing."
+      },
+      {
+        "id": "dwarven_caves",
+        "title": "Dwarven Caves",
+        "details": "Vaulted chambers of treasure, forges, hybrid gemstone beasts, and a colossal central throne hall."
       }
     ],
     "factions": [
       {
         "id": "house_sherward",
         "title": "House Sherward",
-        "details": "Family line carrying duty, grief, and contested expectations."
+        "details": "Royal bloodline split by expectation, fear, and inherited losses."
       },
       {
         "id": "krimora_forces",
         "title": "Krimora Forces",
-        "details": "Hostile influence driving unrest across nearby lands."
+        "details": "Encroaching influence that reshapes both land and mind."
+      },
+      {
+        "id": "dwarven_courts",
+        "title": "Dwarven Courts",
+        "details": "Craft-houses and treasure wardens of the deep stone realms."
       }
     ]
   }

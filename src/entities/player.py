@@ -149,6 +149,7 @@ class Player(
         self._combo_style = "unarmed"
         self._combo_kind = "melee"
         self._last_hp_observed = None
+        self._pending_damage_ratio = 0.0
         if self.cs and hasattr(self.cs, "health"):
             try:
                 self._last_hp_observed = float(self.cs.health)
@@ -1644,6 +1645,16 @@ class Player(
             self._play_sfx("ui_click", volume=0.45)
         return True
 
+    def _try_story_interact(self):
+        manager = getattr(self.app, "story_interaction", None)
+        if not manager or not hasattr(manager, "try_interact"):
+            return False
+        try:
+            return bool(manager.try_interact(self.actor.getPos(self.render)))
+        except Exception as exc:
+            logger.debug(f"[StoryInteraction] Interact failed: {exc}")
+            return False
+
     def _is_skill_wheel_held(self):
         if self._get_action("skill_wheel"):
             return True
@@ -1763,6 +1774,7 @@ class Player(
         max_hp = max(1.0, float(getattr(cs, "maxHealth", 100.0) or 100.0))
         damage_ratio = max(0.0, min(1.0, delta / max_hp))
         intensity = max(0.25, min(1.8, (damage_ratio * 4.6) + (delta / 22.0)))
+        self._pending_damage_ratio = max(float(getattr(self, "_pending_damage_ratio", 0.0) or 0.0), damage_ratio)
 
         director = getattr(getattr(self, "app", None), "camera_director", None)
         if director and hasattr(director, "emit_impact"):
@@ -1792,8 +1804,9 @@ class Player(
         if bool(getattr(self, "_is_flying", False)):
             self._set_stealth_crouch(False)
 
+        damage_ratio = float(getattr(self, "_pending_damage_ratio", 0.0) or 0.0)
         time_fx = getattr(getattr(self, "app", None), "time_fx", None)
-        if time_fx and hasattr(time_fx, "trigger"):
+        if damage_ratio > 0.0 and time_fx and hasattr(time_fx, "trigger"):
             try:
                 if damage_ratio >= 0.20:
                     time_fx.trigger("hard_fall", duration=0.26)
@@ -1803,7 +1816,7 @@ class Player(
                 pass
 
         brain = getattr(self, "brain", None)
-        if brain and hasattr(brain, "register_injury"):
+        if damage_ratio > 0.0 and brain and hasattr(brain, "register_injury"):
             # Keep injury updates lightweight: we track short-term trauma windows, not permanent wounds.
             severity = max(0.08, min(1.35, damage_ratio * 2.8))
             part = "head" if damage_ratio >= 0.22 else "torso"
@@ -1812,6 +1825,7 @@ class Player(
                 brain.register_injury(part, kind, severity=severity)
             except Exception:
                 pass
+        self._pending_damage_ratio = 0.0
 
     def _update_brain_runtime(self, mx, my, cam_yaw):
         brain = getattr(self, "brain", None)
@@ -1952,7 +1966,9 @@ class Player(
             if self._update_vehicle_control(dt, cam_yaw, mx, my):
                 return
             if interacted and not handled_vehicle:
-                self.app.quest_mgr.try_interact(self.actor.getPos())
+                story_handled = self._try_story_interact()
+                if (not story_handled) and getattr(self.app, "quest_mgr", None):
+                    self.app.quest_mgr.try_interact(self.actor.getPos())
             self._proc_animate(dt)
             self._update_python_movement(dt, cam_yaw, mx=mx, my=my)
             return
@@ -1982,7 +1998,9 @@ class Player(
         self._sync_wall_contact_state()
 
         if interacted and not handled_vehicle:
-            self.app.quest_mgr.try_interact(self.actor.getPos())
+            story_handled = self._try_story_interact()
+            if (not story_handled) and getattr(self.app, "quest_mgr", None):
+                self.app.quest_mgr.try_interact(self.actor.getPos())
 
         self._update_combat(dt)
         self._final_step(dt)

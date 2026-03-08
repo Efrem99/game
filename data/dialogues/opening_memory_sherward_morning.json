@@ -4,10 +4,144 @@
   "dialogue_tree": {
     "start": {
       "speaker": "Narrator",
-      "text": "Morning in Sherward's memory was not quiet. It began with steel in his voice and frost in the air.",
+      "text": "The day begins before dawn. Sherward walks Sharuan in disguise, unseen among his own people.",
       "camera": "wide",
       "voice": "opening_memory/narrator_intro",
-      "duration": 4.2,
+      "duration": 4.4,
+      "directives": {
+        "location_id": "port_market_walk",
+        "time_preset": "morning",
+        "weather_preset": "clear",
+        "emit_event": "opening_memory_city_walk",
+        "codex_unlocks": [
+          {
+            "section": "events",
+            "id": "opening_city_incognito",
+            "title": "Incognito Walk",
+            "details": "Sherward starts the morning hidden in plain sight among city crowds."
+          }
+        ]
+      },
+      "next_node": "adalin_market"
+    },
+    "adalin_market": {
+      "speaker": "Adalin",
+      "text": "Even with a hood, you still move like a prince.",
+      "camera": "npc",
+      "voice": "opening_memory/adalin_market",
+      "duration": 3.8,
+      "directives": {
+        "location_id": "port_market_memory",
+        "emit_event": "opening_memory_adalin_market",
+        "codex_unlocks": [
+          {
+            "section": "characters",
+            "id": "adalin",
+            "title": "Adalin",
+            "details": "Sherward's closest emotional anchor in the opening memories."
+          }
+        ]
+      },
+      "next_node": "map_gallery"
+    },
+    "map_gallery": {
+      "speaker": "Narrator",
+      "text": "Before facing his father, Sherward studies the world map: seas, kingdoms, and the blood-red lands of Krimora.",
+      "camera": "wide",
+      "duration": 4.6,
+      "directives": {
+        "location_id": "world_map_gallery",
+        "emit_event": "opening_memory_world_map",
+        "codex_unlocks": [
+          {
+            "section": "locations",
+            "id": "world_map_chamber",
+            "title": "World Map Chamber",
+            "details": "The map room where Sherward traces the geography of the realm before court."
+          }
+        ]
+      },
+      "next_node": "juice_spill"
+    },
+    "juice_spill": {
+      "speaker": "Narrator",
+      "text": "Nervous hands, a spilled cup, stained ceremonial cloth. He changes into a second formal outfit and goes to the laundry wing.",
+      "camera": "wide",
+      "duration": 4.9,
+      "directives": {
+        "location_id": "royal_laundry",
+        "emit_event": "opening_memory_laundry",
+        "codex_unlocks": [
+          {
+            "section": "events",
+            "id": "opening_laundry_detour",
+            "title": "Laundry Detour",
+            "details": "A small mistake exposes Sherward's anxiety before the confrontation."
+          }
+        ]
+      },
+      "next_node": "darius_arrival"
+    },
+    "darius_arrival": {
+      "speaker": "Darius",
+      "text": "Breathe, Sherward. A throne is heavy, but fear is heavier.",
+      "camera": "npc",
+      "duration": 3.9,
+      "directives": {
+        "location_id": "prince_chamber",
+        "emit_event": "opening_memory_darius_arrives",
+        "codex_unlocks": [
+          {
+            "section": "characters",
+            "id": "darius",
+            "title": "Darius",
+            "details": "An elder elf of great age who still appears no older than thirty."
+          }
+        ]
+      },
+      "next_node": "darius_cosmos"
+    },
+    "darius_cosmos": {
+      "speaker": "Darius",
+      "text": "Before kings and bloodlines, there was only order, and the fracture that made Noctus.",
+      "camera": "npc",
+      "voice": "opening_memory/darius_cosmos",
+      "duration": 4.6,
+      "directives": {
+        "location_id": "sharuan_forest_bridge",
+        "time_preset": "dawn",
+        "weather_preset": "partly_cloudy"
+      },
+      "next_node": "paradise_banishment"
+    },
+    "paradise_banishment": {
+      "speaker": "The Almighty",
+      "text": "Noctus, you are cast from light. Leave this heaven and carry your own darkness.",
+      "camera": "wide",
+      "voice": "opening_memory/almighty_banishment",
+      "duration": 4.8,
+      "directives": {
+        "location_id": "paradise_vision",
+        "time_preset": "noon",
+        "weather_preset": "clear",
+        "emit_event": "opening_memory_noctus_banishment",
+        "codex_unlocks": [
+          {
+            "section": "characters",
+            "id": "noctus",
+            "title": "Noctus",
+            "details": "A dark presence known as a face in the void, born from exile."
+          }
+        ]
+      },
+      "next_node": "noctus_echo"
+    },
+    "noctus_echo": {
+      "speaker": "Noctus",
+      "text": "Then I return as dread, and dread will kneel to me.",
+      "camera": "wide",
+      "voice": "opening_memory/noctus_echo",
+      "duration": 3.5,
       "next_node": "father_call"
     },
     "father_call": {
@@ -16,38 +150,197 @@
       "camera": "npc",
       "voice": "opening_memory/sebastian_line_01",
       "duration": 3.8,
+      "directives": {
+        "location_id": "prince_chamber",
+        "time_preset": "morning",
+        "weather_preset": "clear"
+      },
       "next_node": "sherward_reply"
     },
     "sherward_reply": {
       "speaker": "Sherward",
-      "text": "Then hear me now. I will not spend my life hiding while Krimora takes more from us.",
+      "text": "Then hear me now. I will not hide while Krimora takes more from us.",
       "camera": "player",
       "voice": "opening_memory/sherward_line_01",
-      "duration": 4.0,
-      "next_node": "father_warning"
+      "duration": 3.8,
+      "next_node": "training_miniboss"
     },
-    "father_warning": {
+    "training_miniboss": {
       "speaker": "Sebastian",
-      "text": "Pride is quick to speak and slow to bury the dead. The road will test more than your blade.",
+      "text": "If you claim strength, prove it. One exchange. No excuses.",
       "camera": "npc",
-      "voice": "opening_memory/sebastian_line_02",
-      "duration": 4.4,
-      "next_node": "sherward_vow"
+      "voice": "opening_memory/sebastian_training",
+      "duration": 3.7,
+      "directives": {
+        "location_id": "training_grounds",
+        "emit_event": "opening_memory_training_miniboss",
+        "codex_unlocks": [
+          {
+            "section": "events",
+            "id": "opening_training_visit",
+            "title": "Sebastian's Training Visit",
+            "details": "Sebastian confronts Sherward as a final test of discipline and resolve."
+          }
+        ]
+      },
+      "next_node": "throne_hall_decline"
     },
-    "sherward_vow": {
-      "speaker": "Sherward",
-      "text": "Let it test me. I leave at dawn, and I return only when this fear no longer rules us.",
-      "camera": "player",
-      "voice": "opening_memory/sherward_line_02",
+    "throne_hall_decline": {
+      "speaker": "Narrator",
+      "text": "By the throne, the same man looks older. His shoulders are iron, but his breath is not.",
+      "camera": "wide",
+      "duration": 4.4,
+      "directives": {
+        "location_id": "throne_hall",
+        "emit_event": "opening_memory_throne_hall"
+      },
+      "next_node": "sebastian_throne"
+    },
+    "sebastian_throne": {
+      "speaker": "Sebastian",
+      "text": "Power is expensive, son. I paid with blood and years.",
+      "camera": "npc",
+      "voice": "opening_memory/sebastian_throne",
+      "duration": 3.8,
+      "next_node": "flight_escape"
+    },
+    "flight_escape": {
+      "speaker": "Narrator",
+      "text": "The argument breaks. Sherward launches from the walls, forcing wings and will to answer fear.",
+      "camera": "wide",
+      "duration": 4.6,
+      "directives": {
+        "location_id": "castle_flight_edge",
+        "time_preset": "dusk",
+        "weather_preset": "overcast",
+        "emit_event": "opening_memory_flight_escape"
+      },
+      "next_node": "crash_landing"
+    },
+    "crash_landing": {
+      "speaker": "Narrator",
+      "text": "The sky turns red. He falls hard into the Krimorian woods.",
+      "camera": "wide",
       "duration": 4.1,
+      "directives": {
+        "location_id": "krimora_forest_crash",
+        "time_preset": "dusk",
+        "weather_preset": "stormy",
+        "emit_event": "opening_memory_crash_landing",
+        "codex_unlocks": [
+          {
+            "section": "locations",
+            "id": "krimora_forest",
+            "title": "Krimora Forest",
+            "details": "A burgundy nightmare under a red sky where silence feels predatory."
+          }
+        ]
+      },
+      "next_node": "krimora_speaks"
+    },
+    "krimora_speaks": {
+      "speaker": "Krimora",
+      "text": "Welcome, oathborn prince. Bleed, and this forest will learn your name.",
+      "camera": "wide",
+      "voice": "opening_memory/krimora_call",
+      "duration": 4.1,
+      "directives": {
+        "location_id": "krimora_forest_cage",
+        "emit_event": "opening_memory_krimora_dialogue",
+        "codex_unlocks": [
+          {
+            "section": "characters",
+            "id": "krimora",
+            "title": "Krimora (The Red Death)",
+            "details": "A fiery, crimson presence whose fury burns through land and minds."
+          }
+        ]
+      },
+      "next_node": "adrian_cage"
+    },
+    "adrian_cage": {
+      "speaker": "Narrator",
+      "text": "Near the thorned bushes: a cage, rusted bars, and Adrian still alive.",
+      "camera": "wide",
+      "duration": 3.9,
+      "directives": {
+        "location_id": "krimora_forest_cage",
+        "emit_event": "opening_memory_adrian_found"
+      },
+      "next_node": "adrian_line"
+    },
+    "adrian_line": {
+      "speaker": "Adrian",
+      "text": "Break it and move. Krimora hunts hesitation first.",
+      "camera": "npc",
+      "voice": "opening_memory/adrian_cage",
+      "duration": 3.4,
+      "directives": {
+        "codex_unlocks": [
+          {
+            "section": "characters",
+            "id": "adrian",
+            "title": "Adrian",
+            "details": "Freed from a Krimorian cage and forced to move before the forest closes in."
+          },
+          {
+            "section": "events",
+            "id": "adrian_rescue",
+            "title": "Adrian Rescued",
+            "details": "Sherward cuts Adrian free on the edge of Krimora's hunting ground."
+          }
+        ]
+      },
+      "next_node": "dwarven_gate"
+    },
+    "dwarven_gate": {
+      "speaker": "Narrator",
+      "text": "Together they reach the dwarven entrance: stone gates carved with old craft marks.",
+      "camera": "wide",
+      "duration": 4.2,
+      "directives": {
+        "location_id": "dwarven_caves_gate",
+        "time_preset": "night",
+        "weather_preset": "overcast",
+        "emit_event": "opening_memory_dwarven_gate"
+      },
+      "next_node": "dwarven_halls"
+    },
+    "dwarven_halls": {
+      "speaker": "Narrator",
+      "text": "Beyond lie vault sectors of treasure, forge chambers, and a beast-yard of gem-born hybrids.",
+      "camera": "wide",
+      "duration": 4.8,
+      "directives": {
+        "location_id": "dwarven_caves_halls",
+        "codex_unlocks": [
+          {
+            "section": "locations",
+            "id": "dwarven_caves",
+            "title": "Dwarven Caves",
+            "details": "Treasury vaults, crafting chambers, gemstone hybrids, and deep sovereign architecture."
+          }
+        ]
+      },
+      "next_node": "dwarven_throne"
+    },
+    "dwarven_throne": {
+      "speaker": "Narrator",
+      "text": "At the center rises a cavern throne hall so vast that Sharuan's throne room seems modest beside it.",
+      "camera": "wide",
+      "duration": 4.4,
+      "directives": {
+        "location_id": "dwarven_caves_throne",
+        "emit_event": "opening_memory_dwarven_throne"
+      },
       "next_node": "memory_fade"
     },
     "memory_fade": {
       "speaker": "Narrator",
-      "text": "The memory breaks. The world returns. Sherward takes his first step into the day.",
+      "text": "Memory ends at the stone crown below. The world returns. The road starts now.",
       "camera": "wide",
       "voice": "opening_memory/narrator_outro",
-      "duration": 3.8
+      "duration": 4.0
     }
   }
 }

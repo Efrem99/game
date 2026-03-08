@@ -23,6 +23,8 @@ class HUDOverlay:
         self._skill_wheel_hint_key = str(wheel_key).upper()
         lock_key = self.app.data_mgr.get_binding("target_lock") or "t"
         self._target_lock_hint_key = str(lock_key).upper()
+        interact_key = self.app.data_mgr.get_binding("interact") or "f"
+        self._interact_hint_key = str(interact_key).upper()
         self._cast_hint_key = "LMB"
         self._ultimate_hint_key = "Q"
         self._refresh_control_hint_tokens()
@@ -849,13 +851,21 @@ class HUDOverlay:
                     tone = (0.62, 0.84, 0.98, 0.74)
                 elif kind == "vehicle":
                     tone = (0.84, 0.94, 0.62, 0.70)
+                elif kind == "story":
+                    tone = (0.84, 0.80, 0.98, 0.78)
                 line_color = tone
                 dot_color = (tone[0], tone[1], tone[2], min(0.95, tone[3] + 0.12))
                 label = name or kind.title()
-                hint = self.app.data_mgr.t(
-                    "hud.target_lock_hint",
-                    f"Press {self._target_lock_hint_key} to lock",
-                )
+                if kind == "story":
+                    hint = self.app.data_mgr.t(
+                        "hud.interact_hint",
+                        f"Press {self._interact_hint_key} to interact",
+                    )
+                else:
+                    hint = self.app.data_mgr.t(
+                        "hud.target_lock_hint",
+                        f"Press {self._target_lock_hint_key} to lock",
+                    )
 
         pulse = (0.5 + 0.5 * math.sin(self._reticle_pulse * (2.4 if pulse_boost > 0.8 else 1.7))) if track_target else 0.0
         offset = (0.0012 + 0.0026 * pulse) * pulse_boost
@@ -1695,10 +1705,12 @@ class HUDOverlay:
         cast = dm.get_binding("attack_light") or "mouse1"
         ultimate = dm.get_binding("block") or "q"
         lock = dm.get_binding("target_lock") or "t"
+        interact = dm.get_binding("interact") or "f"
         self._skill_wheel_hint_key = self._fmt_key_hint(wheel)
         self._cast_hint_key = self._fmt_key_hint(cast)
         self._ultimate_hint_key = self._fmt_key_hint(ultimate)
         self._target_lock_hint_key = self._fmt_key_hint(lock)
+        self._interact_hint_key = self._fmt_key_hint(interact)
 
     def _create_autosave_badge(self):
         logo_path = "assets/textures/kw_logo.png"

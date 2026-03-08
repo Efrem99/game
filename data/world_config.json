@@ -46,6 +46,24 @@
             "radius": 24
         },
         {
+            "name": "Prince Chamber",
+            "pos": [
+                6,
+                74,
+                24
+            ],
+            "radius": 9
+        },
+        {
+            "name": "Throne Hall",
+            "pos": [
+                0,
+                88,
+                25
+            ],
+            "radius": 12
+        },
+        {
             "name": "Town Hall",
             "pos": [
                 0,
@@ -71,6 +89,51 @@
                 1
             ],
             "radius": 34
+        },
+        {
+            "name": "Port Market Walk",
+            "pos": [
+                12,
+                -52,
+                2
+            ],
+            "radius": 16
+        },
+        {
+            "name": "Sharuan Forest Bridge",
+            "pos": [
+                -22,
+                20,
+                4
+            ],
+            "radius": 18
+        },
+        {
+            "name": "Krimora Forest Crash Site",
+            "pos": [
+                76,
+                12,
+                3
+            ],
+            "radius": 20
+        },
+        {
+            "name": "Krimora Cage Clearing",
+            "pos": [
+                70,
+                2,
+                3
+            ],
+            "radius": 16
+        },
+        {
+            "name": "Dwarven Caves Gate",
+            "pos": [
+                92,
+                -6,
+                4
+            ],
+            "radius": 14
         },
         {
             "name": "Training Grounds",

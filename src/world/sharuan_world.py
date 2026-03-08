@@ -212,6 +212,7 @@ class SharuanWorld:
             (0.86, self._build_center, "Designing town center..."),
             (0.90, self._build_movement_training_ground, "Preparing movement training grounds..."),
             (0.94, self._build_scenery, "Adding scenery and decorations..."),
+            (0.97, self._build_dwarven_caves_story_setpiece, "Carving dwarven cave sectors..."),
             (1.0, self._build_flora_fauna, "Populating world flora..."),
         ]
         self._current_step = 0
@@ -507,6 +508,15 @@ class SharuanWorld:
             t.set_wrap_v(SamplerState.WM_repeat)
             setattr(self, key, t)
         return getattr(self, key)
+
+    def _register_story_anchor(self, anchor_id, node, **kwargs):
+        manager = getattr(self.app, "story_interaction", None)
+        if not manager or not hasattr(manager, "register_anchor"):
+            return False
+        try:
+            return bool(manager.register_anchor(anchor_id, node, **kwargs))
+        except Exception:
+            return False
 
     def _build_terrain(self):
         t = mk_terrain('terrain', self.terrain_size, self.terrain_res, self._th)
@@ -876,6 +886,108 @@ class SharuanWorld:
             self._pl(mk_plane(f"path_{py}", 3.5, 4.2, 2.0), 0, py, pz + 0.02,
                      self.tx["dirt"], dirt_mat, "Castle Road", is_platform=False)
 
+        story_cfg = self.layout.get("story_landmarks", {}) if isinstance(self.layout.get("story_landmarks"), dict) else {}
+
+        # Story bridge in Sharuan forest (memory scene over the stream).
+        bridge_cfg = story_cfg.get("sharuan_bridge", {}) if isinstance(story_cfg.get("sharuan_bridge"), dict) else {}
+        bridge_center = bridge_cfg.get("center", [-22.0, 20.0])
+        if isinstance(bridge_center, list) and len(bridge_center) >= 2:
+            try:
+                bx = float(bridge_center[0]); by = float(bridge_center[1])
+                bl = max(4.0, float(bridge_cfg.get("length", 9.0) or 9.0))
+                bw = max(1.6, float(bridge_cfg.get("width", 2.8) or 2.8))
+                bz = self._th(bx, by)
+                bridge = self._pl(
+                    mk_box("story_bridge_deck", bw, bl, 0.35),
+                    bx,
+                    by,
+                    bz + 0.80,
+                    self.tx["bark"],
+                    mk_mat((0.40, 0.29, 0.18, 1.0), 0.82, 0.03),
+                    "Sharuan Forest Bridge",
+                )
+                bridge.setH(18.0)
+                for side in (-1, 1):
+                    rail = self._pl(
+                        mk_box(f"story_bridge_rail_{side}", 0.16, bl, 0.5),
+                        bx + (side * ((bw * 0.5) - 0.08)),
+                        by,
+                        bz + 1.15,
+                        self.tx["bark"],
+                        mk_mat((0.36, 0.26, 0.16, 1.0), 0.85, 0.03),
+                        "Sharuan Forest Bridge",
+                        is_platform=False,
+                    )
+                    rail.setH(18.0)
+            except Exception:
+                pass
+
+        # Adrian's cage landmark inside Krimora.
+        cage_cfg = story_cfg.get("adrian_cage", {}) if isinstance(story_cfg.get("adrian_cage"), dict) else {}
+        cage_center = cage_cfg.get("center", [70.0, 2.0])
+        cage_size = cage_cfg.get("size", [3.2, 2.4, 2.8])
+        if isinstance(cage_center, list) and len(cage_center) >= 2 and isinstance(cage_size, list) and len(cage_size) >= 3:
+            try:
+                cx = float(cage_center[0]); cy = float(cage_center[1]); cz = self._th(cx, cy)
+                sx = max(1.8, float(cage_size[0])); sy = max(1.4, float(cage_size[1])); sz = max(1.8, float(cage_size[2]))
+                self._pl(
+                    mk_box("adrian_cage_top", sx, sy, 0.12),
+                    cx, cy, cz + sz + 0.05,
+                    self.tx["stone"], stone_mat, "Krimora Cage Clearing", is_platform=False
+                )
+                for side in (-1, 1):
+                    for j in range(4):
+                        off = (-sy * 0.5) + (0.35 + j * ((sy - 0.70) / 3.0))
+                        self._pl(
+                            mk_cyl(f"adrian_cage_bar_{side}_{j}", 0.05, sz, 7),
+                            cx + (side * (sx * 0.5 - 0.08)),
+                            cy + off,
+                            cz + (sz * 0.5),
+                            self.tx["stone"], stone_mat, "Krimora Cage Clearing", is_platform=False
+                        )
+                # Bent door section to imply forced opening.
+                door = self._pl(
+                    mk_box("adrian_cage_door", 0.12, sy * 0.72, sz * 0.9),
+                    cx + (sx * 0.5 - 0.04),
+                    cy - 0.10,
+                    cz + (sz * 0.45),
+                    self.tx["stone"], stone_mat, "Krimora Cage Clearing", is_platform=False
+                )
+                door.setH(-24.0)
+            except Exception:
+                pass
+
+        # Dwarven gate marker to transition toward cave content.
+        gate_cfg = story_cfg.get("dwarven_gate", {}) if isinstance(story_cfg.get("dwarven_gate"), dict) else {}
+        gate_center = gate_cfg.get("center", [92.0, -6.0])
+        gate_size = gate_cfg.get("size", [8.0, 2.0, 7.5])
+        if isinstance(gate_center, list) and len(gate_center) >= 2 and isinstance(gate_size, list) and len(gate_size) >= 3:
+            try:
+                gx = float(gate_center[0]); gy = float(gate_center[1]); gz = self._th(gx, gy)
+                gw = max(5.0, float(gate_size[0])); gd = max(1.2, float(gate_size[1])); gh = max(4.0, float(gate_size[2]))
+                dwarven_stone = mk_mat((0.42, 0.40, 0.44, 1.0), 0.62, 0.05)
+                self._pl(
+                    mk_box("dwarven_gate_frame", gw, gd, gh),
+                    gx, gy, gz + (gh * 0.5),
+                    self.tx["stone"], dwarven_stone, "Dwarven Caves Gate"
+                )
+                self._pl(
+                    mk_box("dwarven_gate_opening", gw * 0.58, gd + 0.25, gh * 0.68),
+                    gx, gy + 0.05, gz + (gh * 0.42),
+                    self.tx["stone"], mk_mat((0.14, 0.12, 0.14, 1.0), 0.95, 0.0), "Dwarven Caves Gate", is_platform=False
+                )
+                for side in (-1, 1):
+                    self._pl(
+                        mk_sphere(f"dwarven_gate_gem_{side}", 0.42, 8, 9),
+                        gx + (side * (gw * 0.35)),
+                        gy + 0.22,
+                        gz + 1.10,
+                        None, mk_mat((0.72, 0.16, 0.10, 1.0), 0.22, 0.58),
+                        "Dwarven Caves Gate", is_platform=False
+                    )
+            except Exception:
+                pass
+
     def _build_movement_training_ground(self):
         """Dedicated test arena for movement tutorial and animation state validation."""
         tx, ty = 18.0, 24.0
@@ -1153,6 +1265,298 @@ class SharuanWorld:
             p.aabb.max = gc.Vec3(pool_x + 5.5, pool_y + 4.0, pool_z + 0.1)
             p.isWater = True
             self.phys.addPlatform(p)
+
+    def _build_dwarven_caves_story_setpiece(self):
+        zones = self.layout.get("zones", []) if isinstance(self.layout.get("zones"), list) else []
+
+        def zone_center(zone_id, fallback):
+            zid = str(zone_id or "").strip().lower()
+            if isinstance(zones, list):
+                for row in zones:
+                    if not isinstance(row, dict):
+                        continue
+                    row_id = str(row.get("id", "") or "").strip().lower()
+                    center = row.get("center", [])
+                    if row_id != zid or not (isinstance(center, list) and len(center) >= 2):
+                        continue
+                    try:
+                        x = float(center[0]); y = float(center[1]); z = float(center[2]) if len(center) >= 3 else 0.0
+                        return x, y, z
+                    except Exception:
+                        continue
+            return fallback
+
+        gate_x, gate_y, _ = zone_center("dwarven_caves_gate", (92.0, -6.0, 4.0))
+        halls_x, halls_y, _ = zone_center("dwarven_caves_halls", (96.0, -14.0, 2.0))
+        throne_x, throne_y, _ = zone_center("dwarven_caves_throne", (102.0, -24.0, 3.0))
+
+        stone_dark = mk_mat((0.36, 0.34, 0.38, 1.0), 0.66, 0.06)
+        stone_worn = mk_mat((0.48, 0.45, 0.42, 1.0), 0.74, 0.03)
+        iron_dark = mk_mat((0.20, 0.21, 0.24, 1.0), 0.44, 0.52)
+        ember = mk_mat((0.78, 0.25, 0.08, 1.0), 0.32, 0.42)
+        gem_blue = mk_mat((0.18, 0.46, 0.84, 1.0), 0.14, 0.62)
+        gem_red = mk_mat((0.86, 0.18, 0.14, 1.0), 0.18, 0.64)
+        gold_mat = mk_mat((0.74, 0.62, 0.18, 1.0), 0.20, 0.72)
+
+        # Gate causeway.
+        path_points = [
+            (gate_x, gate_y),
+            ((gate_x + halls_x) * 0.5, (gate_y + halls_y) * 0.5),
+            (halls_x, halls_y),
+            ((halls_x + throne_x) * 0.5, (halls_y + throne_y) * 0.5),
+            (throne_x, throne_y),
+        ]
+        for idx in range(len(path_points) - 1):
+            ax, ay = path_points[idx]
+            bx, by = path_points[idx + 1]
+            mx, my = (ax + bx) * 0.5, (ay + by) * 0.5
+            ln = math.sqrt(((bx - ax) ** 2) + ((by - ay) ** 2))
+            if ln <= 0.2:
+                continue
+            ang = math.degrees(math.atan2((bx - ax), (by - ay)))
+            pz = self._th(mx, my)
+            seg = self._pl(
+                mk_plane(f"dwarf_path_{idx}", 4.6, ln + 1.2, 1.3),
+                mx,
+                my,
+                pz + 0.06,
+                self.tx["stone"],
+                stone_worn,
+                "Dwarven Caves Gate",
+                is_platform=False,
+            )
+            seg.setH(ang)
+
+        # Main cavern shell around forge halls.
+        hall_floor_z = self._th(halls_x, halls_y)
+        self._pl(
+            mk_cyl("dwarf_hall_floor", 14.0, 0.9, 28),
+            halls_x,
+            halls_y,
+            hall_floor_z + 0.45,
+            self.tx["stone"],
+            stone_dark,
+            "Dwarven Forge Halls",
+        )
+        self._pl(
+            mk_sphere("dwarf_hall_dome", 16.0, 12, 14),
+            halls_x,
+            halls_y,
+            hall_floor_z + 11.0,
+            self.tx["stone"],
+            mk_mat((0.24, 0.24, 0.28, 0.9), 0.94, 0.0),
+            "Dwarven Forge Halls",
+            is_platform=False,
+        )
+
+        # Treasury sector (left wing).
+        treasury_x = halls_x - 14.5
+        treasury_y = halls_y - 1.5
+        treasury_z = self._th(treasury_x, treasury_y)
+        treasury_anchor_node = self._pl(
+            mk_box("dwarf_treasury_floor", 12.0, 9.0, 0.8),
+            treasury_x, treasury_y, treasury_z + 0.40,
+            self.tx["stone"], stone_dark, "Dwarven Treasury Vaults"
+        )
+        for idx in range(3):
+            vx = treasury_x - 3.3 + (idx * 3.3)
+            vy = treasury_y + 2.1
+            vz = self._th(vx, vy)
+            self._pl(
+                mk_box(f"dwarf_vault_{idx}", 2.3, 2.1, 2.8),
+                vx, vy, vz + 1.4,
+                self.tx["stone"], iron_dark, "Dwarven Treasury Vaults"
+            )
+            self._pl(
+                mk_sphere(f"dwarf_treasure_heap_{idx}", 0.72, 8, 9),
+                vx, vy - 1.5, vz + 0.70,
+                None, gold_mat, "Dwarven Treasury Vaults", is_platform=False
+            )
+        self._register_story_anchor(
+            "dwarven_treasury_cache",
+            treasury_anchor_node,
+            name="Treasury Vault",
+            hint="Inspect treasury cache",
+            single_use=True,
+            rewards={"xp": 85, "gold": 180},
+            event_name="story.dwarven_treasury_opened",
+            codex_unlocks=[
+                {
+                    "section": "events",
+                    "id": "dwarven_treasury_opened",
+                    "title": "Dwarven Treasury Opened",
+                    "details": "A sealed treasury bay yields old coin and records of the stone courts.",
+                }
+            ],
+            location_name="Dwarven Treasury Vaults",
+        )
+
+        # Workshop sector (right wing) with anvils and furnaces.
+        forge_x = halls_x + 13.8
+        forge_y = halls_y - 1.2
+        forge_z = self._th(forge_x, forge_y)
+        forge_anchor_node = self._pl(
+            mk_box("dwarf_forge_floor", 11.0, 9.0, 0.8),
+            forge_x, forge_y, forge_z + 0.40,
+            self.tx["stone"], stone_dark, "Dwarven Forge Halls"
+        )
+        for idx in range(4):
+            fx = forge_x - 3.4 + (idx * 2.2)
+            fy = forge_y + (1.2 if idx % 2 == 0 else -1.4)
+            fz = self._th(fx, fy)
+            self._pl(
+                mk_box(f"dwarf_anvil_{idx}", 1.2, 0.7, 0.9),
+                fx, fy, fz + 0.45,
+                self.tx["stone"], iron_dark, "Dwarven Forge Halls"
+            )
+            glow = self._pl(
+                mk_cyl(f"dwarf_furnace_glow_{idx}", 0.46, 0.30, 10),
+                fx, fy - 1.0, fz + 0.24,
+                None, ember, "Dwarven Forge Halls", is_platform=False
+            )
+            glow.setColorScale(1.0, 0.55, 0.24, 0.94)
+        self._register_story_anchor(
+            "dwarven_forge_station",
+            forge_anchor_node,
+            name="Master Forge",
+            hint="Examine dwarven forge tools",
+            single_use=True,
+            rewards={"xp": 75, "gold": 60},
+            event_name="story.dwarven_forge_examined",
+            codex_unlocks=[
+                {
+                    "section": "events",
+                    "id": "dwarven_forge_examined",
+                    "title": "Dwarven Forge Studied",
+                    "details": "The forge sector reveals precision craft and ritual metallurgy.",
+                }
+            ],
+            location_name="Dwarven Forge Halls",
+        )
+
+        # Bestiary sector with gemstone hybrid creatures.
+        beast_x = halls_x
+        beast_y = halls_y + 13.2
+        beast_z = self._th(beast_x, beast_y)
+        bestiary_anchor_node = self._pl(
+            mk_box("dwarf_bestiary_floor", 13.0, 8.8, 0.8),
+            beast_x, beast_y, beast_z + 0.40,
+            self.tx["stone"], stone_dark, "Dwarven Bestiary"
+        )
+        for idx in range(3):
+            cx = beast_x - 4.0 + (idx * 4.0)
+            cy = beast_y
+            cz = self._th(cx, cy)
+            self._pl(
+                mk_box(f"dwarf_beast_cage_{idx}", 2.8, 2.6, 2.9),
+                cx, cy, cz + 1.45,
+                self.tx["stone"], iron_dark, "Dwarven Bestiary"
+            )
+            self._pl(
+                mk_sphere(f"dwarf_hybrid_core_{idx}", 0.62, 8, 9),
+                cx, cy, cz + 0.92,
+                None, gem_blue if idx % 2 == 0 else gem_red, "Dwarven Bestiary", is_platform=False
+            )
+            for spike in range(5):
+                ang = (math.tau * spike) / 5.0
+                sx = cx + (math.cos(ang) * 0.84)
+                sy = cy + (math.sin(ang) * 0.84)
+                self._pl(
+                    mk_cone(f"dwarf_hybrid_spike_{idx}_{spike}", 0.14, 0.45, 7),
+                    sx, sy, cz + 1.25,
+                    None, gem_blue if idx % 2 == 0 else gem_red, "Dwarven Bestiary", is_platform=False
+                )
+        self._register_story_anchor(
+            "dwarven_bestiary_cage",
+            bestiary_anchor_node,
+            name="Gemstone Bestiary",
+            hint="Inspect gemstone hybrids",
+            single_use=True,
+            rewards={"xp": 95, "gold": 40},
+            event_name="story.dwarven_bestiary_logged",
+            codex_unlocks=[
+                {
+                    "section": "events",
+                    "id": "dwarven_bestiary_logged",
+                    "title": "Gem Hybrids Catalogued",
+                    "details": "Hybrid creatures of crystal core and stone frame are documented in the Codex.",
+                },
+                {
+                    "section": "locations",
+                    "id": "dwarven_bestiary",
+                    "title": "Dwarven Bestiary",
+                    "details": "Containment hall for gemstone-born hybrids beneath the mountain courts.",
+                }
+            ],
+            location_name="Dwarven Bestiary",
+        )
+
+        # Central grand throne hall with oversized scale.
+        throne_z = self._th(throne_x, throne_y)
+        self._pl(
+            mk_cyl("dwarf_grand_floor", 18.0, 1.0, 36),
+            throne_x, throne_y, throne_z + 0.50,
+            self.tx["stone"], stone_worn, "Dwarven Grand Throne"
+        )
+        for idx in range(12):
+            ang = (math.tau * idx) / 12.0
+            px = throne_x + (math.cos(ang) * 13.5)
+            py = throne_y + (math.sin(ang) * 13.5)
+            pz = self._th(px, py)
+            self._pl(
+                mk_cyl(f"dwarf_grand_col_{idx}", 0.58, 8.5, 12),
+                px, py, pz + 4.25,
+                self.tx["stone"], stone_dark, "Dwarven Grand Throne"
+            )
+
+        throne_base = self._pl(
+            mk_box("dwarf_throne_base", 7.5, 4.2, 2.2),
+            throne_x, throne_y + 5.2, throne_z + 1.1,
+            self.tx["stone"], stone_dark, "Dwarven Grand Throne"
+        )
+        throne_base.setH(180.0)
+        self._pl(
+            mk_box("dwarf_throne_seat", 3.2, 1.6, 3.8),
+            throne_x, throne_y + 6.1, throne_z + 3.2,
+            self.tx["stone"], stone_worn, "Dwarven Grand Throne"
+        )
+
+        for idx in range(28):
+            ang = (math.tau * idx) / 28.0
+            rad = 6.0 + (1.8 if idx % 2 == 0 else 0.0)
+            px = throne_x + (math.cos(ang) * rad)
+            py = throne_y + (math.sin(ang) * rad)
+            pz = self._th(px, py)
+            gem_mat = gem_blue if idx % 3 else gem_red
+            self._pl(
+                mk_sphere(f"dwarf_grand_gem_{idx}", 0.34 + (0.08 if idx % 5 == 0 else 0.0), 7, 8),
+                px, py, pz + 0.62,
+                None, gem_mat, "Dwarven Grand Throne", is_platform=False
+            )
+        self._register_story_anchor(
+            "dwarven_grand_throne",
+            throne_base,
+            name="Grand Stone Throne",
+            hint="Study the dwarven throne seal",
+            single_use=True,
+            rewards={"xp": 140, "gold": 220},
+            event_name="story.dwarven_throne_attuned",
+            codex_unlocks=[
+                {
+                    "section": "events",
+                    "id": "dwarven_throne_attuned",
+                    "title": "Throne Seal Attuned",
+                    "details": "The central throne imprint confirms the scale of the dwarven sovereign halls.",
+                },
+                {
+                    "section": "locations",
+                    "id": "dwarven_grand_throne",
+                    "title": "Dwarven Grand Throne",
+                    "details": "Central hall whose magnitude eclipses the throne chamber of Sharuan.",
+                }
+            ],
+            location_name="Dwarven Grand Throne",
+        )
 
     def _build_flora_fauna(self):
         bark_mat = mk_mat((0.34, 0.24, 0.16, 1), 0.9, 0.0)

@@ -58,6 +58,7 @@ from managers.npc_manager import NPCManager
 from managers.movement_tutorial_manager import MovementTutorialManager
 from managers.dialog_cinematic_manager import DialogCinematicManager
 from managers.npc_interaction_manager import NPCInteractionManager
+from managers.story_interaction_manager import StoryInteractionManager
 from managers.skill_tree_manager import SkillTreeManager
 from managers.stealth_manager import StealthManager
 from render.model_visuals import ensure_model_visual_defaults, audit_node_visual_health
@@ -309,6 +310,7 @@ class XBotApp(ShowBase):
         self.sim_tier_mgr = SimTierManager(self)
         self.dialog_cinematic = DialogCinematicManager(self)
         self.npc_interaction = NPCInteractionManager(self)
+        self.story_interaction = StoryInteractionManager(self)
 
         # -- Start Intro --
         logger.info("Starting cinematic intro (8.7s expected)...")
@@ -1142,6 +1144,188 @@ class XBotApp(ShowBase):
         except Exception as exc:
             logger.debug(f"[OpeningMemory] Failed to apply weather preset '{weather_key}': {exc}")
 
+    def _resolve_dialog_location(self, location_id="", location_name="", position=None, z_offset=2.2):
+        parsed_pos = None
+        if isinstance(position, (list, tuple)) and len(position) >= 2:
+            try:
+                px = float(position[0])
+                py = float(position[1])
+                pz = float(position[2]) if len(position) >= 3 else 0.0
+                parsed_pos = Vec3(px, py, pz)
+            except Exception:
+                parsed_pos = None
+        elif isinstance(position, str):
+            parts = [str(p or "").strip() for p in position.split(",")]
+            if len(parts) in {2, 3}:
+                try:
+                    px = float(parts[0])
+                    py = float(parts[1])
+                    pz = float(parts[2]) if len(parts) == 3 else 0.0
+                    parsed_pos = Vec3(px, py, pz)
+                except Exception:
+                    parsed_pos = None
+
+        world = getattr(self, "world", None)
+        layout = getattr(world, "layout", {}) if world else {}
+        zones = layout.get("zones", []) if isinstance(layout, dict) else []
+        location_rows = []
+        if isinstance(zones, list):
+            for row in zones:
+                if not isinstance(row, dict):
+                    continue
+                center = row.get("center", [])
+                if not (isinstance(center, list) and len(center) >= 3):
+                    continue
+                try:
+                    cx = float(center[0]); cy = float(center[1]); cz = float(center[2])
+                except Exception:
+                    continue
+                location_rows.append(
+                    {
+                        "id": str(row.get("id", "") or "").strip().lower(),
+                        "name": str(row.get("name", "") or "").strip(),
+                        "pos": Vec3(cx, cy, cz),
+                    }
+                )
+
+        if world and isinstance(getattr(world, "locations", None), list):
+            for row in world.locations:
+                if not isinstance(row, dict):
+                    continue
+                pos = row.get("pos", [])
+                if not (isinstance(pos, list) and len(pos) >= 3):
+                    continue
+                try:
+                    cx = float(pos[0]); cy = float(pos[1]); cz = float(pos[2])
+                except Exception:
+                    continue
+                location_rows.append(
+                    {
+                        "id": str(row.get("id", "") or "").strip().lower(),
+                        "name": str(row.get("name", "") or "").strip(),
+                        "pos": Vec3(cx, cy, cz),
+                    }
+                )
+
+        resolved_name = ""
+        resolved_pos = parsed_pos
+        target_id = str(location_id or "").strip().lower()
+        target_name = str(location_name or "").strip().lower()
+        if resolved_pos is None and (target_id or target_name):
+            for row in location_rows:
+                row_id = str(row.get("id", "")).strip().lower()
+                row_name = str(row.get("name", "")).strip().lower()
+                if target_id and row_id and row_id == target_id:
+                    resolved_name = str(row.get("name", "") or "")
+                    resolved_pos = Vec3(row["pos"])
+                    break
+                if target_name and row_name and row_name == target_name:
+                    resolved_name = str(row.get("name", "") or "")
+                    resolved_pos = Vec3(row["pos"])
+                    break
+            if resolved_pos is None and target_name:
+                for row in location_rows:
+                    row_name = str(row.get("name", "")).strip().lower()
+                    if target_name in row_name:
+                        resolved_name = str(row.get("name", "") or "")
+                        resolved_pos = Vec3(row["pos"])
+                        break
+
+        if resolved_pos is not None and world and hasattr(world, "_th"):
+            try:
+                resolved_pos.z = float(world._th(resolved_pos.x, resolved_pos.y)) + float(z_offset or 0.0)
+            except Exception:
+                pass
+        return resolved_pos, resolved_name
+
+    def apply_dialog_directives(self, node_directives=None, text_tags=None, node=None):
+        node_directives = node_directives if isinstance(node_directives, dict) else {}
+        text_tags = text_tags if isinstance(text_tags, dict) else {}
+        del node
+
+        location_id = str(node_directives.get("location_id", text_tags.get("location", "")) or "").strip()
+        location_name = str(node_directives.get("location_name", text_tags.get("location_name", "")) or "").strip()
+        explicit_position = node_directives.get("position")
+        try:
+            z_offset = float(node_directives.get("z_offset", 2.2) or 2.2)
+        except Exception:
+            z_offset = 2.2
+
+        resolved_pos, resolved_name = self._resolve_dialog_location(
+            location_id=location_id,
+            location_name=location_name,
+            position=explicit_position,
+            z_offset=z_offset,
+        )
+        if resolved_pos is not None:
+            self._teleport_player_to(resolved_pos)
+            world = getattr(self, "world", None)
+            if world:
+                active_name = str(node_directives.get("active_location", resolved_name) or resolved_name).strip()
+                if active_name:
+                    world.active_location = active_name
+
+        sky = getattr(self, "sky_mgr", None)
+        time_key = str(node_directives.get("time_preset", text_tags.get("time", "")) or "").strip().lower()
+        weather_key = str(node_directives.get("weather_preset", text_tags.get("weather", "")) or "").strip().lower()
+        if sky and time_key:
+            try:
+                sky.set_time_preset(time_key)
+            except Exception as exc:
+                logger.debug(f"[DialogDirectives] time preset '{time_key}' failed: {exc}")
+        if sky and weather_key:
+            try:
+                sky.set_weather_preset(weather_key)
+            except Exception as exc:
+                logger.debug(f"[DialogDirectives] weather preset '{weather_key}' failed: {exc}")
+
+        emit_event = str(node_directives.get("emit_event", text_tags.get("event", "")) or "").strip()
+        if emit_event:
+            payload = node_directives.get("event_payload", {})
+            if not isinstance(payload, dict):
+                payload = {}
+            self._emit_cutscene_event(emit_event, payload)
+
+        camera_shot = node_directives.get("camera_shot")
+        if isinstance(camera_shot, dict):
+            try:
+                duration = float(camera_shot.get("duration", 0.85) or 0.85)
+            except Exception:
+                duration = 0.85
+            try:
+                side = float(camera_shot.get("side", 1.4) or 1.4)
+            except Exception:
+                side = 1.4
+            try:
+                yaw_bias = float(camera_shot.get("yaw_bias_deg", 6.0) or 6.0)
+            except Exception:
+                yaw_bias = 6.0
+            try:
+                priority = int(camera_shot.get("priority", 64) or 64)
+            except Exception:
+                priority = 64
+            self._play_camera_shot(
+                name=str(camera_shot.get("name", "dialog_directive_shot") or "dialog_directive_shot"),
+                duration=duration,
+                profile=str(camera_shot.get("profile", "cinematic") or "cinematic"),
+                side=side,
+                yaw_bias_deg=yaw_bias,
+                priority=priority,
+                owner="dialogue_directive",
+            )
+
+        unlocks = node_directives.get("codex_unlocks", [])
+        if isinstance(unlocks, list):
+            for row in unlocks:
+                if not isinstance(row, dict):
+                    continue
+                section = str(row.get("section", "") or "").strip().lower()
+                token = str(row.get("id", "") or "").strip()
+                title = str(row.get("title", token) or token).strip()
+                details = str(row.get("details", "") or "").strip()
+                if section and token:
+                    self._codex_mark(section, token, title, details)
+
     def _start_opening_memory_sequence(self):
         if self._norm_test_mode():
             return False
@@ -1800,6 +1984,11 @@ class XBotApp(ShowBase):
         # 3. Clean up old location (remove children of render if needed)
         # (For now we just reset SharuanWorld steps)
         self.hud.set_autosave(True)
+        if getattr(self, "story_interaction", None):
+            try:
+                self.story_interaction.clear()
+            except Exception:
+                pass
         self.world._current_step = 0
         self.world.is_built = False
         self.taskMgr.add(self._world_gen_task, "world_gen_task")
@@ -1962,7 +2151,18 @@ class XBotApp(ShowBase):
         except Exception:
             return None
 
-    def _build_target_candidate(self, kind, token, name, node, cam_pos, cam_fwd, max_dist=46.0, min_dot=0.955):
+    def _build_target_candidate(
+        self,
+        kind,
+        token,
+        name,
+        node,
+        cam_pos,
+        cam_fwd,
+        max_dist=46.0,
+        min_dot=0.955,
+        meta=None,
+    ):
         pos = self._node_world_pos(node)
         if pos is None:
             return None
@@ -1971,6 +2171,8 @@ class XBotApp(ShowBase):
             pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 1.4)
         elif kind == "vehicle":
             pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 1.0)
+        elif kind == "story":
+            pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 0.9)
 
         to_target = pos - cam_pos
         dist = float(to_target.length())
@@ -1986,7 +2188,7 @@ class XBotApp(ShowBase):
             return None
 
         score = (dot * 1.35) - (dist / max(1.0, float(max_dist)))
-        return {
+        out = {
             "kind": str(kind),
             "id": str(token or ""),
             "name": str(name or token or kind),
@@ -1997,6 +2199,9 @@ class XBotApp(ShowBase):
             "score": score,
             "locked": False,
         }
+        if isinstance(meta, dict):
+            out.update(meta)
+        return out
 
     def _lookup_locked_target(self, cam_pos, cam_fwd):
         kind = str(getattr(self, "_lock_target_kind", "") or "").strip().lower()
@@ -2060,6 +2265,24 @@ class XBotApp(ShowBase):
                 cam_fwd,
                 max_dist=64.0,
                 min_dot=0.35,
+            )
+        if kind == "story":
+            manager = getattr(self, "story_interaction", None)
+            row = manager.get_anchor(token) if manager and hasattr(manager, "get_anchor") else None
+            if not isinstance(row, dict):
+                return None
+            return self._build_target_candidate(
+                "story",
+                token,
+                str(row.get("name", token)),
+                row.get("node"),
+                cam_pos,
+                cam_fwd,
+                max_dist=42.0,
+                min_dot=0.30,
+                meta={
+                    "codex_unlocks": list(row.get("codex_unlocks", [])) if isinstance(row.get("codex_unlocks"), list) else [],
+                },
             )
         return None
 
@@ -2133,6 +2356,29 @@ class XBotApp(ShowBase):
             if cand:
                 candidates.append(cand)
 
+        story_mgr = getattr(self, "story_interaction", None)
+        rows = story_mgr.iter_target_rows(max_dist=32.0) if story_mgr and hasattr(story_mgr, "iter_target_rows") else []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            cand = self._build_target_candidate(
+                "story",
+                row.get("id", ""),
+                row.get("name", "Interaction"),
+                row.get("node"),
+                cam_pos,
+                cam_fwd,
+                max_dist=24.0,
+                min_dot=0.968,
+                meta={
+                    "codex_unlocks": list(row.get("codex_unlocks", [])) if isinstance(row.get("codex_unlocks"), list) else [],
+                    "location_name": str(row.get("location_name", "") or "").strip(),
+                },
+            )
+            if cand:
+                cand["score"] += 0.06
+                candidates.append(cand)
+
         if not candidates:
             return None
         candidates.sort(key=lambda row: float(row.get("score", 0.0)), reverse=True)
@@ -2183,6 +2429,8 @@ class XBotApp(ShowBase):
             color = (1.0, 0.68, 0.62, 1.0)
         elif kind == "npc":
             color = (0.82, 0.98, 0.84, 1.0)
+        elif kind == "story":
+            color = (0.84, 0.86, 1.0, 1.0)
         else:
             color = (0.84, 0.90, 1.0, 1.0)
 
@@ -2262,6 +2510,19 @@ class XBotApp(ShowBase):
                 self._codex_mark("characters", token or name, name)
             elif kind == "enemy":
                 self._codex_mark("enemies", token or name, name)
+            elif kind == "story":
+                unlocks = target_info.get("codex_unlocks", [])
+                if isinstance(unlocks, list):
+                    for row in unlocks:
+                        if not isinstance(row, dict):
+                            continue
+                        section = str(row.get("section", "") or "").strip().lower()
+                        entry_id = str(row.get("id", "") or "").strip()
+                        title = str(row.get("title", entry_id) or entry_id).strip()
+                        details = str(row.get("details", "") or "").strip()
+                        if section and entry_id:
+                            self._codex_mark(section, entry_id, title, details)
+                self._codex_mark("events", token or name, name or token)
 
         p_vec = None
         try:
@@ -2319,6 +2580,8 @@ class XBotApp(ShowBase):
                     pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 1.4)
                 elif str(target.get("kind", "")).strip().lower() == "vehicle":
                     pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 1.0)
+                elif str(target.get("kind", "")).strip().lower() == "story":
+                    pos = Vec3(float(pos.x), float(pos.y), float(pos.z) + 0.9)
                 target["position"] = pos
         pos = target.get("position")
         if pos is None:
@@ -2446,6 +2709,11 @@ class XBotApp(ShowBase):
                 self.npc_interaction.update(dt_world)
             except Exception as exc:
                 logger.debug(f"[NPCInteraction] Update failed: {exc}")
+        if getattr(self, "story_interaction", None):
+            try:
+                self.story_interaction.update(dt_world)
+            except Exception as exc:
+                logger.debug(f"[StoryInteraction] Update failed: {exc}")
         if self.boss_manager and self.player:
             try:
                 self.boss_manager.update(dt_enemies, self.player.actor.getPos(self.render))
@@ -2474,6 +2742,13 @@ class XBotApp(ShowBase):
                 mount_hint = self.vehicle_mgr.get_interaction_hint(self.player)
             except Exception:
                 mount_hint = ""
+        if getattr(self, "story_interaction", None):
+            try:
+                story_hint = self.story_interaction.get_interaction_hint()
+            except Exception:
+                story_hint = ""
+            if story_hint:
+                mount_hint = str(story_hint)
         quest_data = []
         if hasattr(self, "quest_mgr") and self.quest_mgr:
             try:
