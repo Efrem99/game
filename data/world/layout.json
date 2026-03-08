@@ -73,10 +73,52 @@
             "radius": 14.0
         },
         {
+            "id": "prince_chamber",
+            "name": "Prince Chamber",
+            "center": [6.0, 74.0, 24.0],
+            "radius": 9.0
+        },
+        {
+            "id": "world_map_gallery",
+            "name": "World Map Gallery",
+            "center": [-4.0, 72.0, 24.0],
+            "radius": 8.0
+        },
+        {
+            "id": "royal_laundry",
+            "name": "Royal Laundry",
+            "center": [-9.0, 70.0, 22.0],
+            "radius": 8.0
+        },
+        {
+            "id": "throne_hall",
+            "name": "Throne Hall",
+            "center": [0.0, 88.0, 25.0],
+            "radius": 12.0
+        },
+        {
+            "id": "castle_flight_edge",
+            "name": "Castle Flight Edge",
+            "center": [24.0, 86.0, 28.0],
+            "radius": 10.0
+        },
+        {
             "id": "old_forest",
             "name": "Old Forest",
             "center": [-28.0, 10.0, 3.0],
             "radius": 52.0
+        },
+        {
+            "id": "sharuan_forest_bridge",
+            "name": "Sharuan Forest Bridge",
+            "center": [-22.0, 20.0, 4.0],
+            "radius": 18.0
+        },
+        {
+            "id": "paradise_vision",
+            "name": "Paradise Vision",
+            "center": [56.0, 84.0, 14.0],
+            "radius": 16.0
         },
         {
             "id": "river_road",
@@ -89,6 +131,18 @@
             "name": "Port Market",
             "center": [18.0, -62.0, 1.0],
             "radius": 34.0
+        },
+        {
+            "id": "port_market_walk",
+            "name": "Port Market Walk",
+            "center": [12.0, -52.0, 2.0],
+            "radius": 16.0
+        },
+        {
+            "id": "port_market_memory",
+            "name": "Adalin Market Spot",
+            "center": [20.0, -58.0, 2.0],
+            "radius": 12.0
         },
         {
             "id": "coastline",
@@ -113,6 +167,36 @@
             "name": "Coastal Flight Grounds",
             "center": [-5.0, 23.0, 8.0],
             "radius": 24.0
+        },
+        {
+            "id": "krimora_forest_crash",
+            "name": "Krimora Forest Crash Site",
+            "center": [76.0, 12.0, 3.0],
+            "radius": 20.0
+        },
+        {
+            "id": "krimora_forest_cage",
+            "name": "Krimora Cage Clearing",
+            "center": [70.0, 2.0, 3.0],
+            "radius": 16.0
+        },
+        {
+            "id": "dwarven_caves_gate",
+            "name": "Dwarven Caves Gate",
+            "center": [92.0, -6.0, 4.0],
+            "radius": 14.0
+        },
+        {
+            "id": "dwarven_caves_halls",
+            "name": "Dwarven Forge Halls",
+            "center": [96.0, -14.0, 2.0],
+            "radius": 16.0
+        },
+        {
+            "id": "dwarven_caves_throne",
+            "name": "Dwarven Grand Throne",
+            "center": [102.0, -24.0, 3.0],
+            "radius": 16.0
         }
     ],
     "castle": {
@@ -156,6 +240,21 @@
             {"pos": [28.0, -50.0]},
             {"pos": [32.0, -56.0]}
         ]
+    },
+    "story_landmarks": {
+        "sharuan_bridge": {
+            "center": [-22.0, 20.0],
+            "length": 9.0,
+            "width": 2.8
+        },
+        "adrian_cage": {
+            "center": [70.0, 2.0],
+            "size": [3.2, 2.4, 2.8]
+        },
+        "dwarven_gate": {
+            "center": [92.0, -6.0],
+            "size": [8.0, 2.0, 7.5]
+        }
     },
     "navigation_zones": [
         {

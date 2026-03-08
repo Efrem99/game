@@ -1,4 +1,4 @@
-"""Dialogue voice coverage audit + synthesis via speech skill CLI."""
+"""Dialogue voice coverage audit + synthesis via free edge-tts or speech skill CLI."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ INLINE_TAG_RE = re.compile(r"\|([a-z_]+)\s*=\s*([^|]+)\|", re.IGNORECASE)
 DEFAULT_MODEL = "gpt-4o-mini-tts-2025-12-15"
 DEFAULT_VOICE = "cedar"
 DEFAULT_RPM = 24
+DEFAULT_EDGE_VOICE = "en-US-GuyNeural"
 ALLOWED_OPENAI_VOICES = {
     "alloy",
     "ash",
@@ -30,6 +31,22 @@ ALLOWED_OPENAI_VOICES = {
     "sage",
     "shimmer",
     "verse",
+}
+
+EDGE_ALIAS_BY_OPENAI = {
+    "alloy": "en-US-GuyNeural",
+    "ash": "en-US-AndrewMultilingualNeural",
+    "ballad": "en-GB-RyanNeural",
+    "cedar": "en-US-EricNeural",
+    "coral": "en-US-JennyNeural",
+    "echo": "en-US-ChristopherNeural",
+    "fable": "en-GB-ThomasNeural",
+    "marin": "en-US-AriaNeural",
+    "nova": "en-US-AnaNeural",
+    "onyx": "en-US-DavisNeural",
+    "sage": "en-US-BrianNeural",
+    "shimmer": "en-US-EmmaMultilingualNeural",
+    "verse": "en-US-AvaMultilingualNeural",
 }
 
 
@@ -166,6 +183,26 @@ def _normalize_openai_voice(value: str | None, fallback: str = DEFAULT_VOICE) ->
     if token in ALLOWED_OPENAI_VOICES:
         return token
     return fallback
+
+
+def _normalize_edge_voice(value: str | None, fallback: str = DEFAULT_EDGE_VOICE) -> str:
+    token = str(value or "").strip()
+    if token:
+        return token
+    return fallback
+
+
+def _openai_to_edge_voice(value: str | None) -> str:
+    token = str(value or "").strip().lower()
+    return EDGE_ALIAS_BY_OPENAI.get(token, DEFAULT_EDGE_VOICE)
+
+
+def _speed_to_edge_rate(speed: float) -> str:
+    pct = int(round((float(speed) - 1.0) * 100.0))
+    pct = max(-50, min(50, pct))
+    if pct >= 0:
+        return f"+{pct}%"
+    return f"{pct}%"
 
 
 def _default_profile_for_row(row):
@@ -500,6 +537,103 @@ def _synthesize_with_speech_skill(
     }
 
 
+def _synthesize_with_edge(
+    *,
+    rows,
+    voices_dir,
+    profiles,
+    overwrite,
+):
+    if not rows:
+        return {
+            "enabled": True,
+            "engine": "free(edge)",
+            "generated": 0,
+            "failed": 0,
+            "error": "",
+            "skipped": 0,
+            "requested": 0,
+            "cli_path": "python -m edge_tts",
+            "command": "",
+        }
+
+    generated = 0
+    failed = 0
+    skipped = 0
+    last_cmd = ""
+    errors = []
+
+    for row in rows:
+        out_path = voices_dir / f"{row['voice_key']}.mp3"
+        if out_path.exists() and not overwrite:
+            skipped += 1
+            continue
+
+        text, tags = _extract_dialog_text(row.get("text", ""))
+        text = str(text or "").strip()
+        if not text:
+            skipped += 1
+            continue
+
+        profile = _merge_voice_profile(row, profiles)
+        openai_voice = _normalize_openai_voice(profile.get("openai_voice", DEFAULT_VOICE), fallback=DEFAULT_VOICE)
+        edge_voice = _normalize_edge_voice(
+            profile.get("edge_voice", ""),
+            fallback=_openai_to_edge_voice(openai_voice),
+        )
+        speed = _coerce_float(profile.get("openai_speed", 1.0), 1.0)
+        tagged_rate = _coerce_float(tags.get("rate", 0.0), 0.0)
+        if tagged_rate > 0:
+            speed *= tagged_rate / 170.0
+        speed = _clamp(speed, 0.8, 1.2)
+        edge_rate = _speed_to_edge_rate(speed)
+
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        cmd = [
+            sys.executable,
+            "-m",
+            "edge_tts",
+            "--text",
+            text,
+            "--voice",
+            edge_voice,
+            "--rate",
+            edge_rate,
+            "--write-media",
+            str(out_path),
+        ]
+        last_cmd = " ".join(cmd)
+        run = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if run.returncode == 0 and out_path.exists():
+            generated += 1
+            row["exists"] = True
+            row["resolved_path"] = str(out_path).replace("\\", "/")
+        else:
+            failed += 1
+            msg = str(run.stderr or run.stdout or f"edge_tts failed ({run.returncode})").strip()
+            if msg:
+                errors.append(msg)
+
+    return {
+        "enabled": failed == 0,
+        "engine": "free(edge)",
+        "generated": generated,
+        "failed": failed,
+        "error": "; ".join(errors[:3]),
+        "skipped": skipped,
+        "requested": len(rows),
+        "cli_path": "python -m edge_tts",
+        "command": last_cmd,
+    }
+
+
 def _write_reports(report, logs_dir):
     logs_dir.mkdir(parents=True, exist_ok=True)
     json_path = logs_dir / "voice_dialog_report.json"
@@ -509,7 +643,7 @@ def _write_reports(report, logs_dir):
     lines = []
     lines.append("# Voice Dialogue Report")
     lines.append("")
-    lines.append("- note: dialogue voice clips are AI-generated (OpenAI TTS).")
+    lines.append("- note: dialogue voice clips are AI-generated (free edge-tts or OpenAI TTS via speech skill).")
     lines.append(f"- total_lines: {report.get('total_lines', 0)}")
     lines.append(f"- voiced_lines: {report.get('voiced_lines', 0)}")
     lines.append(f"- missing_lines: {report.get('missing_lines', 0)}")
@@ -550,10 +684,10 @@ def main(argv=None):
         default="data/audio/voice_generation_profiles.json",
         help="Optional npc/speaker voice profile map.",
     )
-    parser.add_argument("--synthesize-missing", action="store_true", help="Generate missing lines with speech skill.")
+    parser.add_argument("--synthesize-missing", action="store_true", help="Generate missing lines with selected engine.")
     parser.add_argument("--synthesize-all", action="store_true", help="Generate clips for all dialogue lines.")
     parser.add_argument("--force-regenerate", action="store_true", help="Overwrite existing generated clips.")
-    parser.add_argument("--engine", default="speech", help="Compatibility flag; uses speech skill in all modes.")
+    parser.add_argument("--engine", default="free", help="Voice engine: free/edge (default) or speech.")
     parser.add_argument("--skill-cli", default="", help="Optional explicit path to speech skill text_to_speech.py.")
     parser.add_argument("--model", default=DEFAULT_MODEL, help=f"OpenAI TTS model (default: {DEFAULT_MODEL}).")
     parser.add_argument("--default-voice", default=DEFAULT_VOICE, help=f"Fallback voice (default: {DEFAULT_VOICE}).")
@@ -588,19 +722,28 @@ def main(argv=None):
         targets = [row for row in rows if not bool(row.get("exists", False))]
 
     if targets:
-        synthesis = _synthesize_with_speech_skill(
-            rows=targets,
-            root=root,
-            voices_dir=voices_dir,
-            profiles=profiles,
-            overwrite=bool(args.force_regenerate),
-            skill_cli_path=args.skill_cli,
-            model=args.model,
-            default_voice=args.default_voice,
-            rpm=args.rpm,
-            dry_run=bool(args.dry_run_synthesis),
-            keep_tmp_jsonl=bool(args.keep_temp_jsonl),
-        )
+        engine = str(args.engine or "").strip().lower()
+        if engine in {"speech", "openai"}:
+            synthesis = _synthesize_with_speech_skill(
+                rows=targets,
+                root=root,
+                voices_dir=voices_dir,
+                profiles=profiles,
+                overwrite=bool(args.force_regenerate),
+                skill_cli_path=args.skill_cli,
+                model=args.model,
+                default_voice=args.default_voice,
+                rpm=args.rpm,
+                dry_run=bool(args.dry_run_synthesis),
+                keep_tmp_jsonl=bool(args.keep_temp_jsonl),
+            )
+        else:
+            synthesis = _synthesize_with_edge(
+                rows=targets,
+                voices_dir=voices_dir,
+                profiles=profiles,
+                overwrite=bool(args.force_regenerate),
+            )
         synthesis["requested"] = int(synthesis.get("requested", len(targets)) or 0)
 
     missing = [row for row in rows if not bool(row.get("exists", False))]

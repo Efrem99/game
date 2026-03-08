@@ -320,6 +320,16 @@ class DialogCinematicManager:
         speaker  = str(node.get("speaker", "") or "")
         raw_text = str(node.get("text", "") or "")
         text, text_tags = _extract_dialog_tags(raw_text)
+        node_directives = node.get("directives", {})
+        if hasattr(self.app, "apply_dialog_directives"):
+            try:
+                self.app.apply_dialog_directives(
+                    node_directives=node_directives,
+                    text_tags=text_tags,
+                    node=node,
+                )
+            except Exception as exc:
+                logger.debug(f"[DialogCinematic] Directive apply failed: {exc}")
         duration = _line_duration(text, node.get("duration"))
         choices  = node.get("choices", [])
         node_id  = node.get("_id", "unknown")
