@@ -1,0 +1,31 @@
+{
+  "id": "light_crossbow",
+  "name": "Light Crossbow",
+  "type": "weapon",
+  "slot": "weapon_main",
+  "weapon_class": "crossbow",
+  "icon": "assets/textures/items/light_crossbow.png",
+  "attach_point": "right_hand",
+  "equip_visual": {
+    "style": "crossbow",
+    "color": [0.52, 0.52, 0.56, 1.0],
+    "scale": 1.04
+  },
+  "power": 26,
+  "description": "Compact crossbow with heavier bolts and stronger stopping power.",
+  "runtime": {
+    "attack_mode": "both",
+    "ranged": {
+      "damage": 26,
+      "range": 48.0,
+      "falloff_start": 32.0,
+      "sfx": "spell_cast",
+      "sfx_volume": 0.84,
+      "sfx_rate": 1.04
+    }
+  },
+  "visual": {
+    "color": [0.52, 0.52, 0.56, 1.0],
+    "scale_factor": 1.04
+  }
+}

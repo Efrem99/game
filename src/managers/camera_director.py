@@ -67,6 +67,7 @@ class CameraDirector:
         self._default_profiles = {
             "exploration": {"dist": 22.0, "pitch": -20.0, "target_z": 1.8,  "side": 0.0, "smooth": 7.5},
             "combat":      {"dist": 17.5, "pitch": -15.0, "target_z": 1.9,  "side": 0.0, "smooth": 10.0},
+            "aim":         {"dist": 9.8,  "pitch":  -8.5, "target_z": 1.72, "side": 1.45, "smooth": 13.5},
             "boss":        {"dist": 29.0, "pitch": -12.0, "target_z": 2.4,  "side": 0.0, "smooth": 5.5},
             "tutorial":    {"dist": 20.0, "pitch": -18.0, "target_z": 1.9,  "side": 0.0, "smooth": 8.5},
             "swim":        {"dist": 18.5, "pitch": -10.0, "target_z": 1.4,  "side": 0.0, "smooth": 7.2},
@@ -118,6 +119,7 @@ class CameraDirector:
             "dialog": 90,
             "cinematic": 84,
             "boss": 80,
+            "aim": 72,
             "combat": 60,
             "exploration": 40,
         }
@@ -298,6 +300,12 @@ class CameraDirector:
             "blocking", "block_hold", "block_perfect",
         }
 
+    def _is_aim_context(self):
+        player = self._player()
+        if not player:
+            return False
+        return bool(getattr(player, "_is_aiming", False))
+
     def _is_tutorial_context(self):
         tutorial = getattr(self.app, "movement_tutorial", None)
         return bool(tutorial and getattr(tutorial, "enabled", False))
@@ -333,6 +341,8 @@ class CameraDirector:
             return "exploration"
         if state_name == "dialog":
             return "dialog"
+        if self._is_aim_context():
+            return "aim" if "aim" in self._profiles else "combat"
         if self._is_boss_context():
             return "boss"
         if self._is_combat_context():

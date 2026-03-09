@@ -41,6 +41,7 @@ from entities.player_input_mixin import PlayerInputMixin
 from entities.player_movement_mixin import PlayerMovementMixin
 from entities.player_state_machine_mixin import PlayerStateMachineMixin
 from entities.character_brain import CharacterBrain
+from render.fx_policy import is_melee_wheel_token, should_cast_selected_spell
 from render.model_visuals import ensure_model_visual_defaults
 from utils.logger import logger
 from utils.runtime_paths import is_user_data_mode, runtime_file
@@ -90,6 +91,7 @@ class Player(
         self._available_anims = set()
         self._state_anim_tokens = {}
         self._state_anim_overrides = {}
+        self._state_anim_hints = {}
         self._manifest_anim_loop_hints = {}
         self._state_defs = {}
         self._state_transitions = []
@@ -109,6 +111,8 @@ class Player(
         self._was_in_water = False
         self._is_flying = False
         self._stealth_crouch = False
+        self._stealth_crouch_hold_latched = False
+        self._stealth_crouch_hold_prev = False
         self._weapon_drawn = False
         self._drawn_hold_timer = 0.0
         self._flight_fx_on = False
@@ -144,6 +148,8 @@ class Player(
         self._spell_cooldowns = {}
         self._spell_cast_lock_until = 0.0
         self._last_combat_event = None
+        self._next_cast_hand = "right"
+        self._next_weapon_hand = "right"
         self._combo_chain = 0
         self._combo_deadline = 0.0
         self._combo_style = "unarmed"
@@ -158,6 +164,8 @@ class Player(
         self._skill_wheel_open = False
         self._skill_wheel_hover_idx = None
         self._skill_wheel_preview_idx = None
+        self._is_aiming = False
+        self._aim_mode = ""
         skill_wheel_key = self.data_mgr.get_binding("skill_wheel") or "tab"
         self._skill_wheel_hint_key = str(skill_wheel_key).upper()
         self._spell_type_alias = {
@@ -179,6 +187,7 @@ class Player(
         self.brain = CharacterBrain(self.app, self)
 
         self._build_character()
+        self._apply_starting_equipment()
         self._setup_sword_trail()
         self._setup_input()
         self._build_flight_vfx()
@@ -776,6 +785,8 @@ class Player(
         elif key in {"mounted_idle", "mounted_ship_idle"}:
             tokens.extend(
                 [
+                    f"mounted_idle_{kind}",
+                    f"{kind}_mounted_idle",
                     f"mounted_{kind}_idle",
                     f"mount_{kind}_idle",
                 ]
@@ -783,6 +794,8 @@ class Player(
         elif key in {"mounted_move", "mounted_ship_move"}:
             tokens.extend(
                 [
+                    f"mounted_move_{kind}",
+                    f"{kind}_mounted_move",
                     f"mounted_{kind}_move",
                     f"mount_{kind}_move",
                 ]
@@ -795,7 +808,32 @@ class Player(
                     f"{kind}_dismount",
                 ]
             )
-        return tokens
+        dedup = []
+        seen = set()
+        for token in tokens:
+            marker = str(token or "").strip().lower()
+            if not marker or marker in seen:
+                continue
+            seen.add(marker)
+            dedup.append(str(token))
+        return dedup
+
+    def _set_state_anim_hints(self, state_name, tokens):
+        state_key = str(state_name or "").strip().lower()
+        if not state_key:
+            return
+        cleaned = []
+        seen = set()
+        for token in tokens if isinstance(tokens, (list, tuple)) else []:
+            marker = str(token or "").strip().lower()
+            if not marker or marker in seen:
+                continue
+            seen.add(marker)
+            cleaned.append(marker)
+        if not cleaned:
+            self._state_anim_hints.pop(state_key, None)
+            return
+        self._state_anim_hints[state_key] = cleaned
 
     def _iter_anim_candidates(
         self, state_name, include_state_fallback=True, include_global_fallback=True
@@ -803,6 +841,12 @@ class Player(
         state = str(state_name or "idle").strip()
         state_key = state.lower()
         candidates = []
+
+        hints = getattr(self, "_state_anim_hints", {})
+        if not isinstance(hints, dict):
+            hints = {}
+        for token in hints.get(state_key, []):
+            candidates.append((token, "state_hint"))
 
         for token in self._mount_state_context_tokens(state_key):
             candidates.append((token, "mount_context"))
@@ -1002,7 +1046,7 @@ class Player(
             return 1.0
 
         speed = math.sqrt((self.cs.velocity.x * self.cs.velocity.x) + (self.cs.velocity.y * self.cs.velocity.y))
-        if state in {"walking", "walk", "swim", "mounted_move"}:
+        if state in {"walking", "walk", "swim", "mounted_move", "mounted_ship_move"}:
             ref = max(0.1, self.walk_speed)
             return max(0.72, min(1.35, speed / ref))
         if state in {"running", "run"}:
@@ -1503,6 +1547,27 @@ class Player(
         else:
             self._trinket_node.hide()
 
+    def _apply_starting_equipment(self):
+        cfg = self._player_model_config()
+        raw_items = cfg.get("starting_items", [])
+        if isinstance(raw_items, str):
+            raw_items = [raw_items]
+        if not isinstance(raw_items, list):
+            return []
+
+        equipped = []
+        for entry in raw_items:
+            token = str(entry or "").strip()
+            if not token:
+                continue
+            try:
+                ok, _reason = self.equip_item(token)
+            except Exception:
+                ok = False
+            if ok:
+                equipped.append(token)
+        return equipped
+
     def export_equipment_state(self):
         return dict(self._equipment_state)
 
@@ -1811,19 +1876,49 @@ class Player(
     def _sync_stealth_input(self):
         if self._once_action("crouch_toggle"):
             self._set_stealth_crouch(not bool(getattr(self, "_stealth_crouch", False)))
+            self._stealth_crouch_hold_latched = False
+            self._stealth_crouch_hold_prev = False
 
         vehicle_mgr = getattr(self.app, "vehicle_mgr", None)
-        if vehicle_mgr and getattr(vehicle_mgr, "is_mounted", False):
+        mounted = bool(vehicle_mgr and getattr(vehicle_mgr, "is_mounted", False))
+        flying = bool(getattr(self, "_is_flying", False))
+
+        hold_pressed = bool(self._get_action("crouch_hold"))
+        if hold_pressed and (not mounted) and (not flying):
+            if not bool(getattr(self, "_stealth_crouch_hold_latched", False)):
+                self._stealth_crouch_hold_prev = bool(getattr(self, "_stealth_crouch", False))
+            self._set_stealth_crouch(True)
+            self._stealth_crouch_hold_latched = True
+        elif bool(getattr(self, "_stealth_crouch_hold_latched", False)):
+            restore = bool(getattr(self, "_stealth_crouch_hold_prev", False))
+            self._stealth_crouch_hold_latched = False
+            self._stealth_crouch_hold_prev = False
+            self._set_stealth_crouch(restore)
+
+        if mounted:
+            self._stealth_crouch_hold_latched = False
+            self._stealth_crouch_hold_prev = False
             self._set_stealth_crouch(False)
-        if bool(getattr(self, "_is_flying", False)):
+        if flying:
+            self._stealth_crouch_hold_latched = False
+            self._stealth_crouch_hold_prev = False
             self._set_stealth_crouch(False)
 
         damage_ratio = float(getattr(self, "_pending_damage_ratio", 0.0) or 0.0)
         time_fx = getattr(getattr(self, "app", None), "time_fx", None)
         if damage_ratio > 0.0 and time_fx and hasattr(time_fx, "trigger"):
             try:
+                cs = getattr(self, "cs", None)
+                hp_ratio = 1.0
+                if cs and hasattr(cs, "health"):
+                    hp_val = float(getattr(cs, "health", 100.0) or 100.0)
+                    hp_max = max(1.0, float(getattr(cs, "maxHealth", hp_val) or hp_val))
+                    hp_ratio = hp_val / hp_max
                 if damage_ratio >= 0.20:
-                    time_fx.trigger("hard_fall", duration=0.26)
+                    if hp_ratio <= 0.28:
+                        time_fx.trigger("danger_focus", duration=0.30)
+                    else:
+                        time_fx.trigger("hard_fall", duration=0.26)
                 else:
                     time_fx.trigger("micro_hit", duration=0.12)
             except Exception:
@@ -2021,6 +2116,8 @@ class Player(
 
     def _update_combat(self, dt):
         if self._skill_wheel_open:
+            self._is_aiming = False
+            self._aim_mode = ""
             self.combat.update(dt, self.cs, self.enemies)
             self.magic.update(dt, self.enemies, lambda fx: self._on_spell_effect(fx))
             return
@@ -2029,34 +2126,65 @@ class Player(
 
         self._refresh_spell_cache()
 
-        for i in range(min(7, len(self._spell_cache))):
+        spell_indices = [
+            idx
+            for idx, key in enumerate(self._spell_cache)
+            if not is_melee_wheel_token(key)
+        ]
+        for i in range(min(7, len(spell_indices))):
             if self._once_action(f"spell_{i+1}"):
-                self._active_spell_idx = i
+                self._active_spell_idx = spell_indices[i]
 
         light_pressed = self._once_action("attack_light")
+        explicit_cast_pressed = self._once_action("spell_cast")
         thrust_pressed = self._once_action("attack_thrust")
+        selected_label = ""
+        if 0 <= int(self._active_spell_idx) < len(self._spell_cache):
+            selected_label = self._spell_cache[int(self._active_spell_idx)]
+        aim_pressed = bool(self._get_action("aim"))
+        if hasattr(self, "_sync_aim_mode"):
+            try:
+                self._sync_aim_mode(selected_label=selected_label, aim_pressed=aim_pressed)
+            except Exception:
+                self._is_aiming = False
+                self._aim_mode = ""
 
         if light_pressed:
-            if not self._cast_spell_by_index(self._active_spell_idx):
+            cast_requested = should_cast_selected_spell(
+                light_pressed=light_pressed,
+                selected_label=selected_label,
+                explicit_cast=explicit_cast_pressed,
+            )
+            casted = self._cast_spell_by_index(self._active_spell_idx) if cast_requested else False
+            ranged_shot = False
+            if (not casted) and hasattr(self, "_is_ranged_weapon_equipped") and self._is_ranged_weapon_equipped():
+                ranged_shot = bool(self._perform_ranged_attack("light"))
+            if not casted and (not ranged_shot):
                 use_thrust = bool(thrust_pressed or self._should_contextual_thrust())
                 if use_thrust:
                     self._play_sfx("sword_swing", volume=0.84, rate=1.12)
                 else:
                     self._play_sfx("sword_swing", volume=0.88, rate=1.04)
                 self._on_hit(self.combat.startAttack(self.cs, gc.AttackType.Light, self.enemies))
-                self._queue_state_trigger("attack_thrust" if use_thrust else "attack_light")
-                self._queue_state_trigger("attack")
+                attack_kind = "thrust" if use_thrust else "light"
+                attack_triggers = self._resolve_weapon_attack_triggers(attack_kind)
+                self._apply_state_anim_hint_tokens("attacking", attack_triggers)
+                for trigger in attack_triggers:
+                    self._queue_state_trigger(trigger)
             action_used = True
+        elif explicit_cast_pressed:
+            if self._cast_spell_by_index(self._active_spell_idx):
+                action_used = True
         if self._once_action("attack_heavy"):
-            self._play_sfx("sword_swing", volume=0.96, rate=0.92)
-            self._on_hit(self.combat.startAttack(self.cs, gc.AttackType.Heavy, self.enemies))
-            self._queue_state_trigger("attack_heavy")
-            self._queue_state_trigger("attack")
-            action_used = True
-
-        if self._once_action("block"):
-            self._play_sfx("sword_block", volume=0.82)
-            self._cast_spell_by_index(self._ultimate_spell_idx)
+            if hasattr(self, "_is_ranged_weapon_equipped") and self._is_ranged_weapon_equipped():
+                self._perform_ranged_attack("heavy")
+            else:
+                self._play_sfx("sword_swing", volume=0.96, rate=0.92)
+                self._on_hit(self.combat.startAttack(self.cs, gc.AttackType.Heavy, self.enemies))
+                heavy_triggers = self._resolve_weapon_attack_triggers("heavy")
+                self._apply_state_anim_hint_tokens("attacking", heavy_triggers)
+                for trigger in heavy_triggers:
+                    self._queue_state_trigger(trigger)
             action_used = True
 
         self.combat.update(dt, self.cs, self.enemies)

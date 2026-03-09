@@ -17,6 +17,7 @@
             "dialog": 90,
             "cinematic": 84,
             "boss": 80,
+            "aim": 72,
             "combat": 60,
             "exploration": 40
         }
@@ -35,6 +36,13 @@
             "target_z": 1.9,
             "side": 0.0,
             "smooth": 10.0
+        },
+        "aim": {
+            "dist": 9.8,
+            "pitch": -8.5,
+            "target_z": 1.72,
+            "side": 1.45,
+            "smooth": 13.5
         },
         "boss": {
             "dist": 29.0,

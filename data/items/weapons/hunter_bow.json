@@ -1,0 +1,31 @@
+{
+  "id": "hunter_bow",
+  "name": "Hunter Bow",
+  "type": "weapon",
+  "slot": "weapon_main",
+  "weapon_class": "bow",
+  "icon": "assets/textures/items/hunter_bow.png",
+  "attach_point": "right_hand",
+  "equip_visual": {
+    "style": "bow",
+    "color": [0.58, 0.44, 0.32, 1.0],
+    "scale": 1.08
+  },
+  "power": 20,
+  "description": "A flexible hunting bow suited for fast precision shots.",
+  "runtime": {
+    "attack_mode": "both",
+    "ranged": {
+      "damage": 20,
+      "range": 42.0,
+      "falloff_start": 26.0,
+      "sfx": "spell_cast",
+      "sfx_volume": 0.82,
+      "sfx_rate": 1.15
+    }
+  },
+  "visual": {
+    "color": [0.58, 0.44, 0.32, 1.0],
+    "scale_factor": 1.08
+  }
+}

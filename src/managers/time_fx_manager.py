@@ -53,6 +53,15 @@ class TimeFxManager:
                 "particles": 0.14,
             }
             duration = 0.45 if duration is None else duration
+        elif str(kind or "").strip().lower() in {"danger", "danger_focus"}:
+            default = {
+                "world": 0.74,
+                "player": 0.92,
+                "enemies": 0.72,
+                "physics": 0.82,
+                "particles": 0.65,
+            }
+            duration = 0.30 if duration is None else duration
 
         row = {
             "kind": str(kind or "slowmo"),
