@@ -136,10 +136,22 @@ class EnemyUnit:
     def _apply_python_only_visual_fallback(self, node, debug_label="enemy"):
         if HAS_CORE or node is None:
             return
+        is_animated_actor = False
         try:
-            node.setShaderOff(1002)
+            is_animated_actor = isinstance(node, Actor)
         except Exception:
-            pass
+            is_animated_actor = False
+        if not is_animated_actor:
+            is_animated_actor = all(
+                hasattr(node, attr) for attr in ("getAnimNames", "loop", "play")
+            )
+
+        # Do not disable shaders on skinned actors in Python mode.
+        if not is_animated_actor:
+            try:
+                node.setShaderOff(1002)
+            except Exception:
+                pass
         try:
             node.setColorScale(1.0, 1.0, 1.0, 1.0)
         except Exception:

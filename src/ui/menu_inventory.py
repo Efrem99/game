@@ -33,7 +33,7 @@ class InventoryUI:
 
         asp = self.app.getAspectRatio()
         self.frame = DirectFrame(
-            frameColor=(0, 0, 0, 0.4),
+            frameColor=(0, 0, 0, 0.28),
             frameSize=(-asp, asp, -1, 1),
             parent=self.app.aspect2d,
             suppressMouse=1,
@@ -119,6 +119,47 @@ class InventoryUI:
         self.hide()
         if hasattr(self.app, "taskMgr") and self.app.taskMgr:
             self.app.taskMgr.add(self._inventory_character_follow_task, "inventory_character_follow_task")
+        self.on_window_resized(self.app.getAspectRatio())
+
+    @staticmethod
+    def _layout_profile_for_aspect(aspect):
+        try:
+            asp = float(aspect)
+        except Exception:
+            asp = 16.0 / 9.0
+        asp = max(1.20, min(3.40, asp))
+        baseline = 16.0 / 9.0
+        deviation = abs(asp - baseline)
+        panel_scale = max(0.86, min(1.0, 1.0 - (deviation * 0.16)))
+        tab_offset = max(0.56, min(0.66, 0.66 - (deviation * 0.11)))
+        tab_text_scale = max(0.039, min(0.045, 0.045 - (deviation * 0.004)))
+        close_text_scale = max(0.040, min(0.045, 0.045 - (deviation * 0.003)))
+        return {
+            "aspect": asp,
+            "panel_scale": panel_scale,
+            "tab_offset": tab_offset,
+            "tab_text_scale": tab_text_scale,
+            "close_text_scale": close_text_scale,
+        }
+
+    def on_window_resized(self, aspect=None):
+        profile = self._layout_profile_for_aspect(
+            self.app.getAspectRatio() if aspect is None else aspect
+        )
+        asp = float(profile["aspect"])
+        self.frame["frameSize"] = (-asp, asp, -1, 1)
+        self.panel.setScale(float(profile["panel_scale"]))
+
+        off = float(profile["tab_offset"])
+        tab_positions = (-off, -off * 0.33, off * 0.33, off)
+        tab_text_scale = float(profile["tab_text_scale"])
+        for btn, x in zip(
+            (self.btn_inv, self.btn_map, self.btn_skills, self.btn_journal),
+            tab_positions,
+        ):
+            btn.setPos(x, 0, 0)
+            btn["text_scale"] = tab_text_scale
+        self.close_btn["text_scale"] = float(profile["close_text_scale"])
 
     def _build_map_panel(self):
         self.map_panel = DirectFrame(
@@ -376,15 +417,17 @@ class InventoryUI:
         self.character_arm_l = DirectFrame(
             frameColor=(0.35, 0.34, 0.42, 0.96),
             frameSize=(-0.018, 0.018, -0.11, 0.11),
-            pos=(-0.082, 0.0, -0.01),
+            pos=(-0.086, 0.0, -0.03),
             parent=self.character_root,
         )
         self.character_arm_r = DirectFrame(
             frameColor=(0.35, 0.34, 0.42, 0.96),
             frameSize=(-0.018, 0.018, -0.11, 0.11),
-            pos=(0.082, 0.0, -0.01),
+            pos=(0.086, 0.0, -0.03),
             parent=self.character_root,
         )
+        self.character_arm_l.setR(-18.0)
+        self.character_arm_r.setR(18.0)
         self.character_leg_l = DirectFrame(
             frameColor=(0.24, 0.23, 0.30, 0.96),
             frameSize=(-0.020, 0.020, -0.12, 0.12),
@@ -503,14 +546,15 @@ class InventoryUI:
 
         t = float(globalClock.getFrameTime() or 0.0)
         breath = math.sin(t * 2.4) * 0.008
-        arm_wave = math.sin(t * 3.2) * 5.0
+        arm_wave = math.sin(t * 2.8) * 6.0
+        arm_relax = -18.0
         look_h = max(-14.0, min(14.0, mx * 18.0))
 
         self.character_root.setPos(self._char_follow_x, 0.0, self._char_follow_z + breath)
         self.character_root.setH(look_h)
         self.character_head.setZ(0.18 + (breath * 0.5))
-        self.character_arm_l.setR(-arm_wave)
-        self.character_arm_r.setR(arm_wave)
+        self.character_arm_l.setR(arm_relax - arm_wave)
+        self.character_arm_r.setR(-arm_relax + arm_wave)
         return task.cont
 
     def _switch_tab(self, tab_id):
@@ -588,6 +632,7 @@ class InventoryUI:
         # Ensure aspect2d is visible
         if hasattr(self.app, 'aspect2d'):
             self.app.aspect2d.show()
+        self.on_window_resized(self.app.getAspectRatio())
         self._switch_tab(self._current_tab)
 
     def hide(self):

@@ -1,6 +1,6 @@
 # Player Animation Coverage
 
-Generated: 2026-03-09 21:55:36
+Generated: 2026-03-09 22:44:54
 
 - Total states: 28
 - OK: 28

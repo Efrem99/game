@@ -91,19 +91,10 @@ class NPCManager:
             apply_skin=True,
             debug_label=f"npc:{npc_id}",
         )
-        if getattr(self.app, "char_state", None) is None:
-            try:
-                actor.setShaderOff(1002)
-            except Exception:
-                pass
-            try:
-                actor.setColorScale(1.0, 1.0, 1.0, 1.0)
-            except Exception:
-                pass
-            try:
-                actor.setTwoSided(True)
-            except Exception:
-                pass
+        self._apply_non_core_visual_fallback(
+            actor,
+            python_mode=(getattr(self.app, "char_state", None) is None),
+        )
         self._apply_appearance_tint(actor, appr)
 
         dialogue_path = str(payload.get("dialogue", npc_id))
@@ -231,6 +222,35 @@ class NPCManager:
         if not model or model.isEmpty():
             return None
         return model
+
+    def _apply_non_core_visual_fallback(self, actor, python_mode=False):
+        if not actor or not python_mode:
+            return
+        is_animated_actor = False
+        try:
+            is_animated_actor = isinstance(actor, Actor)
+        except Exception:
+            is_animated_actor = False
+        if not is_animated_actor:
+            is_animated_actor = all(
+                hasattr(actor, attr) for attr in ("getAnimNames", "loop", "play")
+            )
+
+        # Keep skinned characters on shader path so animations do not freeze.
+        if not is_animated_actor:
+            try:
+                actor.setShaderOff(1002)
+            except Exception:
+                pass
+
+        try:
+            actor.setColorScale(1.0, 1.0, 1.0, 1.0)
+        except Exception:
+            pass
+        try:
+            actor.setTwoSided(True)
+        except Exception:
+            pass
 
     def _ground_height(self, x, y, fallback=0.0):
         world = getattr(self.app, "world", None)

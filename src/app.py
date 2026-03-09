@@ -835,6 +835,11 @@ class XBotApp(ShowBase):
                 self.pause_menu.on_window_resized(self.getAspectRatio())
             except Exception:
                 pass
+        if hasattr(self, "inventory_ui") and self.inventory_ui:
+            try:
+                self.inventory_ui.on_window_resized(self.getAspectRatio())
+            except Exception:
+                pass
 
     def _request_fullscreen_toggle(self):
         now = globalClock.getFrameTime()

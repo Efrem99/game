@@ -298,6 +298,30 @@ class Player(
 
         _add("assets/models/xbot/Xbot.glb")
 
+        # If baseline locomotion clips come from XBot, prioritize the XBot rig.
+        # This prevents runtime T-pose when a static hero mesh is listed first.
+        prefer_compatible = bool(cfg.get("prefer_animation_compatible", True))
+        if prefer_compatible and len(candidates) > 1:
+            try:
+                base_anims = self._resolve_base_anims()
+            except Exception:
+                base_anims = {}
+            if isinstance(base_anims, dict):
+                joined = " ".join(str(v or "").strip().lower() for v in base_anims.values())
+            else:
+                joined = ""
+            if "xbot" in joined:
+                xbot = []
+                non_xbot = []
+                for path in candidates:
+                    token = str(path or "").strip().replace("\\", "/").lower()
+                    if token.endswith("/xbot.glb") or "/models/xbot/" in token:
+                        xbot.append(path)
+                    else:
+                        non_xbot.append(path)
+                if xbot:
+                    candidates = xbot + non_xbot
+
         existing = [path for path in candidates if Path(path).exists()]
         if existing:
             return existing
@@ -484,24 +508,43 @@ class Player(
             debug_label="player_actor",
         )
         # In Python-only mode we occasionally get overly dark skinned actors under PBR.
-        # Force fixed-function rendering fallback for readability.
-        if not HAS_CORE:
-            try:
-                self.actor.setShaderOff(1002)
-            except Exception:
-                pass
-            try:
-                self.actor.setColorScale(1.0, 1.0, 1.0, 1.0)
-            except Exception:
-                pass
-            try:
-                self.actor.setTwoSided(True)
-            except Exception:
-                pass
+        # Keep animated actors skinned in Python-only mode.
+        self._apply_non_core_actor_visual_fallback()
 
         self._resolve_attachment_nodes()
         self._build_equipment_visuals()
         self._init_animation_system()
+
+    def _apply_non_core_actor_visual_fallback(self):
+        if HAS_CORE or not getattr(self, "actor", None):
+            return
+
+        actor_np = self.actor
+        is_animated_actor = False
+        try:
+            is_animated_actor = isinstance(actor_np, Actor)
+        except Exception:
+            is_animated_actor = False
+        if not is_animated_actor:
+            is_animated_actor = all(
+                hasattr(actor_np, attr) for attr in ("getAnimNames", "loop", "play")
+            )
+
+        # Important: forcing ShaderOff on skinned actors can lock them in bind/T-pose.
+        if not is_animated_actor:
+            try:
+                actor_np.setShaderOff(1002)
+            except Exception:
+                pass
+
+        try:
+            actor_np.setColorScale(1.0, 1.0, 1.0, 1.0)
+        except Exception:
+            pass
+        try:
+            actor_np.setTwoSided(True)
+        except Exception:
+            pass
 
     def _load_player_state_animation_tokens(self):
         path = Path("data/states/player_states.json")

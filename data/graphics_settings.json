@@ -12,7 +12,7 @@
     "post_processing": {
         "bloom": {
             "enabled": true,
-            "intensity": 3.0,
+            "intensity": 1.4999999999999987,
             "size": "large",
             "threshold": 0.6,
             "desat": 0.5
