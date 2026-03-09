@@ -195,6 +195,83 @@ def sample_polyline_points(points, spacing=3.0):
             last = key
     return out
 
+
+def _rotate_xy(x, y, heading_deg):
+    angle = math.radians(float(heading_deg))
+    ca = math.cos(angle)
+    sa = math.sin(angle)
+    return (float(x) * ca) - (float(y) * sa), (float(x) * sa) + (float(y) * ca)
+
+
+def make_grass_tuft_spec(rng, x, y, z):
+    """Create deterministic per-tuft parameters from a dedicated RNG stream."""
+    if rng is None:
+        rng = random.Random(20260308)
+    return {
+        "x": float(x),
+        "y": float(y),
+        "z": float(z),
+        "tint": 0.88 + (rng.random() * 0.18),
+        "blade_h": 1.2 + (rng.random() * 1.1),
+        "blade_w": 0.48 + (rng.random() * 0.28),
+        "heading": rng.uniform(-180.0, 180.0),
+    }
+
+
+def compose_grass_batch_rows(specs):
+    """
+    Convert grass tuft specs into packed vertex rows + triangle indices.
+    Each tuft emits two crossed vertical quads (8 verts, 4 tris).
+    """
+    rows = []
+    triangles = []
+    if not isinstance(specs, (list, tuple)):
+        return rows, triangles
+
+    uv_map = ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))
+    plane_styles = (
+        (0.0, (0.82, 1.00, 0.78, 0.62)),
+        (90.0, (0.78, 0.96, 0.74, 0.58)),
+    )
+
+    for row in specs:
+        if not isinstance(row, dict):
+            continue
+        x = float(row.get("x", 0.0) or 0.0)
+        y = float(row.get("y", 0.0) or 0.0)
+        z = float(row.get("z", 0.0) or 0.0)
+        tint = float(row.get("tint", 1.0) or 1.0)
+        blade_h = max(0.2, float(row.get("blade_h", 1.6) or 1.6))
+        blade_w = max(0.08, float(row.get("blade_w", 0.6) or 0.6))
+        heading = float(row.get("heading", 0.0) or 0.0)
+        half_w = blade_w * 0.5
+        local_quad = (
+            (-half_w, 0.0, 0.0),
+            (half_w, 0.0, 0.0),
+            (half_w, 0.0, blade_h),
+            (-half_w, 0.0, blade_h),
+        )
+
+        for heading_offset, style in plane_styles:
+            orient = heading + float(heading_offset)
+            nx, ny = _rotate_xy(0.0, -1.0, orient)
+            color = (style[0] * tint, style[1] * tint, style[2] * tint, style[3])
+            base = len(rows)
+            for i, local in enumerate(local_quad):
+                rx, ry = _rotate_xy(local[0], local[1], orient)
+                rows.append(
+                    {
+                        "vertex": (x + rx, y + ry, z + local[2]),
+                        "normal": (nx, ny, 0.0),
+                        "color": color,
+                        "uv": uv_map[i],
+                    }
+                )
+            triangles.append((base + 0, base + 1, base + 2))
+            triangles.append((base + 0, base + 2, base + 3))
+
+    return rows, triangles
+
 class SharuanWorld:
     DEFAULT_RIVER = [
         (30, 65), (25, 55), (20, 45), (15, 38), (10, 32), (5, 25), (0, 18), (-5, 10),
@@ -238,6 +315,7 @@ class SharuanWorld:
         self.colliders = [] # Python-only fallback AABB list
         self._water_surfaces = []
         self._castle_lights = []
+        self._chest_nodes = []
         # Stable RNG for procedural decoration jitter (grass, decals, micro-variation).
         self._rng = random.Random(20260308)
 
@@ -271,6 +349,7 @@ class SharuanWorld:
             (0.86, self._build_center, "Designing town center..."),
             (0.90, self._build_movement_training_ground, "Preparing movement training grounds..."),
             (0.94, self._build_scenery, "Adding scenery and decorations..."),
+            (0.955, self._build_treasure_chests, "Placing treasure chests across locations..."),
             (0.97, self._build_dwarven_caves_story_setpiece, "Carving dwarven cave sectors..."),
             (1.0, self._build_flora_fauna, "Populating world flora..."),
         ]
@@ -543,28 +622,34 @@ class SharuanWorld:
                 decal.setColorScale(0.92, 0.84, 0.72, 0.56)
                 decal.set_transparency(TransparencyAttrib.M_alpha)
 
-    def _spawn_grass_tuft(self, idx, x, y, z, tex):
+    def _spawn_grass_tuft(self, idx, x, y, z, tex, spec=None):
         rng = getattr(self, "_rng", None)
         if rng is None:
             # Safety net for partially initialized instances to avoid startup crashes.
             rng = random.Random(20260308)
             self._rng = rng
 
-        tint = 0.88 + (rng.random() * 0.18)
-        blade_h = 1.2 + (rng.random() * 1.1)
-        blade_w = 0.48 + (rng.random() * 0.28)
+        if not isinstance(spec, dict):
+            spec = make_grass_tuft_spec(rng, x, y, z)
+        sx = float(spec.get("x", x) or x)
+        sy = float(spec.get("y", y) or y)
+        sz = float(spec.get("z", z) or z)
+        tint = float(spec.get("tint", 1.0) or 1.0)
+        blade_h = max(0.2, float(spec.get("blade_h", 1.6) or 1.6))
+        blade_w = max(0.08, float(spec.get("blade_w", 0.6) or 0.6))
+        heading = float(spec.get("heading", rng.uniform(-180.0, 180.0)) or 0.0)
         front = self._pl(
             mk_plane(f"grass_front_{idx}", blade_w, blade_h, 1.0),
-            x,
-            y,
-            z + (blade_h * 0.42),
+            sx,
+            sy,
+            sz + (blade_h * 0.42),
             None,
             mk_mat((0.24, 0.49, 0.18, 0.74), 0.92, 0.0),
             "Grass",
             is_platform=False,
         )
         front.setP(90.0)
-        front.setH(rng.uniform(-180.0, 180.0))
+        front.setH(heading)
         front.set_transparency(TransparencyAttrib.M_alpha)
         front.setTwoSided(True)
         if tex:
@@ -573,21 +658,68 @@ class SharuanWorld:
 
         side = self._pl(
             mk_plane(f"grass_side_{idx}", blade_w, blade_h, 1.0),
-            x,
-            y,
-            z + (blade_h * 0.42),
+            sx,
+            sy,
+            sz + (blade_h * 0.42),
             None,
             mk_mat((0.22, 0.46, 0.16, 0.74), 0.92, 0.0),
             "Grass",
             is_platform=False,
         )
         side.setP(90.0)
-        side.setH(front.getH() + 90.0)
+        side.setH(heading + 90.0)
         side.set_transparency(TransparencyAttrib.M_alpha)
         side.setTwoSided(True)
         if tex:
             side.setTexture(tex, 1)
         side.setColorScale(0.78 * tint, 0.96 * tint, 0.74 * tint, 0.58)
+
+    def _spawn_grass_batch(self, specs, tex):
+        rows, tri_rows = compose_grass_batch_rows(specs)
+        if not rows or not tri_rows:
+            return None
+
+        fmt = GeomVertexFormat.getV3n3c4t2()
+        vdata = GeomVertexData("grass_batch", fmt, Geom.UH_static)
+        vwriter = GeomVertexWriter(vdata, "vertex")
+        nwriter = GeomVertexWriter(vdata, "normal")
+        cwriter = GeomVertexWriter(vdata, "color")
+        twriter = GeomVertexWriter(vdata, "texcoord")
+
+        for row in rows:
+            vx, vy, vz = row["vertex"]
+            nx, ny, nz = row["normal"]
+            cr, cg, cb, ca = row["color"]
+            tu, tv = row["uv"]
+            vwriter.add_data3(vx, vy, vz)
+            nwriter.add_data3(nx, ny, nz)
+            cwriter.add_data4(cr, cg, cb, ca)
+            twriter.add_data2(tu, tv)
+
+        tri = GeomTriangles(Geom.UH_static)
+        for a, b, c in tri_rows:
+            tri.add_vertices(int(a), int(b), int(c))
+
+        geom = Geom(vdata)
+        geom.add_primitive(tri)
+        node = GeomNode("grass_batch")
+        node.add_geom(geom)
+
+        root = self._pl(
+            node,
+            0.0,
+            0.0,
+            0.0,
+            None,
+            mk_mat((0.24, 0.49, 0.18, 0.74), 0.92, 0.0),
+            "Grass",
+            is_platform=False,
+        )
+        root.set_transparency(TransparencyAttrib.M_alpha)
+        root.setTwoSided(True)
+        if tex:
+            root.setTexture(tex, 1)
+        return root
 
     def _pl(self, geom, x, y, z, tx_set=None, mat=None, loc_name=None, is_platform=True):
         np = self.render.attach_new_node(geom)
@@ -1696,6 +1828,155 @@ class SharuanWorld:
         # Soft dirt decals make routes readable without hard geometry changes.
         self._scatter_path_decals()
 
+    def _spawn_treasure_chest(self, chest_id, x, y, z, loc_name):
+        wood_mat = mk_mat((0.34, 0.22, 0.11, 1.0), 0.78, 0.04)
+        band_mat = mk_mat((0.67, 0.58, 0.34, 1.0), 0.34, 0.66)
+        inner_mat = mk_mat((0.18, 0.08, 0.04, 1.0), 0.90, 0.02)
+        coin_mat = mk_mat((0.94, 0.78, 0.30, 1.0), 0.20, 0.82)
+        glow_mat = mk_mat((1.00, 0.55, 0.18, 0.42), 0.08, 0.05)
+
+        chest_root = self.render.attach_new_node(f"chest_{chest_id}")
+        chest_root.set_pos(x, y, z)
+        chest_root.set_tag("info", f"{loc_name} Chest")
+
+        # Base body.
+        base = self._pl(
+            mk_box(f"chest_base_{chest_id}", 1.08, 0.72, 0.50),
+            x,
+            y,
+            z + 0.25,
+            self.tx.get("bark"),
+            wood_mat,
+            loc_name,
+            is_platform=False,
+        )
+        base.wrtReparentTo(chest_root)
+        base.setPos(0.0, 0.0, 0.25)
+
+        # Interior cavity frame.
+        inner = self._pl(
+            mk_box(f"chest_inner_{chest_id}", 0.88, 0.54, 0.24),
+            x,
+            y,
+            z + 0.37,
+            None,
+            inner_mat,
+            loc_name,
+            is_platform=False,
+        )
+        inner.wrtReparentTo(chest_root)
+        inner.setPos(0.0, 0.0, 0.37)
+
+        # Lid opened to reveal interior.
+        lid = self._pl(
+            mk_box(f"chest_lid_{chest_id}", 1.10, 0.62, 0.26),
+            x,
+            y,
+            z + 0.63,
+            self.tx.get("bark"),
+            wood_mat,
+            loc_name,
+            is_platform=False,
+        )
+        lid.wrtReparentTo(chest_root)
+        lid.setPos(0.0, -0.08, 0.63)
+        lid.setP(-24.0)
+
+        # Metal banding.
+        for side, off in (("left", -0.36), ("right", 0.36)):
+            strap = self._pl(
+                mk_box(f"chest_strap_{chest_id}_{side}", 0.08, 0.74, 0.54),
+                x + off,
+                y,
+                z + 0.28,
+                self.tx.get("stone"),
+                band_mat,
+                loc_name,
+                is_platform=False,
+            )
+            strap.wrtReparentTo(chest_root)
+            strap.setPos(off, 0.0, 0.28)
+
+        latch = self._pl(
+            mk_box(f"chest_latch_{chest_id}", 0.12, 0.08, 0.14),
+            x,
+            y + 0.35,
+            z + 0.36,
+            self.tx.get("stone"),
+            band_mat,
+            loc_name,
+            is_platform=False,
+        )
+        latch.wrtReparentTo(chest_root)
+        latch.setPos(0.0, 0.35, 0.36)
+
+        # Coin pile for "inner beauty".
+        for idx in range(8):
+            ang = (idx / 8.0) * (math.pi * 2.0)
+            rad = 0.12 + (0.03 * (idx % 3))
+            cx = math.cos(ang) * rad
+            cy = math.sin(ang) * rad * 0.7
+            coin = self._pl(
+                mk_cyl(f"chest_coin_{chest_id}_{idx}", 0.05, 0.02, 8),
+                x + cx,
+                y + cy,
+                z + 0.33 + (0.004 * (idx % 2)),
+                None,
+                coin_mat,
+                loc_name,
+                is_platform=False,
+            )
+            coin.wrtReparentTo(chest_root)
+            coin.setPos(cx, cy, 0.33 + (0.004 * (idx % 2)))
+            coin.setP(90.0)
+
+        glow = self._pl(
+            mk_sphere(f"chest_glow_{chest_id}", 0.18, 7, 9),
+            x,
+            y,
+            z + 0.42,
+            None,
+            glow_mat,
+            loc_name,
+            is_platform=False,
+        )
+        glow.wrtReparentTo(chest_root)
+        glow.setPos(0.0, 0.0, 0.42)
+        glow.setTransparency(TransparencyAttrib.M_alpha)
+        glow.setLightOff(1)
+
+        self._chest_nodes.append(chest_root)
+
+    def _build_treasure_chests(self):
+        """Guarantee treasure chests in every major location (with visible interior details)."""
+        self._chest_nodes = []
+        if not isinstance(self.locations, list) or not self.locations:
+            return
+
+        for idx, loc in enumerate(self.locations):
+            if not isinstance(loc, dict):
+                continue
+            pos = loc.get("pos", [])
+            if not (isinstance(pos, list) and len(pos) >= 2):
+                continue
+            try:
+                lx = float(pos[0])
+                ly = float(pos[1])
+            except Exception:
+                continue
+            radius = max(6.0, float(loc.get("radius", 20.0) or 20.0))
+            loc_name = str(loc.get("name", f"Location {idx+1}") or f"Location {idx+1}")
+
+            # One guaranteed chest per location + one extra on very large zones.
+            count = 2 if radius >= 28.0 else 1
+            for cidx in range(count):
+                angle = (idx * 1.37) + (cidx * 2.1)
+                dist = min(10.0, max(3.4, radius * (0.20 + (0.06 * cidx))))
+                cx = lx + (math.cos(angle) * dist)
+                cy = ly + (math.sin(angle) * dist)
+                cz = self._th(cx, cy)
+                self._spawn_treasure_chest(f"{idx}_{cidx}", cx, cy, cz + 0.02, loc_name)
+
     def _build_movement_training_ground(self):
         """Dedicated test arena for movement tutorial and animation state validation."""
         tx, ty = 18.0, 24.0
@@ -2358,7 +2639,8 @@ class SharuanWorld:
 
         # Dense grass band around traversable ground, avoiding river and sea edge.
         grass_rng = random.Random(20260308)
-        grass_idx = 0
+        spec_rng = getattr(self, "_rng", None) or grass_rng
+        grass_specs = []
         for _ in range(280):
             x = grass_rng.uniform(-92.0, 92.0)
             y = grass_rng.uniform(-38.0, 88.0)
@@ -2372,5 +2654,19 @@ class SharuanWorld:
             # Keep castle foreground cleaner.
             if (x * x + ((y - 65.0) * (y - 65.0))) < 460.0:
                 continue
-            self._spawn_grass_tuft(grass_idx, x, y, z, foliage_tex)
-            grass_idx += 1
+            grass_specs.append(make_grass_tuft_spec(spec_rng, x, y, z))
+
+        if grass_specs:
+            try:
+                self._spawn_grass_batch(grass_specs, foliage_tex)
+            except Exception as exc:
+                logger.warning(f"[SharuanWorld] Grass batch failed, falling back to per-tuft nodes: {exc}")
+                for grass_idx, spec in enumerate(grass_specs):
+                    self._spawn_grass_tuft(
+                        grass_idx,
+                        spec.get("x", 0.0),
+                        spec.get("y", 0.0),
+                        spec.get("z", 0.0),
+                        foliage_tex,
+                        spec=spec,
+                    )

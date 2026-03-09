@@ -5,10 +5,19 @@
     "dialogue_tree": {
         "start": {
             "speaker": "The Ashen Dragon",
-            "text": "You dare enter my domain, little wizard? How… amusing.",
+            "text": "You dare enter my domain, little wizard? How amusing.",
             "animation": "roar",
             "camera": "wide",
             "voice": "dragon_boss/start",
+            "growl": "dragon_boss/start",
+            "emotion": "threat",
+            "emotion_intensity": 0.82,
+            "corruption": 0.35,
+            "directives": {
+                "emotion": "threat",
+                "emotion_intensity": 0.82,
+                "corruption": 0.35
+            },
             "choices": [
                 {
                     "next_node": "player_reply"
@@ -29,10 +38,19 @@
         },
         "boss_laugh": {
             "speaker": "The Ashen Dragon",
-            "text": "Ha! Centuries of slumber and this is the 'hero' the kingdom sends? Very well — let the flames judge you.",
+            "text": "Ha! Centuries of slumber, and this is the hero the kingdom sends? Very well. Let the flames judge you.",
             "animation": "idle",
             "camera": "npc",
             "voice": "dragon_boss/boss_laugh",
+            "growl": "dragon_boss/boss_laugh",
+            "emotion": "rage",
+            "emotion_intensity": 0.94,
+            "corruption": 0.62,
+            "directives": {
+                "emotion": "rage",
+                "emotion_intensity": 0.94,
+                "corruption": 0.62
+            },
             "choices": [
                 {
                     "next_node": "combat_start"

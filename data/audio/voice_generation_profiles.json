@@ -12,13 +12,13 @@
       "pyttsx3_volume": 0.9
     },
     "dragon_boss": {
-      "edge_voice": "en-US-GuyNeural",
-      "rate": "-11%",
-      "pitch": "-14Hz",
+      "edge_voice": "en-US-ChristopherNeural",
+      "rate": "-12%",
+      "pitch": "-12Hz",
       "expressiveness": 1.25,
       "openai_voice": "onyx",
       "openai_speed": 0.95,
-      "openai_instructions": "Voice Affect: Heavy and intimidating. Tone: menacing and controlled. Pacing: deliberate with short pauses.",
+      "openai_instructions": "Voice Affect: Monstrous and intimidating, but intelligible. Tone: menacing and controlled. Pacing: deliberate with short pauses.",
       "pyttsx3_rate": 152,
       "pyttsx3_volume": 0.92
     },
@@ -45,14 +45,14 @@
       "pyttsx3_volume": 0.95
     },
     "quest_giver_main": {
-      "edge_voice": "en-US-AnaNeural",
-      "rate": "-1%",
-      "pitch": "+1Hz",
-      "expressiveness": 1.05,
-      "openai_voice": "sage",
-      "openai_speed": 0.98,
-      "openai_instructions": "Voice Affect: Wise and grounded. Tone: calm and guiding. Pacing: steady with light pauses.",
-      "pyttsx3_rate": 170,
+      "edge_voice": "en-US-JennyNeural",
+      "rate": "-8%",
+      "pitch": "-8Hz",
+      "expressiveness": 1.08,
+      "openai_voice": "coral",
+      "openai_speed": 0.95,
+      "openai_instructions": "Voice Affect: Mature and reassuring. Tone: wise, calm, and confident. Pacing: deliberate with clear pauses.",
+      "pyttsx3_rate": 162,
       "pyttsx3_volume": 0.92
     },
     "player": {
@@ -69,14 +69,14 @@
   },
   "speaker": {
     "elder sophia": {
-      "edge_voice": "en-US-AnaNeural",
-      "rate": "-3%",
-      "pitch": "+2Hz",
+      "edge_voice": "en-US-JennyNeural",
+      "rate": "-8%",
+      "pitch": "-8Hz",
       "expressiveness": 1.08,
-      "openai_voice": "sage",
-      "openai_speed": 0.97,
-      "openai_instructions": "Voice Affect: Warm and wise. Tone: thoughtful and reassuring. Pacing: smooth with gentle pauses.",
-      "pyttsx3_rate": 166,
+      "openai_voice": "coral",
+      "openai_speed": 0.95,
+      "openai_instructions": "Voice Affect: Mature and warm. Tone: thoughtful and grounded. Pacing: steady with intentional pauses.",
+      "pyttsx3_rate": 162,
       "pyttsx3_volume": 0.91
     },
     "merchant aldric": {

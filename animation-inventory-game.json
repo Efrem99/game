@@ -1,0 +1,648 @@
+{
+  "mode": "game",
+  "summary": {
+    "web_finding_count": 0,
+    "game_asset_count": 65,
+    "web_categories": {},
+    "game_statuses": {
+      "ok": 16,
+      "unknown": 45,
+      "warning": 4
+    },
+    "orphaned_keyframe_count": 0
+  },
+  "web_findings": [],
+  "orphaned_keyframes": {},
+  "game_assets": [
+    {
+      "path": "assets/anims/attack_sword_slash.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/block_guard.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/cast_spell.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/climb_up.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/death_die.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/dismounting_boat.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/dismounting_carriage.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/dismounting_horse.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/dodge_roll.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/fall_air.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/flying_loop.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/jump_takeoff.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/land_recover.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounted_idle_boat.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounted_idle_carriage.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounted_idle_horse.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounted_move_boat.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounted_move_carriage.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounted_move_carriage.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "assets/anims/mounted_move_horse.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounted_move_horse.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "assets/anims/mounting_boat.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounting_carriage.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/mounting_horse.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/swim_loop.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/vault_over.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/anims/wallrun_side.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "assets/models/bosses/big_arm.glb",
+      "format": "glb",
+      "animations_detected": 14,
+      "status": "ok",
+      "notes": [
+        "Clip names: CharacterArmature|Death, CharacterArmature|HitReact, CharacterArmature|Idle, CharacterArmature|Jump, CharacterArmature|Jump_Idle"
+      ]
+    },
+    {
+      "path": "assets/models/bosses/blue_demon.glb",
+      "format": "glb",
+      "animations_detected": 15,
+      "status": "ok",
+      "notes": [
+        "Clip names: CharacterArmature|Death, CharacterArmature|Duck, CharacterArmature|HitReact, CharacterArmature|Idle, CharacterArmature|Jump"
+      ]
+    },
+    {
+      "path": "assets/models/bosses/dino.glb",
+      "format": "glb",
+      "animations_detected": 14,
+      "status": "ok",
+      "notes": [
+        "Clip names: CharacterArmature|Death, CharacterArmature|Duck, CharacterArmature|HitReact, CharacterArmature|Idle, CharacterArmature|Jump"
+      ]
+    },
+    {
+      "path": "assets/models/bosses/dragon_classic.glb",
+      "format": "glb",
+      "animations_detected": 8,
+      "status": "ok",
+      "notes": [
+        "Clip names: CharacterArmature|Death, CharacterArmature|Fast_Flying, CharacterArmature|Flying_Idle, CharacterArmature|Headbutt, CharacterArmature|HitReact"
+      ]
+    },
+    {
+      "path": "assets/models/bosses/dragon_evolved.glb",
+      "format": "glb",
+      "animations_detected": 8,
+      "status": "ok",
+      "notes": [
+        "Clip names: CharacterArmature|Death, CharacterArmature|Fast_Flying, CharacterArmature|Flying_Idle, CharacterArmature|Headbutt, CharacterArmature|HitReact"
+      ]
+    },
+    {
+      "path": "assets/models/enemies/fire_elemental.glb",
+      "format": "glb",
+      "animations_detected": 0,
+      "status": "warning",
+      "notes": [
+        "No animations found in GLB JSON chunk."
+      ]
+    },
+    {
+      "path": "assets/models/enemies/goblin_raider.glb",
+      "format": "glb",
+      "animations_detected": 0,
+      "status": "warning",
+      "notes": [
+        "No animations found in GLB JSON chunk."
+      ]
+    },
+    {
+      "path": "assets/models/enemies/golem_boss.glb",
+      "format": "glb",
+      "animations_detected": 0,
+      "status": "warning",
+      "notes": [
+        "No animations found in GLB JSON chunk."
+      ]
+    },
+    {
+      "path": "assets/models/enemies/shadow_stalker.glb",
+      "format": "glb",
+      "animations_detected": 0,
+      "status": "warning",
+      "notes": [
+        "No animations found in GLB JSON chunk."
+      ]
+    },
+    {
+      "path": "assets/models/hero/sherward/sherward.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "assets/models/xbot/idle.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "assets/models/xbot/run.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "assets/models/xbot/walk.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "assets/models/xbot/Xbot.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "models/animations/Celebrate1.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/Celebrate2.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/Celebrate3.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/ComeHere1.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/ComeHere2.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/ComeHere3.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/GoAwayAngry.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/GoAwayAnnoyed.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/GoAwayQuickly.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/HandsOnHead.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/idle.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "models/animations/NodYes1.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/run.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "models/animations/ShakeHeadNo1.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/StopOneHand1.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/StopOneHand2.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/StopTwoHand1.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/StopTwoHand2.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/ThumbsDown1.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/ThumbsDown2.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/ThumbsUp1.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/animations/walk.glb",
+      "format": "glb",
+      "animations_detected": 7,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, headShake, idle, run, sad_pose"
+      ]
+    },
+    {
+      "path": "models/xbot_customized_slim.fbx",
+      "format": "fbx",
+      "animations_detected": null,
+      "status": "unknown",
+      "notes": [
+        "Binary FBX detected; use DCC/SDK inspection for exact clip list.",
+        "Recommended: export to glTF for deterministic clip inventory when possible."
+      ]
+    },
+    {
+      "path": "models/xbot_customized_slim.glb",
+      "format": "glb",
+      "animations_detected": 16,
+      "status": "ok",
+      "notes": [
+        "Clip names: agree, Celebrate1, Celebrate2, Celebrate3, ComeHere1"
+      ]
+    }
+  ]
+}

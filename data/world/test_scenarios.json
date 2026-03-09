@@ -1,0 +1,470 @@
+﻿{
+    "meta":  {
+                 "version":  1,
+                 "description":  "Scenario presets for rapid QA in test location mode."
+             },
+    "scenarios":  [
+                      {
+                          "id":  "skills_01",
+                          "profile":  "skills",
+                          "location":  "0,0,0",
+                          "world_location":  "Town Hall",
+                          "note":  "skills_hub_default",
+                          "tags":  [
+                                       "skills",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "skills_02",
+                          "profile":  "skills",
+                          "location":  "town",
+                          "world_location":  "Town Hall",
+                          "note":  "skills_ui_focus",
+                          "tags":  [
+                                       "skills",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "skills_03",
+                          "profile":  "skills",
+                          "location":  "training",
+                          "world_location":  "Training Grounds",
+                          "note":  "skills_combat_followup",
+                          "tags":  [
+                                       "skills",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "skills_04",
+                          "profile":  "skills",
+                          "location":  "parkour",
+                          "world_location":  "Forest Parkour Grounds",
+                          "note":  "skills_mobility_branch",
+                          "tags":  [
+                                       "skills",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "skills_05",
+                          "profile":  "skills",
+                          "location":  "flight",
+                          "world_location":  "Coastal Flight Grounds",
+                          "note":  "skills_flight_branch",
+                          "tags":  [
+                                       "skills",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "skills_06",
+                          "profile":  "skills",
+                          "location":  "docks",
+                          "world_location":  "Southern Docks",
+                          "note":  "skills_world_mix",
+                          "tags":  [
+                                       "skills",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "music_01",
+                          "profile":  "music",
+                          "location":  "docks",
+                          "world_location":  "Southern Docks",
+                          "note":  "music_ambient_docks",
+                          "tags":  [
+                                       "music",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "music_02",
+                          "profile":  "music",
+                          "location":  "town",
+                          "world_location":  "Sharuan Town",
+                          "note":  "music_town_loop",
+                          "tags":  [
+                                       "music",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "music_03",
+                          "profile":  "music",
+                          "location":  "castle",
+                          "world_location":  "Sharuan Castle",
+                          "note":  "music_castle_reverb",
+                          "tags":  [
+                                       "music",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "music_04",
+                          "profile":  "music",
+                          "location":  "training",
+                          "world_location":  "Training Grounds",
+                          "note":  "music_combat_layers",
+                          "tags":  [
+                                       "music",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "music_05",
+                          "profile":  "music",
+                          "location":  "parkour",
+                          "world_location":  "Forest Parkour Grounds",
+                          "note":  "music_motion_sync",
+                          "tags":  [
+                                       "music",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "music_06",
+                          "profile":  "music",
+                          "location":  "dragon_arena",
+                          "world_location":  "Dragon Arena",
+                          "note":  "music_boss_layers",
+                          "tags":  [
+                                       "music",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "movement_01",
+                          "profile":  "movement",
+                          "location":  "training",
+                          "world_location":  "Training Grounds",
+                          "note":  "movement_baseline",
+                          "tags":  [
+                                       "movement",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "movement_02",
+                          "profile":  "movement",
+                          "location":  "parkour",
+                          "world_location":  "Forest Parkour Grounds",
+                          "note":  "movement_with_vault",
+                          "tags":  [
+                                       "movement",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "movement_03",
+                          "profile":  "movement",
+                          "location":  "flight",
+                          "world_location":  "Coastal Flight Grounds",
+                          "note":  "movement_air_transition",
+                          "tags":  [
+                                       "movement",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "movement_04",
+                          "profile":  "movement",
+                          "location":  "town",
+                          "world_location":  "Sharuan Town",
+                          "note":  "movement_social_space",
+                          "tags":  [
+                                       "movement",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "movement_05",
+                          "profile":  "movement",
+                          "location":  "docks",
+                          "world_location":  "Southern Docks",
+                          "note":  "movement_narrow_paths",
+                          "tags":  [
+                                       "movement",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "movement_06",
+                          "profile":  "movement",
+                          "location":  "18,24,0",
+                          "world_location":  "Training Grounds",
+                          "note":  "movement_precision_lane",
+                          "tags":  [
+                                       "movement",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "flight_01",
+                          "profile":  "flight",
+                          "location":  "flight",
+                          "world_location":  "Coastal Flight Grounds",
+                          "note":  "flight_baseline",
+                          "tags":  [
+                                       "flight",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "flight_02",
+                          "profile":  "flight",
+                          "location":  "18,24,0",
+                          "world_location":  "Coastal Flight Grounds",
+                          "note":  "flight_low_altitude",
+                          "tags":  [
+                                       "flight",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "flight_03",
+                          "profile":  "flight",
+                          "location":  "docks",
+                          "world_location":  "Southern Docks",
+                          "note":  "flight_over_water",
+                          "tags":  [
+                                       "flight",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "flight_04",
+                          "profile":  "flight",
+                          "location":  "castle",
+                          "world_location":  "Sharuan Castle",
+                          "note":  "flight_verticality",
+                          "tags":  [
+                                       "flight",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "flight_05",
+                          "profile":  "flight",
+                          "location":  "dragon_arena",
+                          "world_location":  "Dragon Arena",
+                          "note":  "flight_combat_ready",
+                          "tags":  [
+                                       "flight",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "flight_06",
+                          "profile":  "flight",
+                          "location":  "parkour",
+                          "world_location":  "Forest Parkour Grounds",
+                          "note":  "flight_parkour_transition",
+                          "tags":  [
+                                       "flight",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "dragon_01",
+                          "profile":  "dragon",
+                          "location":  "dragon_arena",
+                          "world_location":  "Dragon Arena",
+                          "note":  "dragon_intro",
+                          "tags":  [
+                                       "dragon",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "dragon_02",
+                          "profile":  "dragon",
+                          "location":  "34,-6,0",
+                          "world_location":  "Dragon Arena",
+                          "note":  "dragon_mid_range",
+                          "tags":  [
+                                       "dragon",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "dragon_03",
+                          "profile":  "dragon",
+                          "location":  "flight",
+                          "world_location":  "Dragon Arena",
+                          "note":  "dragon_air_combat",
+                          "tags":  [
+                                       "dragon",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "dragon_04",
+                          "profile":  "dragon",
+                          "location":  "castle",
+                          "world_location":  "Sharuan Castle",
+                          "note":  "dragon_close_quarters",
+                          "tags":  [
+                                       "dragon",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "dragon_05",
+                          "profile":  "dragon",
+                          "location":  "docks",
+                          "world_location":  "Southern Docks",
+                          "note":  "dragon_water_edge",
+                          "tags":  [
+                                       "dragon",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "dragon_06",
+                          "profile":  "dragon",
+                          "location":  "training",
+                          "world_location":  "Training Grounds",
+                          "note":  "dragon_ability_debug",
+                          "tags":  [
+                                       "dragon",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "mounts_01",
+                          "profile":  "mounts",
+                          "location":  "9,6,0",
+                          "world_location":  "Port Caravan Trail",
+                          "note":  "mounts_baseline",
+                          "tags":  [
+                                       "mounts",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "mounts_02",
+                          "profile":  "mounts",
+                          "location":  "boats",
+                          "world_location":  "Southern Docks",
+                          "note":  "mounts_boat_focus",
+                          "tags":  [
+                                       "mounts",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "mounts_03",
+                          "profile":  "mounts",
+                          "location":  "docks",
+                          "world_location":  "Southern Docks",
+                          "note":  "mounts_tight_turns",
+                          "tags":  [
+                                       "mounts",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "mounts_04",
+                          "profile":  "mounts",
+                          "location":  "town",
+                          "world_location":  "Sharuan Town",
+                          "note":  "mounts_crowd_avoidance",
+                          "tags":  [
+                                       "mounts",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "mounts_05",
+                          "profile":  "mounts",
+                          "location":  "castle",
+                          "world_location":  "Sharuan Castle",
+                          "note":  "mounts_slope_check",
+                          "tags":  [
+                                       "mounts",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "mounts_06",
+                          "profile":  "mounts",
+                          "location":  "training",
+                          "world_location":  "Training Grounds",
+                          "note":  "mounts_controlled_lane",
+                          "tags":  [
+                                       "mounts",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "parkour_01",
+                          "profile":  "parkour",
+                          "location":  "parkour",
+                          "world_location":  "Forest Parkour Grounds",
+                          "note":  "parkour_default",
+                          "tags":  [
+                                       "parkour",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "parkour_02",
+                          "profile":  "parkour",
+                          "location":  "30,28,0",
+                          "world_location":  "Forest Parkour Grounds",
+                          "note":  "parkour_wallrun_focus",
+                          "tags":  [
+                                       "parkour",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "parkour_03",
+                          "profile":  "parkour",
+                          "location":  "24,35,0",
+                          "world_location":  "Forest Parkour Grounds",
+                          "note":  "parkour_vault_focus",
+                          "tags":  [
+                                       "parkour",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "parkour_04",
+                          "profile":  "parkour",
+                          "location":  "18,24,0",
+                          "world_location":  "Training Grounds",
+                          "note":  "parkour_to_training",
+                          "tags":  [
+                                       "parkour",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "parkour_05",
+                          "profile":  "parkour",
+                          "location":  "town",
+                          "world_location":  "Sharuan Town",
+                          "note":  "parkour_urban_short",
+                          "tags":  [
+                                       "parkour",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "parkour_06",
+                          "profile":  "parkour",
+                          "location":  "flight",
+                          "world_location":  "Coastal Flight Grounds",
+                          "note":  "parkour_to_flight",
+                          "tags":  [
+                                       "parkour",
+                                       "scenario"
+                                   ]
+                      }
+                  ]
+}

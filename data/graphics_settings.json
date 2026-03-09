@@ -1,7 +1,7 @@
 {
     "pbr": {
         "enabled": true,
-        "msaa_samples": 4,
+        "msaa_samples": 8,
         "max_lights": 8,
         "shadow_map_size": 2048,
         "exposure": 1.2,
@@ -12,7 +12,7 @@
     "post_processing": {
         "bloom": {
             "enabled": true,
-            "intensity": 1.5,
+            "intensity": 3.0,
             "size": "large",
             "threshold": 0.6,
             "desat": 0.5
@@ -90,5 +90,7 @@
             "dof": true
         }
     },
-    "quality": "Ultra"
+    "quality": "Ultra",
+    "adaptive_mode": "balanced",
+    "language": "ru"
 }

@@ -291,7 +291,14 @@ class PlayerStateMachineMixin:
 
         if mounted_kind:
             self._mount_anim_kind = mounted_kind
-        elif self._anim_state not in {"mounting", "mounted_idle", "mounted_move", "dismounting"}:
+        elif self._anim_state not in {
+            "mounting",
+            "mounted_idle",
+            "mounted_move",
+            "mounted_ship_idle",
+            "mounted_ship_move",
+            "dismounting",
+        }:
             self._mount_anim_kind = ""
 
         resolved_mounted_kind = mounted_kind or str(self._mount_anim_kind or "").strip().lower()

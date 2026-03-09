@@ -70,6 +70,7 @@ from ui.ui_intro import IntroUI
 from ui.hud_overlay import HUDOverlay
 from managers.preload_manager import PreloadManager
 from managers.asset_bundle_manager import AssetBundleManager
+from managers.adaptive_performance_manager import AdaptivePerformanceManager
 
 class XBotApp(ShowBase):
     GameState = GameState # Shortcut
@@ -82,6 +83,7 @@ class XBotApp(ShowBase):
         self._last_fs_toggle_time = -999.0
         self._test_profile = str(os.environ.get("XBOT_TEST_PROFILE", "")).strip().lower()
         self._test_location_raw = str(os.environ.get("XBOT_TEST_LOCATION", "")).strip()
+        self._test_scenario_raw = str(os.environ.get("XBOT_TEST_SCENARIO", "")).strip()
         self._gamepad_device = None
         self._gp_deadzone = 0.18
         self._gp_axes = {
@@ -304,6 +306,10 @@ class XBotApp(ShowBase):
         self._last_particle_count = 0
         self._particle_upload_interval = 1.0 / 30.0
         self._particle_upload_accum = 0.0
+        self._runtime_load_level = 0
+        self._runtime_update_intervals = {}
+        self._runtime_update_accum = {}
+        self._world_state_cache = {}
         self._diag_log_interval_sec = 5.0
         self._last_diag_log_time = -999.0
         self._boss_update_fail_count = 0
@@ -316,6 +322,13 @@ class XBotApp(ShowBase):
         self.dragon_boss = None
         self.influence_mgr = InfluenceManager(self.render)
         self.sim_tier_mgr = SimTierManager(self)
+        adaptive_mode = "balanced"
+        cfg = getattr(self, "data_mgr", None)
+        if cfg and isinstance(getattr(cfg, "graphics_settings", {}), dict):
+            adaptive_mode = str(cfg.graphics_settings.get("adaptive_mode", adaptive_mode) or adaptive_mode)
+        adaptive_mode = str(os.environ.get("XBOT_ADAPTIVE_MODE", adaptive_mode) or adaptive_mode).strip().lower()
+        self.adaptive_perf_mgr = AdaptivePerformanceManager(self, mode=adaptive_mode)
+        self._adaptive_mode = getattr(self.adaptive_perf_mgr, "mode", "balanced")
         self.dialog_cinematic = DialogCinematicManager(self)
         self.npc_interaction = NPCInteractionManager(self)
         self.story_interaction = StoryInteractionManager(self)
@@ -556,6 +569,99 @@ class XBotApp(ShowBase):
         except Exception:
             pass
 
+    def set_runtime_load_profile(self, profile, level=0):
+        cfg = profile if isinstance(profile, dict) else {}
+        self._runtime_load_level = max(0, min(3, int(level or 0)))
+
+        interval_map = {
+            "sky_update_interval": "sky",
+            "influence_update_interval": "influence",
+            "npc_activity_update_interval": "npc_activity",
+            "npc_interaction_update_interval": "npc_interaction",
+            "story_interaction_update_interval": "story_interaction",
+            "cutscene_trigger_update_interval": "cutscene_triggers",
+        }
+        intervals = (
+            self._runtime_update_intervals
+            if isinstance(getattr(self, "_runtime_update_intervals", None), dict)
+            else {}
+        )
+        accum = (
+            self._runtime_update_accum
+            if isinstance(getattr(self, "_runtime_update_accum", None), dict)
+            else {}
+        )
+
+        for profile_key, runtime_key in interval_map.items():
+            try:
+                interval = max(0.0, min(0.30, float(cfg.get(profile_key, 0.0) or 0.0)))
+            except Exception:
+                interval = 0.0
+            if abs(float(intervals.get(runtime_key, 0.0) or 0.0) - interval) > 1e-6:
+                accum[runtime_key] = 0.0
+            intervals[runtime_key] = interval
+
+        self._runtime_update_intervals = intervals
+        self._runtime_update_accum = accum
+
+        if "particle_upload_interval" in cfg:
+            try:
+                self._particle_upload_interval = max(
+                    1.0 / 120.0,
+                    min(1.0 / 6.0, float(cfg.get("particle_upload_interval", 1.0 / 30.0))),
+                )
+            except Exception:
+                self._particle_upload_interval = 1.0 / 30.0
+
+        stm = getattr(self, "sim_tier_mgr", None)
+        if stm and hasattr(stm, "set_runtime_profile"):
+            try:
+                stm.set_runtime_profile(
+                    tick_rate_hz=cfg.get("sim_tick_rate_hz", None),
+                    budget_scale=cfg.get("sim_budget_scale", None),
+                )
+            except Exception as exc:
+                logger.debug(f"[RuntimeProfile] Sim-tier runtime profile failed: {exc}")
+
+    def set_adaptive_graphics_mode(self, mode, persist=True):
+        perf_mgr = getattr(self, "adaptive_perf_mgr", None)
+        token = "balanced"
+        if perf_mgr and hasattr(perf_mgr, "set_mode"):
+            try:
+                token = str(perf_mgr.set_mode(mode, force_reapply=True) or "balanced")
+            except Exception as exc:
+                logger.debug(f"[AdaptivePerformance] Mode switch failed: {exc}")
+                token = str(getattr(perf_mgr, "mode", "balanced") or "balanced")
+        self._adaptive_mode = token
+
+        cfg = getattr(self, "data_mgr", None)
+        if persist and cfg and isinstance(getattr(cfg, "graphics_settings", {}), dict):
+            cfg.graphics_settings["adaptive_mode"] = token
+            cfg.save_settings("graphics_settings.json", cfg.graphics_settings)
+        return token
+
+    def _runtime_take_dt(self, key, dt):
+        intervals = getattr(self, "_runtime_update_intervals", {})
+        accum_map = getattr(self, "_runtime_update_accum", {})
+        if not isinstance(intervals, dict) or not isinstance(accum_map, dict):
+            return max(0.0, float(dt or 0.0))
+
+        try:
+            interval = max(0.0, float(intervals.get(key, 0.0) or 0.0))
+        except Exception:
+            interval = 0.0
+        dt_val = max(0.0, float(dt or 0.0))
+        if interval <= 0.0:
+            return dt_val
+
+        accum = float(accum_map.get(key, 0.0) or 0.0) + dt_val
+        if accum + 1e-9 < interval:
+            accum_map[key] = accum
+            return 0.0
+
+        accum_map[key] = 0.0
+        return accum
+
     def apply_graphics_quality(self, level, persist=True):
         token = str(level or "high").strip().lower()
         if token in {"med", "middle"}:
@@ -598,6 +704,13 @@ class XBotApp(ShowBase):
 
         self._apply_lighting_from_settings(token)
         self._gfx_quality = token.title()
+
+        perf_mgr = getattr(self, "adaptive_perf_mgr", None)
+        if perf_mgr and hasattr(perf_mgr, "on_quality_changed"):
+            try:
+                perf_mgr.on_quality_changed(self._gfx_quality, user_initiated=bool(persist))
+            except Exception as exc:
+                logger.debug(f"[AdaptivePerformance] Quality update hook failed: {exc}")
 
         if persist and cfg and isinstance(cfg.graphics_settings, dict):
             cfg.graphics_settings["quality"] = self._gfx_quality
@@ -957,6 +1070,31 @@ class XBotApp(ShowBase):
             except Exception:
                 pass
         return pos
+
+    def _resolve_test_scenario(self, token):
+        raw = str(token or "").strip().lower()
+        if not raw:
+            return None
+        getter = getattr(getattr(self, "data_mgr", None), "get_test_scenarios", None)
+        if not callable(getter):
+            return None
+        rows = getter() or []
+        if not isinstance(rows, list) or not rows:
+            return None
+
+        if raw.isdigit():
+            idx = int(raw) - 1
+            if 0 <= idx < len(rows):
+                row = rows[idx]
+                return dict(row) if isinstance(row, dict) else None
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            row_id = str(row.get("id", "") or "").strip().lower()
+            if row_id and row_id == raw:
+                return dict(row)
+        return None
 
     def _teleport_player_to(self, pos):
         if not self.player or not self.player.actor or pos is None:
@@ -1353,6 +1491,34 @@ class XBotApp(ShowBase):
                 if section and token:
                     self._codex_mark(section, token, title, details)
 
+        audio_dir = getattr(self, "audio_director", None) or getattr(self, "audio", None)
+        if audio_dir:
+            emotion = str(node_directives.get("emotion", text_tags.get("emotion", "")) or "").strip()
+            if emotion and hasattr(audio_dir, "set_voice_emotion"):
+                try:
+                    emotion_intensity = float(
+                        node_directives.get("emotion_intensity", text_tags.get("emotion_intensity", 1.0)) or 1.0
+                    )
+                except Exception:
+                    emotion_intensity = 1.0
+                try:
+                    audio_dir.set_voice_emotion(emotion, intensity=emotion_intensity)
+                except Exception as exc:
+                    logger.debug(f"[DialogDirectives] emotion '{emotion}' failed: {exc}")
+
+            corruption_raw = node_directives.get("corruption", text_tags.get("corruption", None))
+            if corruption_raw not in (None, "") and hasattr(audio_dir, "set_world_corruption"):
+                try:
+                    corruption_value = float(corruption_raw)
+                except Exception:
+                    corruption_value = None
+                if corruption_value is not None:
+                    immediate = bool(node_directives.get("corruption_immediate", False))
+                    try:
+                        audio_dir.set_world_corruption(corruption_value, immediate=immediate)
+                    except Exception as exc:
+                        logger.debug(f"[DialogDirectives] corruption '{corruption_value}' failed: {exc}")
+
     def _start_opening_memory_sequence(self):
         if self._norm_test_mode():
             return False
@@ -1563,7 +1729,11 @@ class XBotApp(ShowBase):
 
     def _apply_test_profile(self):
         profile = str(self._test_profile or "").strip().lower()
-        if not profile and not self._test_location_raw:
+        scenario = self._resolve_test_scenario(getattr(self, "_test_scenario_raw", ""))
+        if scenario and not profile:
+            profile = str(scenario.get("profile", "") or "").strip().lower()
+
+        if not profile and not self._test_location_raw and not scenario:
             return
 
         default_location = {
@@ -1576,6 +1746,10 @@ class XBotApp(ShowBase):
             "parkour": "parkour",
             "flight": "flight",
         }.get(profile, "")
+        if isinstance(scenario, dict):
+            scenario_location = str(scenario.get("location", "") or "").strip()
+            if scenario_location:
+                default_location = scenario_location
 
         desired = self._resolve_test_location(self._test_location_raw or default_location)
         if desired is not None:
@@ -1645,9 +1819,16 @@ class XBotApp(ShowBase):
                 except Exception:
                     pass
 
+        if isinstance(scenario, dict) and self.world:
+            world_loc = str(scenario.get("world_location", "") or "").strip()
+            if world_loc:
+                self.world.active_location = world_loc
+        scenario_id = str(scenario.get("id", "")).strip() if isinstance(scenario, dict) else ""
+
         logger.info(
             f"[TestProfile] Applied profile='{profile or 'custom'}' "
-            f"location='{self._test_location_raw or default_location or '-'}'"
+            f"location='{self._test_location_raw or default_location or '-'}' "
+            f"scenario='{scenario_id or '-'}'"
         )
 
     def _setup_main_game_tutorial(self):
@@ -2652,28 +2833,44 @@ class XBotApp(ShowBase):
         dt_player = time_fx.scaled_dt("player", dt_real) if time_fx else dt_real
         dt_enemies = time_fx.scaled_dt("enemies", dt_real) if time_fx else dt_real
         dt_particles = time_fx.scaled_dt("particles", dt_real) if time_fx else dt_real
-        world_state = {}
-        if getattr(self, "sky_mgr", None):
+        is_playing = bool(self.state_mgr.is_playing())
+        perf_mgr = getattr(self, "adaptive_perf_mgr", None)
+        if perf_mgr:
             try:
-                self.sky_mgr.update(dt_world)
-                if hasattr(self.sky_mgr, "get_world_state"):
-                    world_state = self.sky_mgr.get_world_state() or {}
+                perf_mgr.update(dt_real, is_playing=is_playing)
             except Exception as exc:
-                logger.debug(f"[SkyManager] Update failed: {exc}")
+                logger.debug(f"[AdaptivePerformance] Update failed: {exc}")
+
+        world_state = (
+            dict(self._world_state_cache)
+            if isinstance(getattr(self, "_world_state_cache", None), dict)
+            else {}
+        )
+        if getattr(self, "sky_mgr", None):
+            dt_sky = self._runtime_take_dt("sky", dt_world)
+            if dt_sky > 0.0:
+                try:
+                    self.sky_mgr.update(dt_sky)
+                    if hasattr(self.sky_mgr, "get_world_state"):
+                        world_state = self.sky_mgr.get_world_state() or {}
+                except Exception as exc:
+                    logger.debug(f"[SkyManager] Update failed: {exc}")
         self._world_state_cache = world_state
         if getattr(self, "audio", None):
             self.audio.update(dt_world)
-        if self.state_mgr.is_playing():
+        if is_playing:
             self.hud.show()
         else:
             self.hud.hide()
 
-        if not self.state_mgr.is_playing() or not self.player:
+        if not is_playing or not self.player:
             self._clear_aim_target_highlight()
             return Task.cont
 
         if hasattr(self, "influence_mgr") and self.influence_mgr:
-            self.influence_mgr.update(dt_world)
+            dt_inf = self._runtime_take_dt("influence", dt_world)
+            if dt_inf > 0.0:
+                self.influence_mgr.update(dt_inf)
 
         # Attention-based simulation tier manager
         if hasattr(self, "sim_tier_mgr") and self.sim_tier_mgr and self.player:
@@ -2729,20 +2926,26 @@ class XBotApp(ShowBase):
                 logger.warning(f"[NPCManager] Update failed: {exc}")
                 self.npc_mgr = None
         if getattr(self, "npc_activity_director", None):
-            try:
-                self.npc_activity_director.update(dt_world)
-            except Exception as exc:
-                logger.debug(f"[NPCActivityDirector] Update failed: {exc}")
+            dt_npc_activity = self._runtime_take_dt("npc_activity", dt_world)
+            if dt_npc_activity > 0.0:
+                try:
+                    self.npc_activity_director.update(dt_npc_activity)
+                except Exception as exc:
+                    logger.debug(f"[NPCActivityDirector] Update failed: {exc}")
         if getattr(self, "npc_interaction", None):
-            try:
-                self.npc_interaction.update(dt_world)
-            except Exception as exc:
-                logger.debug(f"[NPCInteraction] Update failed: {exc}")
+            dt_npc_interaction = self._runtime_take_dt("npc_interaction", dt_world)
+            if dt_npc_interaction > 0.0:
+                try:
+                    self.npc_interaction.update(dt_npc_interaction)
+                except Exception as exc:
+                    logger.debug(f"[NPCInteraction] Update failed: {exc}")
         if getattr(self, "story_interaction", None):
-            try:
-                self.story_interaction.update(dt_world)
-            except Exception as exc:
-                logger.debug(f"[StoryInteraction] Update failed: {exc}")
+            dt_story_interaction = self._runtime_take_dt("story_interaction", dt_world)
+            if dt_story_interaction > 0.0:
+                try:
+                    self.story_interaction.update(dt_story_interaction)
+                except Exception as exc:
+                    logger.debug(f"[StoryInteraction] Update failed: {exc}")
         if self.boss_manager and self.player:
             try:
                 self.boss_manager.update(dt_enemies, self.player.actor.getPos(self.render))
@@ -2758,13 +2961,15 @@ class XBotApp(ShowBase):
         self.quest_mgr.update(player_pos)
         self.world.update(player_pos)
         if getattr(self, "cutscene_triggers", None):
-            try:
-                self.cutscene_triggers.update(
-                    player_pos,
-                    getattr(self.world, "active_location", None),
-                )
-            except Exception as exc:
-                logger.debug(f"[CutsceneTriggers] Update failed: {exc}")
+            dt_cutscene = self._runtime_take_dt("cutscene_triggers", dt_world)
+            if dt_cutscene > 0.0:
+                try:
+                    self.cutscene_triggers.update(
+                        player_pos,
+                        getattr(self.world, "active_location", None),
+                    )
+                except Exception as exc:
+                    logger.debug(f"[CutsceneTriggers] Update failed: {exc}")
         mount_hint = ""
         if hasattr(self, "vehicle_mgr") and self.vehicle_mgr:
             try:
@@ -2989,8 +3194,21 @@ class XBotApp(ShowBase):
                 self._last_diag_log_time = now
                 cam = self.camera.getPos()
                 plyr = self.player.actor.getPos() if self.player else "None"
+                load_level = int(getattr(self, "_runtime_load_level", 0))
+                perf_fps = 0.0
+                adaptive_mode = str(getattr(self, "_adaptive_mode", "balanced") or "balanced")
+                perf_mgr = getattr(self, "adaptive_perf_mgr", None)
+                if perf_mgr and hasattr(perf_mgr, "debug_snapshot"):
+                    try:
+                        snap = perf_mgr.debug_snapshot() or {}
+                        load_level = int(snap.get("level", load_level))
+                        perf_fps = float(snap.get("average_fps", 0.0) or 0.0)
+                        adaptive_mode = str(snap.get("mode", adaptive_mode) or adaptive_mode)
+                    except Exception:
+                        perf_fps = 0.0
                 logger.info(
                     f"[Diagnostics] FPS: {globalClock.getAverageFrameRate():.1f} | "
+                    f"Adaptive: {adaptive_mode}/L{load_level} ({perf_fps:.1f}) | "
                     f"Cam: {cam} | Player: {plyr} | Particles: {self._last_particle_count}"
                 )
         return Task.cont

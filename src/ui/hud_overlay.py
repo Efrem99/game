@@ -25,8 +25,8 @@ class HUDOverlay:
         self._target_lock_hint_key = str(lock_key).upper()
         interact_key = self.app.data_mgr.get_binding("interact") or "f"
         self._interact_hint_key = str(interact_key).upper()
-        self._cast_hint_key = "LMB"
-        self._ultimate_hint_key = "Q"
+        self._attack_hint_key = "LMB"
+        self._cast_hint_key = "wheel slot"
         self._refresh_control_hint_tokens()
         self._xp = 0
         self._gold = 0
@@ -1437,6 +1437,8 @@ class HUDOverlay:
 
     def _skill_style_for_spell(self, label):
         token = str(label or "").strip().lower()
+        if token in {"sword", "weapon", "weapon_sword", "melee", "fencing"}:
+            return "S", (0.82, 0.84, 0.92, 1.0)
         if "fire" in token or "meteor" in token:
             return "F", (0.95, 0.45, 0.20, 1.0)
         if "light" in token or "storm" in token:
@@ -1680,7 +1682,7 @@ class HUDOverlay:
 
         self._refresh_control_hint_tokens()
         self.skill_controls_text.setText(
-            f"Hold {self._skill_wheel_hint_key}: Skill Wheel  |  {self._cast_hint_key}: Cast  |  {self._ultimate_hint_key}: Ultimate"
+            f"Hold {self._skill_wheel_hint_key}: Skill Wheel  |  {self._attack_hint_key}: Attack/Cast ({self._cast_hint_key})"
         )
 
     def _fmt_key_hint(self, token):
@@ -1702,13 +1704,12 @@ class HUDOverlay:
         if not dm:
             return
         wheel = dm.get_binding("skill_wheel") or "tab"
-        cast = dm.get_binding("attack_light") or "mouse1"
-        ultimate = dm.get_binding("block") or "q"
+        attack = dm.get_binding("attack_light") or "mouse1"
         lock = dm.get_binding("target_lock") or "t"
         interact = dm.get_binding("interact") or "f"
         self._skill_wheel_hint_key = self._fmt_key_hint(wheel)
-        self._cast_hint_key = self._fmt_key_hint(cast)
-        self._ultimate_hint_key = self._fmt_key_hint(ultimate)
+        self._attack_hint_key = self._fmt_key_hint(attack)
+        self._cast_hint_key = "wheel slot"
         self._target_lock_hint_key = self._fmt_key_hint(lock)
         self._interact_hint_key = self._fmt_key_hint(interact)
 

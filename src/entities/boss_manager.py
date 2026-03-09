@@ -10,6 +10,7 @@ from direct.actor.Actor import Actor
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import CardMaker, LColor, TransparencyAttrib, Vec3
 
+from render.fx_policy import FIRE_SPRITE_TEXTURE_CANDIDATES, load_optional_texture
 from render.model_visuals import ensure_model_visual_defaults
 from utils.logger import logger
 
@@ -76,6 +77,7 @@ class EnemyUnit:
         self.fire_emit_acc = 0.0
         self.fire_tick_acc = 0.0
         self.last_fire_sfx = -999.0
+        self._fire_sprite_tex = load_optional_texture(self.loader, FIRE_SPRITE_TEXTURE_CANDIDATES)
 
         self.max_hp = max(1.0, self._stat("max_hp", 180.0))
         self.hp = self.max_hp
@@ -562,6 +564,16 @@ class EnemyUnit:
         node.setBillboardPointEye()
         node.setTransparency(TransparencyAttrib.MAlpha)
         node.setLightOff(1)
+        node.setDepthWrite(False)
+        if self._fire_sprite_tex:
+            try:
+                node.setTexture(self._fire_sprite_tex, 1)
+            except Exception:
+                pass
+        try:
+            node.setShaderOff(1001)
+        except Exception:
+            pass
         src = self.fire_origin.getPos(self.render)
         fwd = self.fire_origin.getQuat(self.render).getForward()
         vel = (fwd + Vec3(self._rng.uniform(-0.16, 0.16), self._rng.uniform(-0.08, 0.12), self._rng.uniform(-0.12, 0.09))) * self._rng.uniform(8.0, 14.0)

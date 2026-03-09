@@ -9,6 +9,7 @@ from direct.actor.Actor import Actor
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import CardMaker, LColor, NodePath, TransparencyAttrib, Vec3
 
+from render.fx_policy import FIRE_SPRITE_TEXTURE_CANDIDATES, load_optional_texture
 from render.model_visuals import ensure_model_visual_defaults
 from utils.logger import logger
 
@@ -63,6 +64,7 @@ class DragonBoss:
         self._active_clip = ""
         self._body_base_scale = Vec3(1.0, 1.0, 1.0)
         self._last_fire_sfx_time = -999.0
+        self._fire_sprite_tex = load_optional_texture(self.loader, FIRE_SPRITE_TEXTURE_CANDIDATES)
 
         self.cfg = self._load_dragon_config()
         self.spawn()
@@ -476,6 +478,16 @@ class DragonBoss:
         node.setBillboardPointEye()
         node.setTransparency(TransparencyAttrib.MAlpha)
         node.setLightOff(1)
+        node.setDepthWrite(False)
+        if self._fire_sprite_tex:
+            try:
+                node.setTexture(self._fire_sprite_tex, 1)
+            except Exception:
+                pass
+        try:
+            node.setShaderOff(1001)
+        except Exception:
+            pass
 
         src = self._fire_origin.getPos(self.render)
         fwd = self._fire_origin.getQuat(self.render).getForward()

@@ -1,4 +1,7 @@
+import math
+
 from direct.gui.DirectGui import DirectFrame, DirectScrolledFrame, OnscreenText, DirectButton, DGG
+from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import TextNode, TransparencyAttrib
 
 from ui.design_system import (
@@ -20,6 +23,13 @@ class InventoryUI:
         self._map_pin_labels = []
         self._inventory_status = ""
         self._skill_status = ""
+        self._equip_slot_frames = {}
+        self._equip_slot_titles = {}
+        self._equip_slot_values = {}
+        self._item_list_layout_mode = ""
+        self._item_list_row_layout = {}
+        self._char_follow_x = 0.0
+        self._char_follow_z = 0.0
 
         asp = self.app.getAspectRatio()
         self.frame = DirectFrame(
@@ -65,6 +75,8 @@ class InventoryUI:
             verticalScroll_decButton_frameColor=THEME["bg_panel"],
             parent=self.content_frame
         )
+        self._build_inventory_showcase()
+        self._apply_item_list_layout("full")
 
         self.map_text = OnscreenText(
             text="",
@@ -105,6 +117,8 @@ class InventoryUI:
         )
 
         self.hide()
+        if hasattr(self.app, "taskMgr") and self.app.taskMgr:
+            self.app.taskMgr.add(self._inventory_character_follow_task, "inventory_character_follow_task")
 
     def _build_map_panel(self):
         self.map_panel = DirectFrame(
@@ -309,6 +323,196 @@ class InventoryUI:
             relief=1
         )
 
+    def _build_inventory_showcase(self):
+        self.inventory_showcase = DirectFrame(
+            frameColor=(0.08, 0.07, 0.06, 0.45),
+            frameSize=(-0.74, 0.20, -0.52, 0.42),
+            pos=(-0.05, 0.0, -0.01),
+            parent=self.content_frame,
+        )
+
+        self.inventory_showcase_title = OnscreenText(
+            text=self.app.data_mgr.t("ui.equipment", "Equipment"),
+            pos=(-0.27, 0.38),
+            scale=0.036,
+            font=title_font(self.app),
+            fg=THEME["gold_soft"],
+            align=TextNode.ACenter,
+            mayChange=False,
+            parent=self.content_frame,
+        )
+
+        self.character_plate = DirectFrame(
+            frameColor=(0.12, 0.10, 0.09, 0.72),
+            frameSize=(-0.18, 0.18, -0.34, 0.34),
+            pos=(-0.27, 0.0, -0.06),
+            parent=self.inventory_showcase,
+        )
+        self.character_plate_border = DirectFrame(
+            frameColor=(0.64, 0.58, 0.45, 0.45),
+            frameSize=(-0.184, 0.184, -0.344, 0.344),
+            pos=(-0.27, 0.0, -0.06),
+            parent=self.inventory_showcase,
+        )
+        self.character_plate_border.setTransparency(TransparencyAttrib.MAlpha)
+
+        self.character_root = DirectFrame(
+            frameColor=(0, 0, 0, 0),
+            frameSize=(-0.001, 0.001, -0.001, 0.001),
+            parent=self.character_plate,
+        )
+        self.character_torso = DirectFrame(
+            frameColor=(0.35, 0.34, 0.42, 0.96),
+            frameSize=(-0.055, 0.055, -0.14, 0.14),
+            pos=(0.0, 0.0, -0.02),
+            parent=self.character_root,
+        )
+        self.character_head = DirectFrame(
+            frameColor=(0.92, 0.84, 0.72, 0.98),
+            frameSize=(-0.048, 0.048, -0.048, 0.048),
+            pos=(0.0, 0.0, 0.18),
+            parent=self.character_root,
+        )
+        self.character_arm_l = DirectFrame(
+            frameColor=(0.35, 0.34, 0.42, 0.96),
+            frameSize=(-0.018, 0.018, -0.11, 0.11),
+            pos=(-0.082, 0.0, -0.01),
+            parent=self.character_root,
+        )
+        self.character_arm_r = DirectFrame(
+            frameColor=(0.35, 0.34, 0.42, 0.96),
+            frameSize=(-0.018, 0.018, -0.11, 0.11),
+            pos=(0.082, 0.0, -0.01),
+            parent=self.character_root,
+        )
+        self.character_leg_l = DirectFrame(
+            frameColor=(0.24, 0.23, 0.30, 0.96),
+            frameSize=(-0.020, 0.020, -0.12, 0.12),
+            pos=(-0.028, 0.0, -0.25),
+            parent=self.character_root,
+        )
+        self.character_leg_r = DirectFrame(
+            frameColor=(0.24, 0.23, 0.30, 0.96),
+            frameSize=(-0.020, 0.020, -0.12, 0.12),
+            pos=(0.028, 0.0, -0.25),
+            parent=self.character_root,
+        )
+
+        self._add_equipment_slot_widget("weapon_main", "Main Hand", (-0.56, 0.13))
+        self._add_equipment_slot_widget("offhand", "Off Hand", (0.03, 0.13))
+        self._add_equipment_slot_widget("chest", "Armor", (-0.56, -0.12))
+        self._add_equipment_slot_widget("trinket", "Trinket", (0.03, -0.12))
+
+    def _add_equipment_slot_widget(self, slot_id, title, pos_xy):
+        x, z = pos_xy
+        frame = DirectFrame(
+            frameColor=(0.18, 0.16, 0.14, 0.82),
+            frameSize=(-0.17, 0.17, -0.09, 0.09),
+            pos=(x, 0.0, z),
+            parent=self.inventory_showcase,
+        )
+        title_text = OnscreenText(
+            text=title,
+            pos=(x, z + 0.06),
+            scale=0.024,
+            font=title_font(self.app),
+            fg=THEME["text_muted"],
+            align=TextNode.ACenter,
+            mayChange=False,
+            parent=self.inventory_showcase,
+        )
+        value_text = OnscreenText(
+            text="Empty",
+            pos=(x, z - 0.015),
+            scale=0.024,
+            font=body_font(self.app),
+            fg=THEME["text_main"],
+            align=TextNode.ACenter,
+            mayChange=True,
+            parent=self.inventory_showcase,
+        )
+        self._equip_slot_frames[slot_id] = frame
+        self._equip_slot_titles[slot_id] = title_text
+        self._equip_slot_values[slot_id] = value_text
+
+    def _apply_item_list_layout(self, mode):
+        normalized = str(mode or "full").strip().lower()
+        if normalized == self._item_list_layout_mode:
+            return
+        self._item_list_layout_mode = normalized
+
+        if normalized == "inventory":
+            self.item_list["frameSize"] = (-0.43, 0.43, -0.5, 0.4)
+            self.item_list.setPos(0.35, 0.0, 0.0)
+            self._item_list_row_layout = {
+                "canvas_left": -0.42,
+                "canvas_right": 0.42,
+                "row_left": -0.40,
+                "row_right": 0.40,
+                "icon_x": -0.34,
+                "text_x": -0.29,
+                "desc_x": -0.29,
+                "btn_x": 0.29,
+            }
+        else:
+            self.item_list["frameSize"] = (-0.7, 0.7, -0.5, 0.4)
+            self.item_list.setPos(0.0, 0.0, 0.0)
+            self._item_list_row_layout = {
+                "canvas_left": -0.68,
+                "canvas_right": 0.68,
+                "row_left": -0.66,
+                "row_right": 0.66,
+                "icon_x": -0.61,
+                "text_x": -0.55,
+                "desc_x": -0.55,
+                "btn_x": 0.48,
+            }
+
+    def _refresh_equipment_showcase(self, equipped):
+        payload = equipped if isinstance(equipped, dict) else {}
+        for slot in ("weapon_main", "offhand", "chest", "trinket"):
+            frame = self._equip_slot_frames.get(slot)
+            value_label = self._equip_slot_values.get(slot)
+            token = str(payload.get(slot, "") or "").strip()
+            item = self.app.data_mgr.get_item(token) if token else None
+            if isinstance(item, dict):
+                name = str(item.get("name", token) or token).strip() or token
+                value_label["text"] = name
+                active = self._slot_color(slot)
+                frame["frameColor"] = (active[0], active[1], active[2], 0.95)
+            else:
+                value_label["text"] = "Empty"
+                frame["frameColor"] = (0.18, 0.16, 0.14, 0.82)
+
+    def _inventory_character_follow_task(self, task):
+        if self.frame.isHidden() or self._current_tab != "inventory":
+            return task.cont
+
+        mx = 0.0
+        my = 0.0
+        watcher = getattr(self.app, "mouseWatcherNode", None)
+        if watcher and watcher.hasMouse():
+            mouse = watcher.getMouse()
+            mx = float(mouse.getX())
+            my = float(mouse.getY())
+
+        target_x = max(-0.06, min(0.06, mx * 0.05))
+        target_z = max(-0.04, min(0.04, my * 0.04))
+        self._char_follow_x += (target_x - self._char_follow_x) * 0.18
+        self._char_follow_z += (target_z - self._char_follow_z) * 0.18
+
+        t = float(globalClock.getFrameTime() or 0.0)
+        breath = math.sin(t * 2.4) * 0.008
+        arm_wave = math.sin(t * 3.2) * 5.0
+        look_h = max(-14.0, min(14.0, mx * 18.0))
+
+        self.character_root.setPos(self._char_follow_x, 0.0, self._char_follow_z + breath)
+        self.character_root.setH(look_h)
+        self.character_head.setZ(0.18 + (breath * 0.5))
+        self.character_arm_l.setR(-arm_wave)
+        self.character_arm_r.setR(arm_wave)
+        return task.cont
+
     def _switch_tab(self, tab_id):
         self._current_tab = tab_id
         # Reset colors
@@ -321,6 +525,9 @@ class InventoryUI:
         active_color = THEME["text_muted"]
         if tab_id == "inventory":
             self.btn_inv["frameColor"] = active_color
+            self.inventory_showcase.show()
+            self.inventory_showcase_title.show()
+            self._apply_item_list_layout("inventory")
             self.item_list.show()
             self._clear_map_labels()
             self.map_panel.hide()
@@ -333,6 +540,9 @@ class InventoryUI:
             self._refresh_inventory()
         elif tab_id == "map":
             self.btn_map["frameColor"] = active_color
+            self.inventory_showcase.hide()
+            self.inventory_showcase_title.hide()
+            self._apply_item_list_layout("full")
             self.item_list.hide()
             self.map_panel.show()
             self.map_title.show()
@@ -344,6 +554,9 @@ class InventoryUI:
             self._refresh_map()
         elif tab_id == "skills":
             self.btn_skills["frameColor"] = active_color
+            self.inventory_showcase.hide()
+            self.inventory_showcase_title.hide()
+            self._apply_item_list_layout("full")
             self.item_list.show()
             self._clear_map_labels()
             self.map_panel.hide()
@@ -356,6 +569,9 @@ class InventoryUI:
             self._refresh_skills()
         elif tab_id == "journal":
             self.btn_journal["frameColor"] = active_color
+            self.inventory_showcase.hide()
+            self.inventory_showcase_title.hide()
+            self._apply_item_list_layout("full")
             self.item_list.hide()
             self._clear_map_labels()
             self.map_panel.hide()
@@ -861,6 +1077,16 @@ class InventoryUI:
 
     def _refresh_inventory(self):
         canvas = self._clear_rows()
+        layout = self._item_list_row_layout or {
+            "canvas_left": -0.68,
+            "canvas_right": 0.68,
+            "row_left": -0.66,
+            "row_right": 0.66,
+            "icon_x": -0.61,
+            "text_x": -0.55,
+            "desc_x": -0.55,
+            "btn_x": 0.48,
+        }
 
         profile_bag = {}
         if isinstance(getattr(self.app, "profile", None), dict):
@@ -895,6 +1121,7 @@ class InventoryUI:
             )
         items = sorted(items, key=_sort_key)
         equipped = self._equipment_state()
+        self._refresh_equipment_showcase(equipped)
 
         if not items:
             empty_text = OnscreenText(
@@ -908,7 +1135,7 @@ class InventoryUI:
                 mayChange=False,
             )
             self._rows.append(empty_text)
-            self.item_list["canvasSize"] = (-0.68, 0.68, -0.5, 0)
+            self.item_list["canvasSize"] = (layout["canvas_left"], layout["canvas_right"], -0.5, 0)
             return
 
         row_y = -0.05
@@ -924,7 +1151,7 @@ class InventoryUI:
             holder = DirectFrame(
                 parent=canvas,
                 frameColor=(0.10, 0.09, 0.08, 0.62),
-                frameSize=(-0.66, 0.66, -0.052, 0.052),
+                frameSize=(layout["row_left"], layout["row_right"], -0.052, 0.052),
                 pos=(0.0, 0.0, row_y),
             )
             self._rows.append(holder)
@@ -933,13 +1160,13 @@ class InventoryUI:
                 parent=holder,
                 frameColor=self._slot_color(slot),
                 frameSize=(-0.035, 0.035, -0.035, 0.035),
-                pos=(-0.61, 0.0, 0.0),
+                pos=(layout["icon_x"], 0.0, 0.0),
             )
             self._rows.append(icon)
             icon_char = name[:1].upper() if name else "?"
             icon_text = OnscreenText(
                 text=icon_char,
-                pos=(-0.61, -0.014),
+                pos=(layout["icon_x"], -0.014),
                 scale=0.04,
                 font=title_font(self.app),
                 align=TextNode.ACenter,
@@ -956,7 +1183,7 @@ class InventoryUI:
                 row_text = f"{row_text}  [Equipped]"
             label = OnscreenText(
                 text=row_text,
-                pos=(-0.55, -0.017),
+                pos=(layout["text_x"], -0.017),
                 scale=0.036,
                 font=body_font(self.app),
                 align=TextNode.ALeft,
@@ -970,7 +1197,7 @@ class InventoryUI:
             if desc:
                 desc_text = OnscreenText(
                     text=desc[:72],
-                    pos=(-0.55, -0.043),
+                    pos=(layout["desc_x"], -0.043),
                     scale=0.024,
                     font=body_font(self.app),
                     align=TextNode.ALeft,
@@ -990,7 +1217,7 @@ class InventoryUI:
                     text_font=body_font(self.app),
                     text_scale=0.032,
                     frameSize=(-0.11, 0.11, -0.03, 0.04),
-                    pos=(0.48, 0.0, 0.0),
+                    pos=(layout["btn_x"], 0.0, 0.0),
                     frameColor=THEME["text_muted"] if is_equipped else BUTTON_COLORS["normal"],
                     text_fg=THEME["text_main"],
                     command=cmd,
@@ -1008,7 +1235,7 @@ class InventoryUI:
                     text_font=body_font(self.app),
                     text_scale=0.032,
                     frameSize=(-0.11, 0.11, -0.03, 0.04),
-                    pos=(0.48, 0.0, 0.0),
+                    pos=(layout["btn_x"], 0.0, 0.0),
                     frameColor=BUTTON_COLORS["normal"],
                     text_fg=THEME["text_main"],
                     command=self._handle_use,
@@ -1022,7 +1249,7 @@ class InventoryUI:
 
             row_y -= step
         min_y = min(-0.6, row_y - 0.08)
-        self.item_list["canvasSize"] = (-0.68, 0.68, min_y, 0)
+        self.item_list["canvasSize"] = (layout["canvas_left"], layout["canvas_right"], min_y, 0)
 
     def _slot_alias(self, slot_token):
         token = str(slot_token or "").strip().lower()

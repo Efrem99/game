@@ -1,28 +1,22 @@
 """Python wrapper for the C++ AttentionManager.
 
 Collects live entity data each frame, calls AttentionManager.update(),
-then applies SimTier changes to the actual NPC/enemy objects.
+then applies simulation tier changes to NPC/enemy proxies.
 
 SimTier semantics:
-  Hero       – full anims, full AI, full FX
-  Active     – reduced AI tick-rate (~10 Hz), LOD1 geometry
-  Simplified – pose-only, AI frozen, minimal FX
-  Frozen     – no update, hidden or position-only
-
-Usage in app.py::
-    self.sim_tier_mgr = SimTierManager(base)
-    # each frame:
-    self.sim_tier_mgr.update(dt, cam_pos, cam_fwd, cam_ang_speed)
+  Hero       - full anims, full AI, full FX
+  Active     - reduced AI tick-rate (~10 Hz), LOD1 geometry
+  Simplified - pose-only, AI frozen, minimal FX
+  Frozen     - no update, hidden or position-only
 """
 
 from __future__ import annotations
 
-import math
-from direct.showbase.ShowBaseGlobal import globalClock
 from utils.logger import logger
 
 try:
     import game_core as gc
+
     HAS_CORE = True
 except ImportError:
     gc = None
@@ -31,35 +25,42 @@ except ImportError:
 
 class SimTierManager:
     # How often to run the full C++ tier computation (seconds).
-    # Every other frame the result is just applied without re-computing.
-    TICK_RATE = 1.0 / 15.0   # 15 Hz is plenty
+    TICK_RATE = 1.0 / 15.0
 
-    def __init__(self, app, max_dist: float = 120.0,
-                 budget_hero: int = 8,
-                 budget_active: int = 24,
-                 budget_simplified: int = 128):
+    def __init__(
+        self,
+        app,
+        max_dist: float = 120.0,
+        budget_hero: int = 8,
+        budget_active: int = 24,
+        budget_simplified: int = 128,
+    ):
         self._app = app
         self._accum = 0.0
         self._game_time = 0.0
-        self._entity_registry: dict[int, object] = {}   # id → entity proxy
+        self._entity_registry: dict[int, object] = {}
+        self._base_tick_rate = float(self.TICK_RATE)
+        self._runtime_tick_rate = float(self._base_tick_rate)
+        self._base_budgets = {
+            "hero": int(budget_hero),
+            "active": int(budget_active),
+            "simplified": int(budget_simplified),
+        }
+        self._runtime_budget_scale = 1.0
 
         if HAS_CORE:
             self._mgr = gc.AttentionManager(max_dist, 0.20, 0.45)
             self._budget = gc.TierBudget()
-            self._budget.maxHero       = budget_hero
-            self._budget.maxActive     = budget_active
-            self._budget.maxSimplified = budget_simplified
-            self._tier_frozen    = gc.SimTier.Frozen
-            self._tier_simpl     = gc.SimTier.Simplified
-            self._tier_active    = gc.SimTier.Active
-            self._tier_hero      = gc.SimTier.Hero
+            self._budget.maxHero = self._base_budgets["hero"]
+            self._budget.maxActive = self._base_budgets["active"]
+            self._budget.maxSimplified = self._base_budgets["simplified"]
+            self._tier_frozen = gc.SimTier.Frozen
+            self._tier_simpl = gc.SimTier.Simplified
+            self._tier_active = gc.SimTier.Active
+            self._tier_hero = gc.SimTier.Hero
         else:
             self._mgr = None
             self._budget = None
-
-    # ───────────────────────────────────────────────────────────
-    # Registration  (call when entity is spawned / despawned)
-    # ───────────────────────────────────────────────────────────
 
     def register(self, entity_id: int, entity_proxy) -> None:
         """Register an entity so it receives tier changes."""
@@ -68,9 +69,36 @@ class SimTierManager:
     def unregister(self, entity_id: int) -> None:
         self._entity_registry.pop(entity_id, None)
 
-    # ───────────────────────────────────────────────────────────
-    # Main update  (call each gameplay frame)
-    # ───────────────────────────────────────────────────────────
+    def set_runtime_profile(self, tick_rate_hz=None, budget_scale=None) -> dict:
+        """Adjust runtime cadence/budgets without mutating static defaults."""
+        if tick_rate_hz is not None:
+            try:
+                hz = max(4.0, min(60.0, float(tick_rate_hz)))
+                self._runtime_tick_rate = 1.0 / hz
+            except Exception:
+                self._runtime_tick_rate = self._base_tick_rate
+
+        if budget_scale is not None:
+            try:
+                self._runtime_budget_scale = max(0.25, min(2.0, float(budget_scale)))
+            except Exception:
+                self._runtime_budget_scale = 1.0
+
+        self._apply_budget_scale()
+        return {
+            "tick_rate_hz": 1.0 / max(1e-6, self._runtime_tick_rate),
+            "budget_scale": float(self._runtime_budget_scale),
+        }
+
+    def _apply_budget_scale(self) -> None:
+        if not HAS_CORE or not self._budget:
+            return
+        scale = max(0.25, min(2.0, float(self._runtime_budget_scale)))
+        self._budget.maxHero = max(1, int(round(self._base_budgets["hero"] * scale)))
+        self._budget.maxActive = max(1, int(round(self._base_budgets["active"] * scale)))
+        self._budget.maxSimplified = max(
+            1, int(round(self._base_budgets["simplified"] * scale))
+        )
 
     def update(self, dt: float, cam_pos, cam_fwd, cam_ang_speed: float = 0.0) -> None:
         if not HAS_CORE or not self._mgr:
@@ -79,21 +107,19 @@ class SimTierManager:
         self._game_time += dt
         self._accum += dt
 
-        if self._accum < self.TICK_RATE:
+        if self._accum < self._runtime_tick_rate:
             return
         self._accum = 0.0
 
-        # Build object list from registered entities
         objects: list[gc.AttentionObject] = []
         for eid, proxy in list(self._entity_registry.items()):
             try:
                 obj = gc.AttentionObject()
                 obj.id = eid
-
                 pos = self._get_pos(proxy)
                 obj.pos = gc.Vec3(pos[0], pos[1], pos[2])
                 obj.radius = float(getattr(proxy, "_attention_radius", 1.0))
-                obj.flags  = self._gather_flags(proxy)
+                obj.flags = self._gather_flags(proxy)
                 objects.append(obj)
             except Exception as exc:
                 logger.debug(f"[SimTierManager] Skipped entity {eid}: {exc}")
@@ -105,11 +131,14 @@ class SimTierManager:
 
         cpp_cam_pos = gc.Vec3(cam_pos.x, cam_pos.y, cam_pos.z)
         cpp_cam_fwd = gc.Vec3(cam_fwd.x, cam_fwd.y, cam_fwd.z)
+        self._mgr.update(
+            cpp_cam_pos,
+            cpp_cam_fwd,
+            float(cam_ang_speed),
+            self._game_time,
+            self._budget,
+        )
 
-        self._mgr.update(cpp_cam_pos, cpp_cam_fwd, float(cam_ang_speed),
-                         self._game_time, self._budget)
-
-        # Apply tier changes
         for (eid, tier_int) in self._mgr.getTierChanges():
             proxy = self._entity_registry.get(eid)
             if proxy is None:
@@ -119,7 +148,6 @@ class SimTierManager:
             except Exception as exc:
                 logger.debug(f"[SimTierManager] Tier apply failed for {eid}: {exc}")
 
-        # Prewarm requests (optional: preload LODs)
         for eid in self._mgr.getPrewarmIds():
             proxy = self._entity_registry.get(eid)
             if proxy and hasattr(proxy, "_prewarm_lod"):
@@ -127,10 +155,6 @@ class SimTierManager:
                     proxy._prewarm_lod()
                 except Exception:
                     pass
-
-    # ───────────────────────────────────────────────────────────
-    # Flag gathering from entity properties
-    # ───────────────────────────────────────────────────────────
 
     def _gather_flags(self, proxy) -> int:
         flags = 0
@@ -149,27 +173,22 @@ class SimTierManager:
                 flags |= gc.ATT_HOMING
         return flags
 
-    # ───────────────────────────────────────────────────────────
-    # Tier application to entity proxy
-    # ───────────────────────────────────────────────────────────
-
     def _apply_tier(self, proxy, tier_int: int) -> None:
         # tier_int: 0=Hero, 1=Active, 2=Simplified, 3=Frozen
-        # Generic interface: proxy may expose optional methods/flags
         tier = tier_int
 
         if hasattr(proxy, "_sim_tier") and proxy._sim_tier == tier:
-            return  # no change
+            return
         if hasattr(proxy, "_sim_tier"):
             proxy._sim_tier = tier
 
-        if tier == 0:   # Hero — full
+        if tier == 0:
             self._set_full(proxy)
-        elif tier == 1: # Active — light reduction
+        elif tier == 1:
             self._set_active(proxy)
-        elif tier == 2: # Simplified — pose only
+        elif tier == 2:
             self._set_simplified(proxy)
-        else:           # Frozen
+        else:
             self._set_frozen(proxy)
 
     def _set_full(self, proxy):
@@ -189,7 +208,7 @@ class SimTierManager:
             except Exception:
                 pass
         _safe_call(proxy, "enable_ai")
-        _safe_call(proxy, "set_ai_tick_rate", 1.0 / 10.0)  # 10 Hz
+        _safe_call(proxy, "set_ai_tick_rate", 1.0 / 10.0)
 
     def _set_simplified(self, proxy):
         if hasattr(proxy, "actor"):
@@ -198,15 +217,10 @@ class SimTierManager:
             except Exception:
                 pass
         _safe_call(proxy, "disable_ai")
-        _safe_call(proxy, "set_ai_tick_rate", 1.0 / 2.0)   # 2 Hz pose
+        _safe_call(proxy, "set_ai_tick_rate", 1.0 / 2.0)
 
     def _set_frozen(self, proxy):
         _safe_call(proxy, "disable_ai")
-        # Don't hide — just freeze
-
-    # ───────────────────────────────────────────────────────────
-    # Utility
-    # ───────────────────────────────────────────────────────────
 
     @staticmethod
     def _get_pos(proxy) -> tuple[float, float, float]:

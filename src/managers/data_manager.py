@@ -25,6 +25,7 @@ class DataManager:
         self.combat_styles = {}
         self.loading_screen_config = {}
         self.asset_multifiles_config = {}
+        self.test_scenarios = {}
         self.language = "en"
 
         self.load_all()
@@ -57,6 +58,7 @@ class DataManager:
         self.player_config = self._load_file("actors/player.json")
         self.sky_config = self._load_file("sky_config.json")
         self.world_layout = self._load_file("world/layout.json")
+        self.test_scenarios = self._load_file("world/test_scenarios.json")
         self.character_logic = self._load_file("logic/character_brain.json")
         self.combat_styles = self._load_file("combat/styles.json")
         self.loading_screen_config = self._load_file("loading_screen.json")
@@ -226,6 +228,21 @@ class DataManager:
     def get_world_layout(self):
         payload = self.world_layout if isinstance(self.world_layout, dict) else {}
         return dict(payload)
+
+    def get_test_scenarios(self):
+        payload = self.test_scenarios
+        if isinstance(payload, dict):
+            rows = payload.get("scenarios", [])
+        elif isinstance(payload, list):
+            rows = payload
+        else:
+            rows = []
+        out = []
+        if isinstance(rows, list):
+            for row in rows:
+                if isinstance(row, dict):
+                    out.append(dict(row))
+        return out
 
     def get_character_logic_config(self):
         payload = self.character_logic if isinstance(self.character_logic, dict) else {}

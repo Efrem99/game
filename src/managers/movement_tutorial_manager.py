@@ -2,6 +2,7 @@
 
 import math
 import os
+import shutil
 
 
 class MovementTutorialManager:
@@ -153,6 +154,21 @@ class MovementTutorialManager:
         self._last_completed_step = ""
         self._last_focused_step = ""
         self._voice_root = "data/audio/voices/tutorial"
+        self._fallback_voice_keys = {
+            "move": "guard_city/start",
+            "sprint": "guard_city/directions",
+            "jump": "quest_giver_main/encourage",
+            "interact": "merchant/start",
+            "dodge": "guard_city/trouble",
+            "attack": "quest_giver_main/quest_offer",
+            "skill_wheel": "merchant_general/rare_items",
+            "cast": "quest_giver_main/quest_details",
+            "parkour": "opening_memory/sebastian_training",
+            "swim": "opening_memory/flight_escape",
+            "fly": "opening_memory/flight_escape",
+            "mount": "guard_city/passing_through",
+        }
+        self._completion_voice_key = "quest_giver_main/reward"
         self._step_focus_sfx = {
             "move": ("ui_hover", 0.22, 0.96),
             "sprint": ("ui_hover", 0.24, 1.01),
@@ -167,6 +183,9 @@ class MovementTutorialManager:
             "fly": ("spell_arcane", 0.24, 1.02),
             "mount": ("ui_click", 0.26, 0.98),
         }
+        self._voice_exts = (".ogg", ".mp3", ".wav")
+        self._autocreated_step_voice = set()
+        self._bootstrap_tutorial_voice_bank()
 
     def set_mode(self, mode, reset=False):
         token = str(mode or "main").strip().lower()
@@ -385,6 +404,15 @@ class MovementTutorialManager:
                 "direction_deg": 0.0,
             },
         )
+        if self._completion_voice_key:
+            self._emit_event(
+                "audio.voice.play",
+                {
+                    "key": str(self._completion_voice_key),
+                    "volume": 0.82,
+                    "rate": 1.0,
+                },
+            )
 
     def _try_play_step_voice(self, phase, step_id):
         phase_token = str(phase or "core").strip().lower()
@@ -392,21 +420,101 @@ class MovementTutorialManager:
         if not step_token:
             return
 
-        # Tutorial voice files are optional. If they are absent we just skip voice playback.
-        root = os.path.join(self.app.project_root, self._voice_root.replace("/", os.sep))
-        for ext in (".ogg", ".mp3", ".wav"):
-            rel = f"{self._voice_root}/{phase_token}_{step_token}{ext}"
-            abs_path = os.path.join(root, f"{phase_token}_{step_token}{ext}")
+        rel_path = self._resolve_step_voice_rel(phase_token, step_token)
+        if rel_path or self._ensure_step_voice_asset(phase_token, step_token):
+            rel_path = self._resolve_step_voice_rel(phase_token, step_token)
+        if rel_path:
+            self._emit_event(
+                "audio.voice.play",
+                {
+                    "path": rel_path,
+                    "volume": 0.78,
+                    "rate": 1.0,
+                },
+            )
+            return
+
+        fallback_key = str(self._fallback_voice_keys.get(step_token, "") or "").strip()
+        if fallback_key:
+            self._emit_event(
+                "audio.voice.play",
+                {
+                    "key": fallback_key,
+                    "volume": 0.74,
+                    "rate": 1.0,
+                },
+            )
+
+    def _voices_base_abs(self):
+        return os.path.join(self.app.project_root, "data", "audio", "voices")
+
+    def _tutorial_voice_root_abs(self):
+        return os.path.join(self.app.project_root, self._voice_root.replace("/", os.sep))
+
+    def _resolve_voice_key_abs(self, voice_key):
+        token = str(voice_key or "").strip().replace("\\", "/")
+        if not token:
+            return None
+        base = self._voices_base_abs()
+        stem_abs = os.path.join(base, token.replace("/", os.sep))
+        for ext in self._voice_exts:
+            candidate = stem_abs + ext
+            if os.path.exists(candidate):
+                return candidate
+        return None
+
+    def _resolve_step_voice_rel(self, phase_token, step_token):
+        phase_norm = str(phase_token or "core").strip().lower()
+        step_norm = str(step_token or "").strip().lower()
+        if not step_norm:
+            return None
+        root = self._tutorial_voice_root_abs()
+        for ext in self._voice_exts:
+            abs_path = os.path.join(root, f"{phase_norm}_{step_norm}{ext}")
             if os.path.exists(abs_path):
-                self._emit_event(
-                    "audio.voice.play",
-                    {
-                        "path": rel.replace("\\", "/"),
-                        "volume": 0.78,
-                        "rate": 1.0,
-                    },
-                )
-                break
+                return f"{self._voice_root}/{phase_norm}_{step_norm}{ext}".replace("\\", "/")
+        return None
+
+    def _ensure_step_voice_asset(self, phase_token, step_token):
+        phase_norm = str(phase_token or "core").strip().lower()
+        step_norm = str(step_token or "").strip().lower()
+        if not step_norm:
+            return False
+        if self._resolve_step_voice_rel(phase_norm, step_norm):
+            return True
+
+        fallback_key = str(self._fallback_voice_keys.get(step_norm, "") or "").strip()
+        source_abs = self._resolve_voice_key_abs(fallback_key)
+        if not source_abs:
+            return False
+
+        target_root = self._tutorial_voice_root_abs()
+        try:
+            os.makedirs(target_root, exist_ok=True)
+        except Exception:
+            return False
+
+        ext = os.path.splitext(source_abs)[1] or ".mp3"
+        target_abs = os.path.join(target_root, f"{phase_norm}_{step_norm}{ext}")
+        if os.path.exists(target_abs):
+            return True
+        try:
+            # Keep generated tutorial clips as concrete files so future runs are instant.
+            shutil.copy2(source_abs, target_abs)
+            self._autocreated_step_voice.add(f"{phase_norm}:{step_norm}")
+            return True
+        except Exception:
+            return False
+
+    def _bootstrap_tutorial_voice_bank(self):
+        for step in self._core_steps:
+            step_id = str(step.get("id", "") or "").strip().lower()
+            if step_id:
+                self._ensure_step_voice_asset("core", step_id)
+        for step in self._advanced_steps:
+            step_id = str(step.get("id", "") or "").strip().lower()
+            if step_id:
+                self._ensure_step_voice_asset("advanced", step_id)
 
     def _on_step_focused(self, step, phase, index, total):
         if not isinstance(step, dict):

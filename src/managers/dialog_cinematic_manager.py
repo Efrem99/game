@@ -349,7 +349,8 @@ class DialogCinematicManager:
         vo_key = str(node.get("voice", f"{self._npc_id}/{node_id}") or "")
         voice_volume = self._voice_volume_for_node(node)
         voice_rate = self._voice_rate_for_line(node, text, text_tags)
-        vo_played = self._play_voice(vo_key, volume=voice_volume, rate=voice_rate)
+        voice_mix = self._voice_mix_for_node(node, text_tags=text_tags)
+        vo_played = self._play_voice(vo_key, volume=voice_volume, rate=voice_rate, mix=voice_mix)
 
         # â”€â”€ Schedule next step â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if self._has_interactive_choices(choices):
@@ -548,6 +549,28 @@ class DialogCinematicManager:
             volume = 1.0
         return max(0.0, min(1.25, volume))
 
+    def _voice_mix_for_node(self, node: dict, text_tags: dict | None = None) -> dict:
+        row = {}
+        if isinstance(node.get("voice_mix"), dict):
+            row.update(node.get("voice_mix") or {})
+        text_tags = text_tags if isinstance(text_tags, dict) else {}
+        inline_map = {
+            "growl": "growl_key",
+            "growl_key": "growl_key",
+            "emotion": "emotion",
+            "emotion_intensity": "emotion_intensity",
+            "corruption": "corruption",
+            "resonance": "resonance_key",
+            "resonance_key": "resonance_key",
+        }
+        for src_key, dst_key in inline_map.items():
+            if src_key in node and node.get(src_key) not in (None, ""):
+                row[dst_key] = node.get(src_key)
+        for src_key, dst_key in inline_map.items():
+            if src_key in text_tags and text_tags.get(src_key) not in (None, "") and dst_key not in row:
+                row[dst_key] = text_tags.get(src_key)
+        return row
+
     def _voice_rate_for_line(self, node: dict, text: str, text_tags: dict) -> float:
         try:
             rate = float(node.get("voice_rate", 1.0) or 1.0)
@@ -573,7 +596,7 @@ class DialogCinematicManager:
             rate -= 0.03
         return max(0.86, min(1.14, rate))
 
-    def _play_voice(self, vo_key: str, volume: float = 1.0, rate: float = 1.0) -> bool:
+    def _play_voice(self, vo_key: str, volume: float = 1.0, rate: float = 1.0, mix: dict | None = None) -> bool:
         """Attempt to play voiceover audio for a dialogue line.
 
         Searches data/audio/voices/<vo_key>.ogg  (or .wav, .mp3).
@@ -583,6 +606,29 @@ class DialogCinematicManager:
         audio_dir = getattr(self.app, "audio_director", None) or getattr(self.app, "audio", None)
         if not audio_dir:
             return False
+        mix = mix if isinstance(mix, dict) else {}
+        hybrid_requested = bool(
+            mix.get("growl_key")
+            or mix.get("emotion")
+            or mix.get("resonance_key")
+            or ("corruption" in mix)
+        )
+        if hybrid_requested and hasattr(audio_dir, "play_hybrid_voice_key"):
+            try:
+                return bool(
+                    audio_dir.play_hybrid_voice_key(
+                        vo_key,
+                        growl_key=mix.get("growl_key"),
+                        volume=volume,
+                        rate=rate,
+                        emotion=mix.get("emotion"),
+                        emotion_intensity=mix.get("emotion_intensity", 1.0),
+                        corruption=mix.get("corruption"),
+                        resonance_key=mix.get("resonance_key"),
+                    )
+                )
+            except Exception as exc:
+                logger.debug(f"[DialogCinematic] Hybrid VO route failed '{vo_key}': {exc}")
 
         # Route VO through AudioDirector first so mixer ducking remains coherent.
         if hasattr(audio_dir, "play_voice_key"):

@@ -38,6 +38,86 @@
                 "loop": false
             },
             {
+                "key": "attack_light_right",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_light_left",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_light_both",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_light_dual",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_heavy_right",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_heavy_left",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_heavy_both",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_heavy_dual",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_thrust_right",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_thrust_left",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_thrust_both",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_thrust_dual",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_right",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_left",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_both",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
+                "key": "attack_dual",
+                "path": "assets/anims/attack_sword_slash.fbx",
+                "loop": false
+            },
+            {
                 "key": "dodging",
                 "path": "assets/anims/dodge_roll.fbx",
                 "loop": false
@@ -54,6 +134,46 @@
             },
             {
                 "key": "casting",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_right",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_left",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_both",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_dual",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_spell_right",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_spell_left",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_spell_both",
+                "path": "assets/anims/cast_spell.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_spell_dual",
                 "path": "assets/anims/cast_spell.fbx",
                 "loop": false
             },
@@ -128,6 +248,11 @@
                 "loop": true
             },
             {
+                "key": "mounted_ship_idle",
+                "path": "assets/anims/mounted_idle_boat.fbx",
+                "loop": true
+            },
+            {
                 "key": "mounted_move",
                 "path": "assets/models/xbot/walk.glb",
                 "loop": true
@@ -144,6 +269,11 @@
             },
             {
                 "key": "mounted_move_boat",
+                "path": "assets/anims/mounted_move_boat.fbx",
+                "loop": true
+            },
+            {
+                "key": "mounted_ship_move",
                 "path": "assets/anims/mounted_move_boat.fbx",
                 "loop": true
             },
@@ -173,7 +303,13 @@
         "idle": [
             "idle"
         ],
+        "crouch_idle": [
+            "idle"
+        ],
         "walking": [
+            "walk"
+        ],
+        "crouch_move": [
             "walk"
         ],
         "running": [
@@ -189,12 +325,22 @@
             "landing"
         ],
         "attacking": [
+            "attack_light_right",
+            "attack_light_left",
+            "attack_light_both",
+            "attack_light_dual",
+            "attack_heavy_both",
+            "attack_dual",
             "attacking"
         ],
         "blocking": [
             "blocking"
         ],
         "casting": [
+            "cast_right",
+            "cast_left",
+            "cast_both",
+            "cast_dual",
             "casting"
         ],
         "dodging": [
@@ -234,6 +380,16 @@
             "mounted_idle"
         ],
         "mounted_move": [
+            "mounted_move"
+        ],
+        "mounted_ship_idle": [
+            "mounted_ship_idle",
+            "mounted_idle_boat",
+            "mounted_idle"
+        ],
+        "mounted_ship_move": [
+            "mounted_ship_move",
+            "mounted_move_boat",
             "mounted_move"
         ],
         "dismounting": [

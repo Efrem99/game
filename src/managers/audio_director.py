@@ -347,6 +347,30 @@ class AudioDirector:
         self._voice_volume_jitter = max(0.0, min(0.20, float(voice_playback_cfg.get("volume_jitter", 0.025) or 0.025)))
         self._voice_playrate_min = max(0.5, min(1.75, float(voice_playback_cfg.get("playrate_min", 0.86) or 0.86)))
         self._voice_playrate_max = max(self._voice_playrate_min, min(1.75, float(voice_playback_cfg.get("playrate_max", 1.14) or 1.14)))
+        hybrid_cfg = cfg.get("voice_hybrid", {}) if isinstance(cfg.get("voice_hybrid"), dict) else {}
+        self._voice_shadow_enabled = bool(hybrid_cfg.get("shadow_enabled", True))
+        self._voice_shadow_volume = _clamp01(hybrid_cfg.get("shadow_volume", 0.52))
+        self._voice_shadow_rate = max(0.5, min(1.75, float(hybrid_cfg.get("shadow_rate", 0.90) or 0.90)))
+        self._voice_growl_volume = _clamp01(hybrid_cfg.get("growl_volume", 0.34))
+        self._voice_growl_rate = max(0.5, min(1.75, float(hybrid_cfg.get("growl_rate", 0.86) or 0.86)))
+        self._voice_growl_suffix = str(hybrid_cfg.get("growl_suffix", "_growl") or "_growl").strip()
+        self._voice_growl_spike_chance = max(0.0, min(1.0, float(hybrid_cfg.get("growl_spike_chance", 0.0) or 0.0)))
+        self._voice_resonance_volume = _clamp01(hybrid_cfg.get("resonance_volume", 0.0))
+        self._voice_resonance_rate = max(0.5, min(1.75, float(hybrid_cfg.get("resonance_rate", 0.72) or 0.72)))
+        self._voice_resonance_key = str(hybrid_cfg.get("resonance_key", "") or "").strip()
+        raw_voice_emotions = cfg.get("voice_emotions", {}) if isinstance(cfg.get("voice_emotions"), dict) else {}
+        self._voice_emotions = self._build_voice_emotion_profiles(raw_voice_emotions)
+        self._voice_emotion = "default"
+        self._voice_emotion_intensity = 1.0
+        corruption_cfg = cfg.get("world_corruption", {}) if isinstance(cfg.get("world_corruption"), dict) else {}
+        self._world_corruption_music_duck = _clamp01(corruption_cfg.get("music_duck", 0.0))
+        self._world_corruption_ambient_duck = _clamp01(corruption_cfg.get("ambient_duck", 0.0))
+        self._world_corruption_shadow_boost = max(0.0, float(corruption_cfg.get("voice_shadow_boost", 0.0) or 0.0))
+        self._world_corruption_growl_boost = max(0.0, float(corruption_cfg.get("voice_growl_boost", 0.0) or 0.0))
+        self._world_corruption_resonance_boost = max(0.0, float(corruption_cfg.get("voice_resonance_boost", 0.0) or 0.0))
+        self._world_corruption_lerp_speed = max(0.05, min(16.0, float(corruption_cfg.get("lerp_speed", 3.0) or 3.0)))
+        self._world_corruption = _clamp01(corruption_cfg.get("initial", 0.0))
+        self._world_corruption_target = float(self._world_corruption)
         raw_cooldowns = cfg.get("sfx_cooldowns", {})
         self._sfx_cooldowns = {}
         if isinstance(raw_cooldowns, dict):
@@ -397,6 +421,175 @@ class AudioDirector:
             rate += self._rng.uniform(-self._voice_rate_jitter, self._voice_rate_jitter)
         rate = max(self._voice_playrate_min, min(self._voice_playrate_max, rate))
         return volume, rate
+
+    def _float_or(self, value, default):
+        try:
+            return float(value)
+        except Exception:
+            return float(default)
+
+    def _build_voice_emotion_profiles(self, payload):
+        base = {
+            "main": 1.0,
+            "shadow": float(self._voice_shadow_volume),
+            "growl": float(self._voice_growl_volume),
+            "resonance": float(self._voice_resonance_volume),
+            "rate": 1.0,
+        }
+        out = {"default": dict(base)}
+        if not isinstance(payload, dict):
+            return out
+        for raw_key, raw_profile in payload.items():
+            token = _norm_key(raw_key)
+            if not token:
+                continue
+            row = dict(base)
+            if isinstance(raw_profile, dict):
+                row["main"] = self._float_or(raw_profile.get("main", row["main"]), row["main"])
+                row["shadow"] = self._float_or(raw_profile.get("shadow", row["shadow"]), row["shadow"])
+                row["growl"] = self._float_or(raw_profile.get("growl", row["growl"]), row["growl"])
+                row["resonance"] = self._float_or(raw_profile.get("resonance", row["resonance"]), row["resonance"])
+                row["rate"] = self._float_or(raw_profile.get("rate", row["rate"]), row["rate"])
+            out[token] = row
+        if "default" not in out:
+            out["default"] = dict(base)
+        return out
+
+    def set_voice_emotion(self, emotion, intensity=1.0):
+        token = _norm_key(emotion) or "default"
+        if token not in self._voice_emotions:
+            token = "default"
+        self._voice_emotion = token
+        self._voice_emotion_intensity = _clamp01(intensity)
+        return token
+
+    def get_voice_emotion(self):
+        return str(self._voice_emotion or "default"), float(self._voice_emotion_intensity)
+
+    def set_world_corruption(self, value, immediate=False):
+        self._world_corruption_target = _clamp01(value)
+        if immediate:
+            self._world_corruption = float(self._world_corruption_target)
+        return float(self._world_corruption_target)
+
+    def get_world_corruption(self):
+        return _clamp01(self._world_corruption)
+
+    def _update_world_corruption(self, dt):
+        dt = max(0.0, float(dt or 0.0))
+        if dt <= 0.0:
+            return
+        current = float(self._world_corruption)
+        target = float(self._world_corruption_target)
+        if abs(target - current) <= 1e-6:
+            self._world_corruption = target
+            return
+        alpha = min(1.0, dt * float(self._world_corruption_lerp_speed))
+        self._world_corruption = current + (target - current) * alpha
+
+    def _resolve_voice_profile(self, emotion=None, intensity=1.0, corruption=None):
+        base = dict(self._voice_emotions.get("default", {}))
+        token = _norm_key(emotion) if emotion else _norm_key(self._voice_emotion)
+        if not token:
+            token = "default"
+        profile = self._voice_emotions.get(token, self._voice_emotions.get("default", {}))
+        mix = _clamp01(intensity if emotion is not None else self._voice_emotion_intensity)
+        out = {}
+        for key in ("main", "shadow", "growl", "resonance", "rate"):
+            a = self._float_or(base.get(key, 1.0), 1.0)
+            b = self._float_or(profile.get(key, a), a)
+            out[key] = a + (b - a) * mix
+        cor = self.get_world_corruption() if corruption is None else _clamp01(corruption)
+        out["shadow"] *= 1.0 + cor * float(self._world_corruption_shadow_boost)
+        out["growl"] *= 1.0 + cor * float(self._world_corruption_growl_boost)
+        out["resonance"] *= 1.0 + cor * float(self._world_corruption_resonance_boost)
+        out["main"] = max(0.0, out["main"])
+        out["shadow"] = max(0.0, out["shadow"])
+        out["growl"] = max(0.0, out["growl"])
+        out["resonance"] = max(0.0, out["resonance"])
+        out["rate"] = max(0.5, min(1.75, out["rate"]))
+        return out
+
+    def _auto_growl_key(self, voice_key):
+        token = str(voice_key or "").strip().replace("\\", "/")
+        if not token or token.lower().endswith((".ogg", ".mp3", ".wav")):
+            return ""
+        suffix = str(self._voice_growl_suffix or "").strip()
+        if not suffix:
+            return ""
+        return f"{token}{suffix}"
+
+    def play_hybrid_voice_key(
+        self,
+        voice_key,
+        *,
+        growl_key=None,
+        volume=1.0,
+        rate=1.0,
+        emotion=None,
+        emotion_intensity=1.0,
+        corruption=None,
+        resonance_key=None,
+    ):
+        key = str(voice_key or "").strip()
+        if not key:
+            return False
+        profile = self._resolve_voice_profile(
+            emotion=emotion,
+            intensity=emotion_intensity,
+            corruption=corruption,
+        )
+        base_volume = max(0.0, float(volume or 0.0))
+        base_rate = max(0.5, min(1.75, float(rate or 1.0)))
+        played_any = False
+
+        main_rate = max(0.5, min(1.75, base_rate * float(profile["rate"])))
+        if self.play_voice_key(
+            key,
+            volume=base_volume * float(profile["main"]),
+            rate=main_rate,
+        ):
+            played_any = True
+
+        if self._voice_shadow_enabled and float(profile["shadow"]) > 0.0001:
+            if self.play_voice_key(
+                key,
+                volume=base_volume * float(profile["shadow"]),
+                rate=max(0.5, min(1.75, main_rate * float(self._voice_shadow_rate))),
+            ):
+                played_any = True
+
+        growl_token = str(growl_key or "").strip() or self._auto_growl_key(key)
+        if growl_token and float(profile["growl"]) > 0.0001:
+            growl_rate = max(0.5, min(1.75, main_rate * float(self._voice_growl_rate)))
+            growl_volume = base_volume * float(profile["growl"])
+            if self.play_voice_key(
+                growl_token,
+                volume=growl_volume,
+                rate=growl_rate,
+            ):
+                played_any = True
+                if self._voice_growl_spike_chance > 0.0 and self._rng.random() < self._voice_growl_spike_chance:
+                    self.play_voice_key(
+                        growl_token,
+                        volume=growl_volume * 0.68,
+                        rate=max(0.5, min(1.75, growl_rate * 0.97)),
+                    )
+
+        resonance_token = str(resonance_key or "").strip()
+        if not resonance_token:
+            resonance_token = str(self._voice_resonance_key or "").strip()
+        if not resonance_token:
+            resonance_token = growl_token
+        if resonance_token and float(profile["resonance"]) > 0.0001:
+            if self.play_voice_key(
+                resonance_token,
+                volume=base_volume * float(profile["resonance"]),
+                rate=max(0.5, min(1.75, main_rate * float(self._voice_resonance_rate))),
+            ):
+                played_any = True
+
+        return played_any
 
     def _int_priority(self, value, default):
         try:
@@ -470,6 +663,8 @@ class AudioDirector:
         try:
             bus.subscribe("audio.sfx.play", self._on_event_sfx, priority=70)
             bus.subscribe("audio.voice.play", self._on_event_voice, priority=72)
+            bus.subscribe("audio.voice.emotion", self._on_event_voice_emotion, priority=73)
+            bus.subscribe("audio.corruption.set", self._on_event_corruption_set, priority=73)
             bus.subscribe("audio.route.override", self._on_event_route_override, priority=76)
             bus.subscribe("audio.route.clear", self._on_event_route_clear, priority=76)
         except Exception as exc:
@@ -491,10 +686,45 @@ class AudioDirector:
             return
         key = str(payload.get("key", "") or "").strip()
         path = str(payload.get("path", "") or "").strip()
+        hybrid = bool(payload.get("hybrid", False))
+        growl_key = str(payload.get("growl_key", "") or "").strip()
+        emotion = str(payload.get("emotion", "") or "").strip()
+        resonance_key = str(payload.get("resonance_key", "") or "").strip()
+        corruption_value = payload.get("corruption", None)
+        if key and (hybrid or growl_key or emotion or resonance_key or (corruption_value is not None)):
+            self.play_hybrid_voice_key(
+                key,
+                growl_key=growl_key,
+                volume=payload.get("volume", 1.0),
+                rate=payload.get("rate", 1.0),
+                emotion=emotion or None,
+                emotion_intensity=payload.get("emotion_intensity", 1.0),
+                corruption=corruption_value,
+                resonance_key=resonance_key or None,
+            )
+            return
         if key:
             self.play_voice_key(key, volume=payload.get("volume", 1.0), rate=payload.get("rate", 1.0))
         elif path:
             self.play_voice_path(path, volume=payload.get("volume", 1.0), rate=payload.get("rate", 1.0))
+
+    def _on_event_voice_emotion(self, event_name, payload):
+        _ = event_name
+        if not isinstance(payload, dict):
+            return
+        self.set_voice_emotion(
+            payload.get("emotion", "default"),
+            intensity=payload.get("intensity", 1.0),
+        )
+
+    def _on_event_corruption_set(self, event_name, payload):
+        _ = event_name
+        if not isinstance(payload, dict):
+            return
+        self.set_world_corruption(
+            payload.get("value", 0.0),
+            immediate=bool(payload.get("immediate", False)),
+        )
 
     def _on_event_route_override(self, event_name, payload):
         _ = event_name
@@ -988,6 +1218,11 @@ class AudioDirector:
             music_gain *= self._mix_voice_music_duck
             ambient_gain *= self._mix_voice_ambient_duck
 
+        corruption = self.get_world_corruption()
+        if corruption > 0.0:
+            music_gain *= max(0.0, 1.0 - corruption * float(self._world_corruption_music_duck))
+            ambient_gain *= max(0.0, 1.0 - corruption * float(self._world_corruption_ambient_duck))
+
         return _clamp01(music_gain), _clamp01(ambient_gain)
 
     def play_voice_path(self, path, volume=1.0, rate=1.0):
@@ -1085,6 +1320,7 @@ class AudioDirector:
         return warmed
 
     def update(self, dt):
+        self._update_world_corruption(dt)
         self._music_channel.set_fade_time(self._crossfade_time)
         self._ambient_channel.set_fade_time(max(0.05, self._crossfade_time * 0.8))
         self._music_channel.set_allow_overlap(not self._music_no_overlap)

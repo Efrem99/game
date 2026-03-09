@@ -1,54 +1,48 @@
 {
     "music": {
         "menu": "data/audio/main_menu.mp3",
-        "overworld": "assets/audio/bgm.wav",
-        "village": "assets/audio/bgm.wav",
         "combat": "data/audio/battle_music.mp3",
         "boss": "data/audio/boss_fight_test.mp3"
     },
     "ambient": {
         "plains": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient.wav",
             "volume": 0.36
         },
         "town": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient_2.wav",
             "volume": 0.27
         },
         "docks": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient_3.wav",
             "volume": 0.4
         },
         "water": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient_3.wav",
             "volume": 0.45
         },
         "wind": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient_3.wav",
             "volume": 0.22
         },
         "forest": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient.wav",
             "volume": 0.33
         },
         "sea_breeze": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient_3.wav",
             "volume": 0.44
         },
         "castle_courtyard": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient_2.wav",
             "volume": 0.3
         },
         "training": {
-            "path": "data/audio/ambient.mp3",
+            "path": "data/audio/Kremor_ambient.wav",
             "volume": 0.26
         }
     },
-    "location_music": {
-        "sharuan_castle": "overworld",
-        "town_hall": "village",
-        "southern_docks": "overworld"
-    },
+    "location_music": {},
     "location_ambient": {
         "sharuan_castle": "town",
         "town_hall": "town",
@@ -60,18 +54,6 @@
         "sea": "water"
     },
     "context_music": {
-        "docks": "overworld",
-        "town": "village",
-        "coast": "overworld",
-        "forest": "overworld",
-        "castle": "village",
-        "tutorial": "overworld",
-        "parkour": "overworld",
-        "water": "overworld",
-        "flight": "overworld",
-        "mounted_horse": "overworld",
-        "mounted_carriage": "overworld",
-        "mounted_ship": "overworld",
         "panic": "combat",
         "injured": "combat"
     },
@@ -128,131 +110,131 @@
     },
     "sfx": {
         "footstep_grass": {
-            "path": "assets/audio/step.wav",
+            "path": "data/audio/sfx/step.wav",
             "volume": 0.75
         },
         "footstep_stone": {
-            "path": "assets/audio/step.wav",
+            "path": "data/audio/sfx/step.wav",
             "volume": 0.72
         },
         "footstep_wood": {
-            "path": "assets/audio/step.wav",
+            "path": "data/audio/sfx/step.wav",
             "volume": 0.74
         },
         "footstep_water": {
-            "path": "assets/audio/step.wav",
+            "path": "data/audio/sfx/step.wav",
             "volume": 0.78
         },
         "jump": {
-            "path": "assets/audio/step.wav",
+            "path": "data/audio/sfx/step.wav",
             "volume": 0.72
         },
         "land": {
-            "path": "assets/audio/hit.wav",
+            "path": "data/audio/sfx/hit.wav",
             "volume": 0.7
         },
         "weapon_unsheathe": [
             {
-                "path": "assets/audio/unsheathe.wav",
+                "path": "data/audio/sfx/unsheathe.wav",
                 "volume": 0.9
             },
             {
-                "path": "assets/audio/unsheathe2.wav",
+                "path": "data/audio/sfx/unsheathe2.wav",
                 "volume": 0.9
             }
         ],
         "sword_swing": [
             {
-                "path": "assets/audio/swing1.wav",
+                "path": "data/audio/sfx/swing1.wav",
                 "volume": 0.88
             },
             {
-                "path": "assets/audio/swing2.wav",
+                "path": "data/audio/sfx/swing2.wav",
                 "volume": 0.9
             },
             {
-                "path": "assets/audio/swing3.wav",
+                "path": "data/audio/sfx/swing3.wav",
                 "volume": 0.9
             }
         ],
         "sword_hit": {
-            "path": "assets/audio/hit.wav",
+            "path": "data/audio/sfx/hit.wav",
             "volume": 0.95
         },
         "sword_block": {
-            "path": "assets/audio/hit.wav",
+            "path": "data/audio/sfx/hit.wav",
             "volume": 0.8
         },
         "enemy_hit": {
-            "path": "assets/audio/hit.wav",
+            "path": "data/audio/sfx/hit.wav",
             "volume": 0.9
         },
         "enemy_death": {
-            "path": "assets/audio/hit.wav",
+            "path": "data/audio/sfx/hit.wav",
             "volume": 1.0
         },
         "spell_cast": {
-            "path": "assets/audio/cast.wav",
+            "path": "data/audio/sfx/cast.wav",
             "volume": 0.95
         },
         "spell_fire": {
-            "path": "assets/audio/cast.wav",
+            "path": "data/audio/sfx/dragon_fire.wav",
             "volume": 0.95
         },
         "dragon_fire": {
-            "path": "assets/audio/cast.wav",
+            "path": "data/audio/sfx/dragon_fire.wav",
             "volume": 1.0
         },
         "spell_ice": {
-            "path": "assets/audio/cast.wav",
+            "path": "data/audio/sfx/cast.wav",
             "volume": 0.95
         },
         "spell_lightning": {
-            "path": "assets/audio/cast.wav",
+            "path": "data/audio/sfx/cast.wav",
             "volume": 0.95
         },
         "spell_arcane": {
-            "path": "assets/audio/cast.wav",
+            "path": "data/audio/sfx/cast.wav",
             "volume": 0.95
         },
         "spell_holy": {
-            "path": "assets/audio/cast.wav",
+            "path": "data/audio/sfx/cast.wav",
             "volume": 0.95
         },
         "ui_click": {
-            "path": "assets/audio/pickup.wav",
+            "path": "data/audio/sfx/pickup.wav",
             "volume": 0.7
         },
         "ui_hover": {
-            "path": "assets/audio/pickup.wav",
+            "path": "data/audio/sfx/pickup.wav",
             "volume": 0.35
         },
         "item_pickup": {
-            "path": "assets/audio/pickup.wav",
+            "path": "data/audio/sfx/pickup.wav",
             "volume": 0.8
         },
         "npc_work_hammer": {
-            "path": "assets/audio/npc/work_hammer.wav",
+            "path": "data/audio/sfx/npc/work_hammer.wav",
             "volume": 0.48
         },
         "npc_repair_tool": {
-            "path": "assets/audio/npc/repair_tool.wav",
+            "path": "data/audio/sfx/npc/repair_tool.wav",
             "volume": 0.42
         },
         "npc_talk_murmur": {
-            "path": "assets/audio/npc/talk_murmur.wav",
+            "path": "data/audio/sfx/npc/talk_murmur.wav",
             "volume": 0.26
         },
         "npc_patrol_step": {
-            "path": "assets/audio/npc/patrol_step.wav",
+            "path": "data/audio/sfx/npc/patrol_step.wav",
             "volume": 0.62
         },
         "npc_alarm": {
-            "path": "assets/audio/npc/alarm.wav",
+            "path": "data/audio/sfx/npc/alarm.wav",
             "volume": 0.58
         },
         "npc_crate_move": {
-            "path": "assets/audio/npc/crate_move.wav",
+            "path": "data/audio/sfx/npc/crate_move.wav",
             "volume": 0.54
         }
     },
@@ -271,6 +253,57 @@
         "volume_jitter": 0.025,
         "playrate_min": 0.86,
         "playrate_max": 1.14
+    },
+    "voice_hybrid": {
+        "shadow_enabled": true,
+        "shadow_volume": 0.52,
+        "shadow_rate": 0.9,
+        "growl_volume": 0.36,
+        "growl_rate": 0.86,
+        "growl_suffix": "_growl",
+        "growl_spike_chance": 0.18,
+        "resonance_volume": 0.08,
+        "resonance_rate": 0.7,
+        "resonance_key": ""
+    },
+    "voice_emotions": {
+        "default": {
+            "main": 1.0,
+            "shadow": 0.42,
+            "growl": 0.24,
+            "resonance": 0.06,
+            "rate": 1.0
+        },
+        "calm": {
+            "main": 1.0,
+            "shadow": 0.32,
+            "growl": 0.12,
+            "resonance": 0.04,
+            "rate": 0.98
+        },
+        "threat": {
+            "main": 1.0,
+            "shadow": 0.58,
+            "growl": 0.38,
+            "resonance": 0.12,
+            "rate": 0.97
+        },
+        "rage": {
+            "main": 0.94,
+            "shadow": 0.74,
+            "growl": 0.58,
+            "resonance": 0.2,
+            "rate": 0.93
+        }
+    },
+    "world_corruption": {
+        "initial": 0.0,
+        "lerp_speed": 3.0,
+        "music_duck": 0.14,
+        "ambient_duck": 0.1,
+        "voice_shadow_boost": 0.3,
+        "voice_growl_boost": 0.45,
+        "voice_resonance_boost": 0.6
     },
     "npc_activity": {
         "max_distance": 36.0,
@@ -389,12 +422,12 @@
         }
     },
     "mixer": {
-        "dialog_music_duck": 0.30,
+        "dialog_music_duck": 0.3,
         "dialog_ambient_duck": 0.28,
         "boss_ambient_duck": 0.62,
         "combat_ambient_duck": 0.8,
         "ui_music_duck": 0.72,
-        "voice_music_duck": 0.20,
+        "voice_music_duck": 0.2,
         "voice_ambient_duck": 0.18
     },
     "sfx_cooldowns": {
