@@ -9,6 +9,7 @@ from panda3d.core import Vec3
 
 from entities.mannequin import create_procedural_actor
 from render.model_visuals import ensure_model_visual_defaults
+from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
 
 
@@ -162,7 +163,7 @@ class NPCManager:
             (payload or {}).get("model"),
             self._default_model,
         ):
-            path = str(raw or "").strip().replace("\\", "/")
+            path = prefer_bam_path(str(raw or "").strip().replace("\\", "/"))
             if not path:
                 continue
             if path not in candidates:
@@ -173,7 +174,11 @@ class NPCManager:
         if not isinstance(raw_anims, dict):
             raw_anims = (payload or {}).get("animations")
         if isinstance(raw_anims, dict) and raw_anims:
-            anim_map = {str(k): str(v) for k, v in raw_anims.items() if str(k).strip() and str(v).strip()}
+            anim_map = {
+                str(k): prefer_bam_path(str(v))
+                for k, v in raw_anims.items()
+                if str(k).strip() and str(v).strip()
+            }
             if not anim_map:
                 anim_map = self._base_anims
 

@@ -12,6 +12,7 @@ from panda3d.core import CardMaker, LColor, TransparencyAttrib, Vec3
 
 from render.fx_policy import FIRE_SPRITE_TEXTURE_CANDIDATES, load_optional_texture
 from render.model_visuals import ensure_model_visual_defaults
+from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
 
 try:
@@ -162,7 +163,7 @@ class EnemyUnit:
             pass
 
     def _piece(self, name, parent, model, scale, pos, color):
-        np = self.loader.loadModel(model)
+        np = self.loader.loadModel(prefer_bam_path(model))
         np.reparentTo(parent)
         np.setName(name)
         np.setScale(*scale)
@@ -191,11 +192,12 @@ class EnemyUnit:
         prefer_actor = bool(self.cfg.get("use_actor", True))
 
         for path in candidate_paths:
-            if not Path(path).exists():
+            resolved = prefer_bam_path(path)
+            if not Path(resolved).exists():
                 continue
-            if self._try_load_external_model(path, sc, prefer_actor):
+            if self._try_load_external_model(resolved, sc, prefer_actor):
                 if path != primary_path:
-                    logger.warning(f"[Enemy] Using fallback model for '{self.id}': {path}")
+                    logger.warning(f"[Enemy] Using fallback model for '{self.id}': {resolved}")
                 return True
         return False
 

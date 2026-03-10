@@ -11,6 +11,7 @@ from panda3d.core import CardMaker, LColor, NodePath, TransparencyAttrib, Vec3
 
 from render.fx_policy import FIRE_SPRITE_TEXTURE_CANDIDATES, load_optional_texture
 from render.model_visuals import ensure_model_visual_defaults
+from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
 
 
@@ -140,7 +141,7 @@ class DragonBoss:
 
     def _build_actor_dragon(self):
         anim_cfg = self.cfg["anim"]
-        model_path = str(anim_cfg.get("model", "")).strip().replace("\\", "/")
+        model_path = prefer_bam_path(str(anim_cfg.get("model", "")).strip().replace("\\", "/"))
         if not model_path or not Path(model_path).exists():
             if model_path:
                 logger.info(f"[Dragon] External dragon model not found: {model_path}. Using procedural fallback.")
@@ -150,7 +151,7 @@ class DragonBoss:
         clip_map = {}
         if isinstance(clip_entries, dict):
             for key, value in clip_entries.items():
-                clip = str(value or "").strip().replace("\\", "/")
+                clip = prefer_bam_path(str(value or "").strip().replace("\\", "/"))
                 if clip and Path(clip).exists():
                     clip_map[str(key)] = clip
 
@@ -242,7 +243,7 @@ class DragonBoss:
         hpr=(0.0, 0.0, 0.0),
         color=(1.0, 1.0, 1.0, 1.0),
     ):
-        np = self.loader.loadModel(model)
+        np = self.loader.loadModel(prefer_bam_path(model))
         np.reparentTo(parent)
         np.setName(name)
         np.setScale(*scale)

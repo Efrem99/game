@@ -43,6 +43,7 @@ from entities.player_state_machine_mixin import PlayerStateMachineMixin
 from entities.character_brain import CharacterBrain
 from render.fx_policy import is_melee_wheel_token, should_cast_selected_spell
 from render.model_visuals import ensure_model_visual_defaults
+from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
 from utils.runtime_paths import is_user_data_mode, runtime_file
 
@@ -198,6 +199,11 @@ class Player(
 
     def _collect_optional_animation_sources(self):
         manifest_sources, strict_manifest = self._load_manifest_animation_sources()
+        manifest_sources = {
+            str(key): prefer_bam_path(path)
+            for key, path in manifest_sources.items()
+            if str(key).strip() and str(path).strip()
+        }
         if strict_manifest:
             if not manifest_sources:
                 logger.warning("[Anim] Strict manifest mode is enabled but no valid sources were found.")
@@ -222,7 +228,7 @@ class Player(
                     key = self._alias_animation_key(path.stem)
                     if not key or key in {"idle", "walk", "run"}:
                         continue
-                    candidates.setdefault(key, path.as_posix())
+                    candidates.setdefault(key, prefer_bam_path(path.as_posix()))
         return candidates
 
     def _load_manifest_animation_sources(self):
@@ -322,10 +328,20 @@ class Player(
                 if xbot:
                     candidates = xbot + non_xbot
 
-        existing = [path for path in candidates if Path(path).exists()]
+        normalized = []
+        seen = set()
+        for token in candidates:
+            resolved = prefer_bam_path(token)
+            marker = str(resolved or "").strip().lower()
+            if not marker or marker in seen:
+                continue
+            seen.add(marker)
+            normalized.append(resolved)
+
+        existing = [path for path in normalized if Path(path).exists()]
         if existing:
             return existing
-        return candidates
+        return normalized
 
     def _resolve_player_scale(self):
         cfg = self._player_model_config()
@@ -340,6 +356,7 @@ class Player(
             "walk": "assets/models/xbot/walk.glb",
             "run": "assets/models/xbot/run.glb",
         }
+        defaults = {key: prefer_bam_path(value) for key, value in defaults.items()}
         cfg = self._player_model_config()
         raw = cfg.get("base_anims")
         if not isinstance(raw, dict):
@@ -351,7 +368,7 @@ class Player(
             clip_path = str(value or "").strip().replace("\\", "/")
             if not clip_key or not clip_path:
                 continue
-            resolved[clip_key] = clip_path
+            resolved[clip_key] = prefer_bam_path(clip_path)
         if not resolved:
             return defaults
         return resolved

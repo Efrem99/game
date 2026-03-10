@@ -24,6 +24,7 @@ except ImportError:
     HAS_CORE = False
 
 from utils.assets_util import _fbm, make_pbr_tex_set
+from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
 from world.location_meshes import normalize_location_mesh_entries
 
@@ -839,7 +840,7 @@ class SharuanWorld:
         for row in rows:
             if not isinstance(row, dict):
                 continue
-            model_path = str(row.get("model", "") or "").strip().replace("\\", "/")
+            model_path = prefer_bam_path(str(row.get("model", "") or "").strip().replace("\\", "/"))
             if not model_path:
                 continue
             if not Path(model_path).exists():

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from panda3d.core import Filename, VirtualFileSystem
 
+from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
 from utils.runtime_paths import runtime_file
 
@@ -106,7 +107,7 @@ class PreloadManager:
         requested = []
         seen = set()
         for raw in list(model_paths or []):
-            token = self._norm(raw)
+            token = self._norm(prefer_bam_path(raw))
             if not token or token in seen:
                 continue
             seen.add(token)
@@ -137,7 +138,7 @@ class PreloadManager:
         requested = []
         seen = set()
         for raw in list(model_paths or []):
-            path = self._norm(raw)
+            path = self._norm(prefer_bam_path(raw))
             if not path or path in seen:
                 continue
             seen.add(path)
