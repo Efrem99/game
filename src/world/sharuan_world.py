@@ -6,6 +6,8 @@ Wires generated geometry into C++ physics.
 import math
 import os
 import random
+import json
+from pathlib import Path
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import (
     Vec3, LColor,
@@ -23,6 +25,7 @@ except ImportError:
 
 from utils.assets_util import _fbm, make_pbr_tex_set
 from utils.logger import logger
+from world.location_meshes import normalize_location_mesh_entries
 
 
 def should_enable_world_shader(has_core, env=None):
@@ -316,8 +319,10 @@ class SharuanWorld:
         self._water_surfaces = []
         self._castle_lights = []
         self._chest_nodes = []
+        self._location_mesh_nodes = []
         # Stable RNG for procedural decoration jitter (grass, decals, micro-variation).
         self._rng = random.Random(20260308)
+        self._location_meshes_cfg = self._load_location_meshes_cfg()
 
         self.terrain_shader = None
         if should_enable_world_shader(HAS_CORE):
@@ -343,6 +348,7 @@ class SharuanWorld:
             (0.34, self._build_sea, "Simulating sea and water bodies..."),
             (0.42, self._build_river, "Mapping river paths..."),
             (0.54, self._build_castle, "Constructing Castle Sharuan..."),
+            (0.59, self._build_location_meshes, "Streaming handcrafted location meshes..."),
             (0.63, self._build_city_wall, "Erecting city fortifications..."),
             (0.72, self._build_districts, "Laying out city districts..."),
             (0.80, self._build_port_town, "Building port and market district..."),
@@ -372,6 +378,51 @@ class SharuanWorld:
             self.is_built = True
 
         return progress, status
+
+    def _load_location_meshes_cfg(self):
+        merged = []
+        merged.extend(normalize_location_mesh_entries(self.layout))
+
+        path = Path("data/world/location_meshes.json")
+        if not path.exists():
+            return merged
+
+        payload = {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        except Exception as exc:
+            logger.warning(f"[World] Failed to parse {path.as_posix()}: {exc}")
+            return merged
+
+        file_rows = normalize_location_mesh_entries(payload)
+        if file_rows:
+            merged.extend(file_rows)
+        return merged
+
+    def _add_platform_from_bounds(self, bounds, *, is_wallrun=False):
+        if not bounds or len(bounds) < 2:
+            return
+        mins, maxs = bounds[0], bounds[1]
+        if mins is None or maxs is None:
+            return
+        if self.phys:
+            p = gc.Platform()
+            p.aabb.min = gc.Vec3(mins.x, mins.y, mins.z)
+            p.aabb.max = gc.Vec3(maxs.x, maxs.y, maxs.z)
+            p.normal = gc.Vec3(0, 0, 1)
+            p.isWallRun = bool(is_wallrun)
+            self.phys.addPlatform(p)
+            return
+        self.colliders.append(
+            {
+                "min_x": mins.x,
+                "min_y": mins.y,
+                "min_z": mins.z,
+                "max_x": maxs.x,
+                "max_y": maxs.y,
+                "max_z": maxs.z,
+            }
+        )
 
     def update(self, player_pos):
         self._animate_water(globalClock.getFrameTime())
@@ -778,6 +829,62 @@ class SharuanWorld:
                         'max_x': bounds[1].x, 'max_y': bounds[1].y, 'max_z': bounds[1].z
                     })
         return np
+
+    def _build_location_meshes(self):
+        self._location_mesh_nodes = []
+        rows = self._location_meshes_cfg if isinstance(self._location_meshes_cfg, list) else []
+        if not rows:
+            return
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            model_path = str(row.get("model", "") or "").strip().replace("\\", "/")
+            if not model_path:
+                continue
+            if not Path(model_path).exists():
+                logger.warning(f"[World] Location mesh not found: {model_path}")
+                continue
+            try:
+                node = self.loader.loadModel(model_path)
+            except Exception as exc:
+                logger.warning(f"[World] Failed to load location mesh '{model_path}': {exc}")
+                continue
+            if not node or node.isEmpty():
+                logger.warning(f"[World] Empty location mesh skipped: {model_path}")
+                continue
+
+            pos = row.get("pos", (0.0, 0.0, 0.0))
+            hpr = row.get("hpr", (0.0, 0.0, 0.0))
+            scale = row.get("scale", (1.0, 1.0, 1.0))
+            label = str(row.get("label", row.get("id", "Location Mesh")) or "Location Mesh")
+            mesh_id = str(row.get("id", "location_mesh") or "location_mesh")
+            is_platform = bool(row.get("is_platform", True))
+
+            node.reparentTo(self.render)
+            try:
+                node.setPos(float(pos[0]), float(pos[1]), float(pos[2]))
+            except Exception:
+                node.setPos(0.0, 0.0, 0.0)
+            try:
+                node.setHpr(float(hpr[0]), float(hpr[1]), float(hpr[2]))
+            except Exception:
+                node.setHpr(0.0, 0.0, 0.0)
+            try:
+                node.setScale(float(scale[0]), float(scale[1]), float(scale[2]))
+            except Exception:
+                node.setScale(1.0)
+            node.setTag("info", label)
+            node.setTag("mesh_id", mesh_id)
+
+            if is_platform:
+                try:
+                    bounds = node.getTightBounds()
+                except Exception:
+                    bounds = None
+                self._add_platform_from_bounds(bounds, is_wallrun=False)
+
+            self._location_mesh_nodes.append(node)
 
     def _flat_normal_tex(self):
         if not hasattr(self, '_cached_flat_normal'):
