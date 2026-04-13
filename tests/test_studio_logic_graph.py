@@ -5,6 +5,7 @@ from launchers.studio_logic_graph import (
     build_logic_focus_from_preview,
     build_logic_graph_from_preview,
     create_logic_node_from_preview,
+    create_script_node_from_preview,
     delete_logic_node_from_preview,
 )
 
@@ -195,3 +196,42 @@ def test_delete_logic_node_from_preview_removes_inbound_links():
     payload = json.loads(updated)
     assert "details" not in payload["dialogue_tree"]
     assert payload["dialogue_tree"]["start"]["choices"] == []
+
+
+def test_create_script_node_from_preview_adds_script_backed_node_and_link():
+    preview = {
+        "kind": "json",
+        "relative_path": "data/dialogues/quest_giver_dialogue.json",
+        "raw_text": json.dumps(
+            {
+                "npc_name": "Elder Sophia",
+                "dialogue_tree": {
+                    "start": {
+                        "speaker": "Elder Sophia",
+                        "text": "Welcome.",
+                        "choices": [],
+                    }
+                }
+            },
+            indent=2,
+        ),
+    }
+    descriptor = {
+        "title": "Quest Manager",
+        "script_ref": "src/managers/quest_manager.py",
+        "default_node_id": "quest_manager_node",
+        "default_link_text": "Run Quest Manager",
+        "default_text": "Script Call: Quest Manager",
+    }
+
+    updated = create_script_node_from_preview(preview, "start", descriptor)
+
+    payload = json.loads(updated)
+    created = payload["dialogue_tree"]["quest_manager_node"]
+    assert created["node_kind"] == "script_call"
+    assert created["script_ref"] == "src/managers/quest_manager.py"
+    assert created["text"] == "Script Call: Quest Manager"
+    assert payload["dialogue_tree"]["start"]["choices"][-1] == {
+        "text": "Run Quest Manager",
+        "next_node": "quest_manager_node",
+    }

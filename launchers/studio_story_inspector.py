@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import PurePosixPath
 
 
 def _parse_preview_payload(preview):
@@ -56,6 +57,13 @@ def _parse_float(value, *, default: float = 0.0) -> float:
 
 def _split_lines(value) -> list[str]:
     return [line.strip() for line in str(value or "").splitlines() if line.strip()]
+
+
+def _scene_asset_type(entry: dict) -> str:
+    relative_path = str((entry or {}).get("relative_path") or "").strip()
+    stem = PurePosixPath(relative_path).stem if relative_path else str((entry or {}).get("label") or "asset")
+    text = str(stem or "asset").strip().replace(" ", "_").replace("-", "_")
+    return text or "asset"
 
 
 def _quest_type(payload: dict, *, relative_path: str = ""):
@@ -497,3 +505,29 @@ def apply_story_focus_patch(preview, patch: dict, node_id: str | None = None):
             return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
         return None
     return None
+
+
+def insert_scene_asset_from_preview(preview, asset_entry: dict, *, node_id: str | None = None):
+    payload = _parse_preview_payload(preview)
+    if not isinstance(payload, dict):
+        return None
+    rel_path = str(preview.get("relative_path") or "")
+    if not rel_path.startswith("data/scenes/"):
+        return None
+    entry = dict(asset_entry or {})
+    asset_path = str(entry.get("relative_path") or "").strip()
+    if not asset_path:
+        return None
+    props = list(payload.get("props", []) or [])
+    props.append(
+        {
+            "type": _scene_asset_type(entry),
+            "asset": asset_path,
+            "asset_kind": str(entry.get("kind") or "asset"),
+            "position": [0.0, 0.0, 0.0],
+            "rotation": [0.0, 0.0, 0.0],
+            "scale": [1.0, 1.0, 1.0],
+        }
+    )
+    payload["props"] = props
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"

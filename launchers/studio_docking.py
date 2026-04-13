@@ -4,11 +4,11 @@ from __future__ import annotations
 
 
 ZONE_KEYS = ("left", "top", "bottom")
-PANEL_KEYS = ("navigator", "graph", "overview", "source")
+PANEL_KEYS = ("navigator", "catalog", "graph", "overview", "properties", "source")
 DEFAULT_LAYOUT = {
     "left": ["navigator"],
-    "top": ["graph", "overview"],
-    "bottom": ["source"],
+    "top": ["catalog", "graph", "overview"],
+    "bottom": ["properties", "source"],
 }
 
 
@@ -22,7 +22,7 @@ def normalize_studio_dock_layout(payload):
             if key in PANEL_KEYS and key not in seen:
                 ordered[zone].append(key)
                 seen.add(key)
-    for panel_key, default_zone in (("navigator", "left"), ("graph", "top"), ("overview", "top"), ("source", "bottom")):
+    for panel_key, default_zone in (("navigator", "left"), ("catalog", "top"), ("graph", "top"), ("overview", "top"), ("properties", "bottom"), ("source", "bottom")):
         if panel_key not in seen:
             ordered[default_zone].append(panel_key)
             seen.add(panel_key)

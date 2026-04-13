@@ -104,6 +104,10 @@ def _parse_preview_payload(preview):
         return None
 
 
+def _script_node_descriptor_value(descriptor: dict, key: str, fallback: str = "") -> str:
+    return str((descriptor or {}).get(key) or fallback).strip()
+
+
 def build_dialogue_graph(payload: dict, *, relative_path: str = ""):
     dialogue_tree = payload.get("dialogue_tree")
     if not isinstance(dialogue_tree, dict) or not dialogue_tree:
@@ -123,6 +127,8 @@ def build_dialogue_graph(payload: dict, *, relative_path: str = ""):
         lane_by_depth[depth] = lane + 1
         if not outgoing:
             terminal_count += 1
+        is_script_call = str(node_payload.get("node_kind") or "").strip() == "script_call"
+        script_label = str(node_payload.get("script_label") or node_payload.get("script_ref") or "").strip()
         for edge in outgoing:
             edges.append(
                 {
@@ -137,15 +143,17 @@ def build_dialogue_graph(payload: dict, *, relative_path: str = ""):
         nodes.append(
             {
                 "id": node_id,
-                "title": node_id.replace("_", " ").title(),
-                "speaker": str(node_payload.get("speaker") or payload.get("npc_name") or "Unknown"),
-                "text": _short_text(node_payload.get("text") or ""),
+                "title": script_label or node_id.replace("_", " ").title(),
+                "speaker": "Script Node" if is_script_call else str(node_payload.get("speaker") or payload.get("npc_name") or "Unknown"),
+                "text": _short_text(node_payload.get("text") or (f"Call {script_label}" if script_label else "")),
                 "depth": depth,
                 "lane": lane,
                 "order": order,
                 "is_root": node_id == root_id,
                 "is_terminal": not outgoing,
                 "choice_count": len(list(node_payload.get("choices", []) or [])),
+                "header": f"Script | {script_label}" if is_script_call and script_label else None,
+                "footer": node_payload.get("script_ref") if is_script_call else None,
             }
         )
     return {
@@ -191,6 +199,8 @@ def build_dialogue_focus(payload: dict, node_id: str):
         cards.append({"title": "Transitions", "body": "\n".join(transitions)})
     if conditions_actions:
         cards.append({"title": "Conditions / Actions", "body": "\n".join(conditions_actions)})
+    if str(node_payload.get("script_ref") or "").strip():
+        cards.append({"title": "Script Ref", "body": str(node_payload.get("script_ref") or "")})
     return {
         "kind": "dialogue_node",
         "node_id": key,
@@ -243,6 +253,40 @@ def create_dialogue_node(payload: dict, source_node_id: str, new_node_id: str, *
     }
     choices = list(source_node.get("choices", []) or [])
     choices.append({"text": str(link_text or "Continue"), "next_node": new_key})
+    source_node["choices"] = choices
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def create_script_node(payload: dict, source_node_id: str, descriptor: dict, *, new_node_id: str | None = None, link_text: str | None = None):
+    dialogue_tree = payload.get("dialogue_tree")
+    if not isinstance(dialogue_tree, dict):
+        return None
+    source_key = str(source_node_id or "").strip()
+    source_node = dialogue_tree.get(source_key)
+    if not isinstance(source_node, dict):
+        return None
+    script_ref = _script_node_descriptor_value(descriptor, "script_ref")
+    if not script_ref:
+        return None
+    node_key = str(new_node_id or _script_node_descriptor_value(descriptor, "default_node_id") or "").strip()
+    if not node_key or node_key in dialogue_tree:
+        return None
+    title = _script_node_descriptor_value(descriptor, "title", "Script")
+    dialogue_tree[node_key] = {
+        "speaker": "System",
+        "text": _script_node_descriptor_value(descriptor, "default_text", f"Script Call: {title}") or f"Script Call: {title}",
+        "choices": [],
+        "node_kind": "script_call",
+        "script_ref": script_ref,
+        "script_label": title,
+    }
+    choices = list(source_node.get("choices", []) or [])
+    choices.append(
+        {
+            "text": str(link_text or _script_node_descriptor_value(descriptor, "default_link_text", f"Run {title}") or f"Run {title}"),
+            "next_node": node_key,
+        }
+    )
     source_node["choices"] = choices
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
@@ -301,3 +345,10 @@ def delete_logic_node_from_preview(preview, node_id: str):
     if payload is None:
         return None
     return delete_dialogue_node(payload, node_id)
+
+
+def create_script_node_from_preview(preview, source_node_id: str, descriptor: dict, *, new_node_id: str | None = None, link_text: str | None = None):
+    payload = _parse_preview_payload(preview)
+    if payload is None:
+        return None
+    return create_script_node(payload, source_node_id, descriptor, new_node_id=new_node_id, link_text=link_text)

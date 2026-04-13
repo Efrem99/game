@@ -19,6 +19,12 @@ def test_studio_shell_mentions_graph_and_story_inspectors():
     source = STUDIO_WINDOW_PATH.read_text(encoding="utf-8")
 
     assert "Flow Graph" in source
+    assert "Authoring Tree" in source
+    assert "Asset Catalog" in source
+    assert "Properties" in source
+    assert "create_script_node_from_preview" in source
+    assert "insert_scene_asset_from_preview" in source
+    assert "Drop onto the Flow Graph" in source
     assert "Choice Links" in source
     assert "Apply Node Changes" in source
     assert "Quest Inspector" in source

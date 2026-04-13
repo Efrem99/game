@@ -35,3 +35,16 @@ def test_get_studio_definition_returns_default_shape():
 
     assert studio["title"] == "Logic Studio"
     assert isinstance(studio["workspaces"], list)
+
+
+def test_default_manifest_exposes_asset_roots_for_both_studios():
+    manifest = normalize_studio_manifest({})
+
+    visual = get_studio_definition(manifest, "visual_studio")
+    logic = get_studio_definition(manifest, "logic_studio")
+
+    assert "asset_roots" in visual
+    assert "assets/models" in visual["asset_roots"]
+    assert "assets/textures" in visual["asset_roots"]
+    assert "asset_roots" in logic
+    assert "src" in logic["asset_roots"]

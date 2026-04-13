@@ -13,6 +13,7 @@ DEFAULT_MANIFEST = {
             "summary": "Standalone data and behavior authoring surface for quests, dialogues, states, and progression.",
             "status": "Draft-first; edits apply to canonical content files.",
             "domains": ["quests", "dialogues", "scenes", "state-data"],
+            "asset_roots": ["src", "data/dialogues", "data/quests", "data/scenes"],
             "workspaces": [
                 {"title": "Dialogues", "paths": ["data/dialogues"]},
                 {"title": "Quests", "paths": ["data/quests"]},
@@ -24,6 +25,7 @@ DEFAULT_MANIFEST = {
             "summary": "Visual authoring surface for layouts, presentation, scenes, and UI-facing content.",
             "status": "Panels stay inside Dev Hub; source stays canonical.",
             "domains": ["ui", "presentation", "scenes", "world-layout"],
+            "asset_roots": ["assets/models", "assets/textures", "src/ui"],
             "workspaces": [
                 {"title": "UI Scripts", "paths": ["src/ui"]},
                 {"title": "Scene Data", "paths": ["data/scenes"]},
@@ -53,6 +55,7 @@ def normalize_studio_manifest(payload):
         normalized[key] = _deep_merge(DEFAULT_MANIFEST["studios"][key], studios.get(key, {}))
         normalized[key]["workspaces"] = list(normalized[key].get("workspaces") or [])
         normalized[key]["domains"] = list(normalized[key].get("domains") or [])
+        normalized[key]["asset_roots"] = list(normalized[key].get("asset_roots") or [])
     manifest["studios"] = normalized
     return manifest
 

@@ -10,6 +10,12 @@
         "scenes",
         "state-data"
       ],
+      "asset_roots": [
+        "src",
+        "data/dialogues",
+        "data/quests",
+        "data/scenes"
+      ],
       "workspaces": [
         {
           "title": "Dialogues",
@@ -40,6 +46,11 @@
         "presentation",
         "scenes",
         "world-layout"
+      ],
+      "asset_roots": [
+        "assets/models",
+        "assets/textures",
+        "src/ui"
       ],
       "workspaces": [
         {

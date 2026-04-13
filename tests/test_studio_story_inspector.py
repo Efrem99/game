@@ -4,6 +4,7 @@ from launchers.studio_story_inspector import (
     apply_story_focus_patch,
     build_story_graph_from_preview,
     build_story_focus_from_preview,
+    insert_scene_asset_from_preview,
 )
 
 
@@ -182,3 +183,37 @@ def test_apply_story_focus_patch_updates_scene_environment_and_spawn_nodes():
     assert payload["environment"]["time_of_day"] == "night"
     assert payload["environment"]["weather"] == "storm"
     assert payload["spawn_point"] == [12.0, -5.0, 3.0]
+
+
+def test_insert_scene_asset_from_preview_appends_canonical_prop_entry():
+    preview = {
+        "kind": "json",
+        "relative_path": "data/scenes/forest.json",
+        "raw_text": json.dumps(
+            {
+                "id": "forest",
+                "name": "Dark Forest",
+                "props": [{"type": "chest", "position": [12, 8, 0]}],
+                "environment": {"time_of_day": "dusk", "weather": "cloudy"},
+            },
+            indent=2,
+        ),
+    }
+    asset_entry = {
+        "label": "oak_tree.glb",
+        "relative_path": "assets/models/forest/oak_tree.glb",
+        "kind": "model",
+        "source_root": "assets/models",
+        "extension": ".glb",
+    }
+
+    updated = insert_scene_asset_from_preview(preview, asset_entry)
+
+    payload = json.loads(updated)
+    inserted = payload["props"][-1]
+    assert inserted["type"] == "oak_tree"
+    assert inserted["asset"] == "assets/models/forest/oak_tree.glb"
+    assert inserted["asset_kind"] == "model"
+    assert inserted["position"] == [0.0, 0.0, 0.0]
+    assert inserted["rotation"] == [0.0, 0.0, 0.0]
+    assert inserted["scale"] == [1.0, 1.0, 1.0]

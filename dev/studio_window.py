@@ -7,24 +7,44 @@ import tkinter as tk
 from typing import Callable, Optional
 
 import customtkinter as ctk
+from PIL import Image
 
+from launchers.studio_asset_catalog import build_asset_catalog, build_asset_properties
 from launchers.studio_docking import move_panel, normalize_studio_dock_layout
 from launchers.studio_logic_graph import (
     apply_logic_focus_patch,
     build_logic_focus_from_preview,
     build_logic_graph_from_preview,
     create_logic_node_from_preview,
+    create_script_node_from_preview,
     delete_logic_node_from_preview,
 )
 from launchers.studio_manifest import get_studio_definition, list_studio_keys, resolve_studio_key
+from launchers.studio_node_catalog import build_logic_node_catalog, build_script_node_descriptor
+from launchers.studio_properties import build_properties_payload
 from launchers.studio_preview import load_preview, save_preview_text
-from launchers.studio_story_inspector import apply_story_focus_patch, build_story_focus_from_preview, build_story_graph_from_preview
+from launchers.studio_workspace_tree import build_workspace_tree
+from launchers.studio_story_inspector import (
+    apply_story_focus_patch,
+    build_story_focus_from_preview,
+    build_story_graph_from_preview,
+    insert_scene_asset_from_preview,
+)
 
-PANEL_TITLES = {"navigator": "Workspace Browser", "graph": "Flow Graph", "overview": "Overview", "source": "Source"}
+PANEL_TITLES = {
+    "navigator": "Authoring Tree",
+    "catalog": "Asset Catalog",
+    "graph": "Flow Graph",
+    "overview": "Overview",
+    "properties": "Properties",
+    "source": "Source",
+}
 PANEL_HINTS = {
-    "navigator": "Drag this panel between docks to change the authoring layout.",
+    "navigator": "One merged authoring tree for files and folders in the current studio workspace.",
+    "catalog": "Browse visual assets, scripts, and data entries without leaving the studio shell.",
     "graph": "Dialogue trees render here as visual flow graphs inside the shared studio shell.",
     "overview": "Flow summaries, cards, and structured inspectors render here.",
+    "properties": "Adjust the currently selected asset, node, or scene element in one context-aware inspector.",
     "source": "Canonical source text stays editable here.",
 }
 ZONE_TITLES = {"left": "Left Dock", "top": "Top Dock", "bottom": "Bottom Dock"}
@@ -47,13 +67,21 @@ class StudioShell(ctk.CTkFrame):
         self._active_path = None
         self._active_preview = None
         self._active_graph = None
+        self._active_asset_roots = []
+        self._asset_entries = []
+        self._logic_node_entries = []
+        self._selected_asset_entry = None
         self._selected_graph_node_id = None
         self._dock_layout = normalize_studio_dock_layout({})
         self._dragging_panel_key = None
+        self._dragging_catalog_entry = None
         self._mode_label_to_key = {}
         self._mode_key_to_label = {}
+        self._catalog_image_refs = []
+        self._catalog_query_var = None
         self._graph_inspector_fields = {}
         self._story_inspector_fields = {}
+        self._workspace_tree = []
         self._zone_frames = {}
         self._panel_frames = {}
         self._build_shell()
@@ -67,19 +95,24 @@ class StudioShell(ctk.CTkFrame):
             self._mode_switch.set(label)
         self._apply_studio(self._studio_key)
 
-    def focus_path(self, relative_path: str):
+    def focus_path(self, relative_path: str, *, keep_asset_selection: bool = False):
         rel_path = str(relative_path or "").strip()
         if not rel_path:
             return
         preview = load_preview(self._root_dir, rel_path)
         self._active_path = rel_path
         self._active_preview = preview
+        if not keep_asset_selection:
+            self._selected_asset_entry = None
         self._active_graph = _build_authoring_graph(preview)
         self._selected_graph_node_id = self._active_graph.get("root_id") if self._active_graph else None
         self._set_preview_state(preview.get("title") or rel_path, f"{preview.get('kind', 'preview').upper()} | {preview.get('relative_path', rel_path)}", "Editable inside shared studio shell." if preview.get("editable") else "Preview available inside shared studio shell.", bool(preview.get("editable")))
         self._render_graph(preview)
         self._render_overview(preview)
+        self._render_properties(preview)
         self._render_source(preview)
+        if getattr(self, "_asset_catalog_results", None) is not None:
+            self._refresh_asset_catalog()
 
     def _build_shell(self):
         hero = ctk.CTkFrame(self)
@@ -142,7 +175,7 @@ class StudioShell(ctk.CTkFrame):
         bottom_zone = self._build_zone(right_stack, "bottom")
         bottom_zone.grid(row=1, column=0, sticky="nsew", pady=(6, 0))
         self._zone_frames = {"left": left_zone, "top": top_zone, "bottom": bottom_zone}
-        for panel_key in ("navigator", "graph", "overview", "source"):
+        for panel_key in ("navigator", "catalog", "graph", "overview", "properties", "source"):
             self._create_panel(body, panel_key)
         self._render_dock_layout()
 
@@ -171,6 +204,9 @@ class StudioShell(ctk.CTkFrame):
         if panel_key == "navigator":
             self._navigator = ctk.CTkScrollableFrame(host)
             self._navigator.pack(fill="both", expand=True)
+        elif panel_key == "catalog":
+            self._catalog_host = ctk.CTkScrollableFrame(host)
+            self._catalog_host.pack(fill="both", expand=True)
         elif panel_key == "graph":
             wrap = ctk.CTkFrame(host)
             wrap.pack(fill="both", expand=True)
@@ -183,6 +219,9 @@ class StudioShell(ctk.CTkFrame):
         elif panel_key == "overview":
             self._overview_frame = ctk.CTkScrollableFrame(host)
             self._overview_frame.pack(fill="both", expand=True)
+        elif panel_key == "properties":
+            self._properties_frame = ctk.CTkScrollableFrame(host)
+            self._properties_frame.pack(fill="both", expand=True)
         else:
             self._source_text = ctk.CTkTextbox(host, font=ctk.CTkFont(family="Consolas", size=12))
             self._source_text.pack(fill="both", expand=True)
@@ -195,6 +234,7 @@ class StudioShell(ctk.CTkFrame):
         self._domains_lbl.configure(text=" | ".join(studio.get("domains", [])))
         self._rebuild_actions(studio_key)
         self._rebuild_workspace_browser(studio)
+        self._rebuild_asset_catalog(studio)
         self._load_initial_preview(studio)
 
     def _rebuild_actions(self, studio_key: str):
@@ -210,16 +250,265 @@ class StudioShell(ctk.CTkFrame):
     def _rebuild_workspace_browser(self, studio: dict):
         for child in self._navigator.winfo_children():
             child.destroy()
-        ctk.CTkLabel(self._navigator, text="Workspace Browser", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=12, pady=(10, 6))
+        ctk.CTkLabel(self._navigator, text="Authoring Tree", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=12, pady=(10, 6))
+        workspace_paths = []
         for workspace in list(studio.get("workspaces", []) or []):
-            card = ctk.CTkFrame(self._navigator)
-            card.pack(fill="x", padx=6, pady=6)
-            ctk.CTkLabel(card, text=workspace.get("title", "Workspace"), font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=18, pady=(14, 4))
-            for raw_path in list(workspace.get("paths", []) or []):
-                rel_path = str(raw_path or "").strip()
-                if rel_path:
-                    ctk.CTkButton(card, text=rel_path, anchor="w", fg_color="transparent", border_width=1, command=lambda p=rel_path: self.focus_path(p)).pack(fill="x", padx=18, pady=4)
-            ctk.CTkLabel(card, text="Select a canonical file or folder to preview and edit it inside this studio.", justify="left", wraplength=300, text_color="#6f7084").pack(anchor="w", padx=18, pady=(8, 14))
+            workspace_paths.extend(list(workspace.get("paths", []) or []))
+        self._workspace_tree = build_workspace_tree(self._root_dir, workspace_paths)
+        ctk.CTkLabel(
+            self._navigator,
+            text=f"{len(self._workspace_tree)} root nodes | merged from {len(workspace_paths)} workspace paths",
+            text_color="#8c97a7",
+        ).pack(anchor="w", padx=12, pady=(0, 10))
+        if not self._workspace_tree:
+            ctk.CTkLabel(
+                self._navigator,
+                text="No workspace paths available for this studio.",
+                text_color="#6f7084",
+                justify="left",
+                wraplength=320,
+            ).pack(anchor="w", padx=12, pady=(8, 14))
+            return
+        for node in self._workspace_tree:
+            self._render_workspace_tree_node(node, depth=0)
+
+    def _render_workspace_tree_node(self, node: dict, *, depth: int):
+        kind = str(node.get("kind") or "file")
+        relative_path = str(node.get("relative_path") or "").strip()
+        label = str(node.get("label") or relative_path or "item")
+        icon = "[DIR]" if kind == "directory" else "[FILE]"
+        wrap = ctk.CTkFrame(self._navigator, fg_color="transparent")
+        wrap.pack(fill="x", padx=6, pady=1)
+        row = ctk.CTkFrame(wrap, fg_color="transparent")
+        row.pack(fill="x", padx=(12 + (depth * 18), 6), pady=1)
+        button = ctk.CTkButton(
+            row,
+            text=f"{icon} {label}",
+            anchor="w",
+            fg_color="transparent",
+            border_width=1 if self._active_path == relative_path else 0,
+            border_color="#8ea5ff",
+            hover_color="#22314a",
+            command=lambda p=relative_path: self.focus_path(p),
+        )
+        button.pack(fill="x")
+        for child in list(node.get("children") or []):
+            self._render_workspace_tree_node(child, depth=depth + 1)
+
+    def _rebuild_asset_catalog(self, studio: dict):
+        self._active_asset_roots = list(studio.get("asset_roots") or [])
+        self._catalog_image_refs = []
+        for child in self._catalog_host.winfo_children():
+            child.destroy()
+        header = ctk.CTkFrame(self._catalog_host)
+        header.pack(fill="x", padx=6, pady=6)
+        ctk.CTkLabel(header, text="Asset Catalog", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=12, pady=(12, 4))
+        self._catalog_query_var = tk.StringVar(value="")
+        search_row = ctk.CTkFrame(header, fg_color="transparent")
+        search_row.pack(fill="x", padx=12, pady=(0, 10))
+        entry = ctk.CTkEntry(search_row, textvariable=self._catalog_query_var, placeholder_text="Search assets, scripts, textures, models...")
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkButton(search_row, text="Search", width=96, command=self._refresh_asset_catalog).pack(side="left")
+        ctk.CTkButton(search_row, text="Clear", width=72, fg_color="#34495e", hover_color="#2c3e50", command=self._clear_asset_catalog_query).pack(side="left", padx=(8, 0))
+        self._asset_catalog_results = ctk.CTkFrame(self._catalog_host, fg_color="transparent")
+        self._asset_catalog_results.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+        self._refresh_asset_catalog()
+
+    def _clear_asset_catalog_query(self):
+        if self._catalog_query_var is not None:
+            self._catalog_query_var.set("")
+        self._refresh_asset_catalog()
+
+    def _refresh_asset_catalog(self):
+        for child in self._asset_catalog_results.winfo_children():
+            child.destroy()
+        query = self._catalog_query_var.get() if self._catalog_query_var is not None else ""
+        self._asset_entries = build_asset_catalog(self._root_dir, self._active_asset_roots, query=query)
+        self._logic_node_entries = build_logic_node_catalog(self._asset_entries) if self._studio_key == "logic_studio" else []
+        count_text = f"{len(self._asset_entries)} entries"
+        if self._logic_node_entries:
+            count_text += f" | {len(self._logic_node_entries)} script nodes"
+        ctk.CTkLabel(self._asset_catalog_results, text=count_text, text_color="#8c97a7").pack(anchor="w", padx=8, pady=(0, 6))
+        for entry in self._asset_entries[:120]:
+            self._render_asset_card(entry)
+
+    def _render_asset_card(self, entry: dict):
+        card = ctk.CTkFrame(self._asset_catalog_results)
+        card.pack(fill="x", padx=4, pady=4)
+        row = ctk.CTkFrame(card, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=10)
+        preview = self._build_asset_preview_widget(row, entry)
+        preview.pack(side="left", padx=(0, 10), pady=2)
+        text = ctk.CTkFrame(row, fg_color="transparent")
+        text.pack(side="left", fill="x", expand=True)
+        title_lbl = ctk.CTkLabel(text, text=entry["label"], font=ctk.CTkFont(size=14, weight="bold"))
+        title_lbl.pack(anchor="w")
+        meta_lbl = ctk.CTkLabel(text, text=f"{entry['kind']} | {entry['relative_path']}", text_color="#a8a8b6", wraplength=320, justify="left")
+        meta_lbl.pack(anchor="w", pady=(2, 2))
+        root_lbl = ctk.CTkLabel(text, text=f"Root: {entry['source_root']}", text_color="#6f7084")
+        root_lbl.pack(anchor="w")
+        drop_hint = self._catalog_drop_hint(entry)
+        hint_lbl = None
+        if drop_hint:
+            hint_lbl = ctk.CTkLabel(text, text=drop_hint, text_color="#8ea5ff", wraplength=340, justify="left")
+            hint_lbl.pack(anchor="w", pady=(6, 0))
+        actions = ctk.CTkFrame(row, fg_color="transparent")
+        actions.pack(side="right", padx=(10, 0))
+        ctk.CTkButton(actions, text="Select", width=82, command=lambda current=entry: self._select_asset_entry(current)).pack(fill="x", pady=(0, 6))
+        if entry["kind"] in {"script", "data"}:
+            ctk.CTkButton(actions, text="Open", width=82, fg_color="#3498db", hover_color="#2980b9", command=lambda current=entry: self._open_asset_entry(current)).pack(fill="x")
+        for widget in (card, row, preview, text, title_lbl, meta_lbl, root_lbl, hint_lbl):
+            self._bind_catalog_drag(widget, entry)
+
+    def _build_asset_preview_widget(self, parent, entry: dict):
+        if entry.get("kind") == "image":
+            try:
+                target = (self._root_dir / entry["relative_path"]).resolve()
+                image = Image.open(target)
+                image.thumbnail((56, 56))
+                preview = ctk.CTkImage(light_image=image, dark_image=image, size=image.size)
+                self._catalog_image_refs.append(preview)
+                return ctk.CTkLabel(parent, text="", image=preview, width=64, height=64)
+            except Exception:
+                pass
+        palette = {
+            "model": ("3D", "#5dade2"),
+            "script": ("Py", "#8e44ad"),
+            "data": ("{}", "#16a085"),
+            "audio": ("SFX", "#d35400"),
+            "image": ("IMG", "#27ae60"),
+        }
+        label, color = palette.get(entry.get("kind"), ("FILE", "#7f8c8d"))
+        frame = ctk.CTkFrame(parent, width=64, height=64, fg_color=color)
+        frame.pack_propagate(False)
+        ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=14, weight="bold")).pack(expand=True)
+        return frame
+
+    def _select_asset_entry(self, entry: dict):
+        self._selected_asset_entry = dict(entry)
+        if entry.get("kind") in {"script", "data"}:
+            self.focus_path(entry["relative_path"], keep_asset_selection=True)
+        else:
+            self._render_properties(self._active_preview)
+            self._preview_status_lbl.configure(text=f"Selected asset: {entry['relative_path']}")
+
+    def _open_asset_entry(self, entry: dict):
+        self._selected_asset_entry = dict(entry)
+        self.focus_path(entry["relative_path"], keep_asset_selection=True)
+
+    def _bind_catalog_drag(self, widget, entry: dict):
+        if widget is None:
+            return
+        widget.bind("<ButtonPress-1>", lambda event, current=entry: self._on_catalog_drag_start(current, event))
+        widget.bind("<B1-Motion>", lambda event, current=entry: self._on_catalog_drag_motion(current, event))
+        widget.bind("<ButtonRelease-1>", lambda event, current=entry: self._on_catalog_drag_release(current, event))
+
+    def _catalog_entry_drop_mode(self, entry: dict):
+        current_path = str(self._active_path or "")
+        kind = str((entry or {}).get("kind") or "")
+        if current_path.startswith("data/scenes/") and kind in {"model", "image", "audio"}:
+            return "scene_asset"
+        if self._studio_key == "logic_studio" and current_path.startswith("data/dialogues/") and kind == "script":
+            return "logic_script_node"
+        return None
+
+    def _catalog_drop_hint(self, entry: dict):
+        drop_mode = self._catalog_entry_drop_mode(entry)
+        if drop_mode == "scene_asset":
+            return "Drop onto the Flow Graph to insert this asset into the current scene."
+        if drop_mode == "logic_script_node":
+            return "Drop onto the Flow Graph to create a script-backed node in the current dialogue."
+        return ""
+
+    def _on_catalog_drag_start(self, entry: dict, _event):
+        if not self._catalog_entry_drop_mode(entry):
+            self._dragging_catalog_entry = None
+            return
+        self._dragging_catalog_entry = dict(entry)
+        self._selected_asset_entry = dict(entry)
+        hint = self._catalog_drop_hint(entry)
+        if hint:
+            self._preview_status_lbl.configure(text=f"Dragging {entry['label']}. {hint}")
+        self._render_properties(self._active_preview)
+
+    def _on_catalog_drag_motion(self, entry: dict, event):
+        if not self._dragging_catalog_entry or self._dragging_catalog_entry.get("relative_path") != entry.get("relative_path"):
+            return
+        if self._is_over_widget(self._graph_canvas, event.x_root, event.y_root):
+            self._preview_status_lbl.configure(text=f"Release to drop {entry['label']} into the Flow Graph.")
+        else:
+            hint = self._catalog_drop_hint(entry) or "Drop onto the Flow Graph to author against the current file."
+            self._preview_status_lbl.configure(text=f"Dragging {entry['label']}. {hint}")
+
+    def _on_catalog_drag_release(self, entry: dict, event):
+        if not self._dragging_catalog_entry or self._dragging_catalog_entry.get("relative_path") != entry.get("relative_path"):
+            return
+        self._dragging_catalog_entry = None
+        if self._is_over_widget(self._graph_canvas, event.x_root, event.y_root) and self._apply_catalog_drop(entry):
+            return
+        hint = self._catalog_drop_hint(entry)
+        if hint:
+            self._preview_status_lbl.configure(text=f"Selected asset: {entry['relative_path']}. {hint}")
+
+    def _is_over_widget(self, widget, x_root: int, y_root: int) -> bool:
+        if widget is None:
+            return False
+        try:
+            left = widget.winfo_rootx()
+            top = widget.winfo_rooty()
+            right = left + widget.winfo_width()
+            bottom = top + widget.winfo_height()
+        except Exception:
+            return False
+        return left <= x_root <= right and top <= y_root <= bottom
+
+    def _make_unique_graph_node_id(self, base_node_id: str) -> str:
+        base = str(base_node_id or "script_node").strip() or "script_node"
+        if not self._active_graph:
+            return base
+        existing = {str(node.get("id") or "") for node in list(self._active_graph.get("nodes", []) or [])}
+        if base not in existing:
+            return base
+        index = 2
+        while f"{base}_{index}" in existing:
+            index += 1
+        return f"{base}_{index}"
+
+    def _apply_catalog_drop(self, entry: dict) -> bool:
+        drop_mode = self._catalog_entry_drop_mode(entry)
+        if drop_mode == "scene_asset":
+            updated = insert_scene_asset_from_preview(self._current_preview_from_source_buffer(), entry, node_id=self._selected_graph_node_id)
+            if self._apply_preview_text(updated, f"Inserted {entry['label']} into scene props. Save to persist."):
+                if self._active_graph and any(node.get("id") == "props" for node in self._active_graph.get("nodes", [])):
+                    self._selected_graph_node_id = "props"
+                    self._render_graph(self._active_preview)
+                    self._render_overview(self._active_preview)
+                    self._render_properties(self._active_preview)
+                    self._render_source(self._active_preview)
+                return True
+            return False
+        if drop_mode == "logic_script_node":
+            descriptor = build_script_node_descriptor(entry)
+            if not descriptor:
+                return False
+            source_node_id = self._selected_graph_node_id or (self._active_graph or {}).get("root_id") or "start"
+            new_node_id = self._make_unique_graph_node_id(descriptor.get("default_node_id", "script_node"))
+            updated = create_script_node_from_preview(
+                self._current_preview_from_source_buffer(),
+                source_node_id,
+                descriptor,
+                new_node_id=new_node_id,
+                link_text=descriptor.get("default_link_text"),
+            )
+            if self._apply_preview_text(updated, f"Created script node {new_node_id}. Save to persist."):
+                self._selected_graph_node_id = new_node_id
+                self._render_graph(self._active_preview)
+                self._render_overview(self._active_preview)
+                self._render_properties(self._active_preview)
+                self._render_source(self._active_preview)
+                return True
+            return False
+        return False
 
     def _load_initial_preview(self, studio: dict):
         self._active_path = None
@@ -291,6 +580,7 @@ class StudioShell(ctk.CTkFrame):
             self._selected_graph_node_id = node_id
             self._render_graph(self._active_preview)
             self._render_overview(self._active_preview)
+            self._render_properties(self._active_preview)
             self._render_source(self._active_preview)
             self._preview_status_lbl.configure(text=f"Selected graph node: {node_id}")
 
@@ -303,10 +593,8 @@ class StudioShell(ctk.CTkFrame):
         story_focus = build_story_focus_from_preview(preview, self._selected_graph_node_id)
         cards = []
         if graph_focus:
-            self._render_graph_inspector(graph_focus)
             cards.extend(list(graph_focus.get("cards", []) or []))
         elif story_focus:
-            self._render_story_inspector(story_focus)
             cards.extend(list(story_focus.get("cards", []) or []))
         cards.extend(list(preview.get("cards", []) or []))
         for index, card in enumerate(cards):
@@ -319,9 +607,9 @@ class StudioShell(ctk.CTkFrame):
             ctk.CTkLabel(panel, text=card.get("title", "Card"), font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=14, pady=(12, 4))
             ctk.CTkLabel(panel, text=card.get("body", ""), justify="left", wraplength=700, text_color="#b7b7c5").pack(anchor="w", padx=14, pady=(0, 12))
 
-    def _render_graph_inspector(self, graph_focus: dict):
+    def _render_graph_inspector(self, parent, graph_focus: dict):
         raw = dict((graph_focus.get("node") or {}).get("raw") or {})
-        panel = ctk.CTkFrame(self._overview_frame)
+        panel = ctk.CTkFrame(parent)
         panel.pack(fill="x", padx=6, pady=6)
         panel.configure(border_width=1, border_color="#915eff")
         ctk.CTkLabel(panel, text=f"Node Inspector | {graph_focus.get('node_id', 'node')}", font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=14, pady=(12, 8))
@@ -338,8 +626,8 @@ class StudioShell(ctk.CTkFrame):
         ctk.CTkButton(panel, text="Apply Node Changes", fg_color="#8e44ad", hover_color="#7d3c98", command=self._apply_graph_node_changes).pack(fill="x", padx=14, pady=(0, 12))
         self._graph_inspector_fields = {"speaker": speaker, "next_node": next_node, "text": text_box, "choices_text": choices, "new_node_id": new_node_id, "new_link_text": link_text}
 
-    def _render_story_inspector(self, story_focus: dict):
-        panel = ctk.CTkFrame(self._overview_frame)
+    def _render_story_inspector(self, parent, story_focus: dict):
+        panel = ctk.CTkFrame(parent)
         panel.pack(fill="x", padx=6, pady=6)
         panel.configure(border_width=1, border_color="#16a085")
         title_map = {
@@ -366,6 +654,44 @@ class StudioShell(ctk.CTkFrame):
             fields[field_name] = widget
         ctk.CTkButton(panel, text="Apply Story Changes", fg_color="#16a085", hover_color="#138d75", command=self._apply_story_changes).pack(fill="x", padx=14, pady=(0, 12))
         self._story_inspector_fields = {"fields": fields}
+
+    def _render_properties(self, preview: dict):
+        for child in self._properties_frame.winfo_children():
+            child.destroy()
+        self._graph_inspector_fields = {}
+        self._story_inspector_fields = {}
+        graph_focus = build_logic_focus_from_preview(preview, self._selected_graph_node_id) if self._selected_graph_node_id else None
+        story_focus = build_story_focus_from_preview(preview, self._selected_graph_node_id)
+        asset_properties = build_asset_properties(self._root_dir, self._selected_asset_entry) if self._selected_asset_entry else None
+        payload = build_properties_payload(preview=preview, graph_focus=graph_focus, story_focus=story_focus, asset_properties=asset_properties)
+        header = ctk.CTkFrame(self._properties_frame)
+        header.pack(fill="x", padx=6, pady=6)
+        ctk.CTkLabel(header, text=payload.get("title", "Properties"), font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=14, pady=(12, 4))
+        ctk.CTkLabel(header, text=f"Type: {payload.get('kind', 'selection')}", text_color="#8c97a7").pack(anchor="w", padx=14, pady=(0, 12))
+        if asset_properties:
+            self._render_property_payload(self._properties_frame, payload)
+        elif graph_focus:
+            self._render_graph_inspector(self._properties_frame, graph_focus)
+        elif story_focus:
+            self._render_story_inspector(self._properties_frame, story_focus)
+        else:
+            self._render_property_payload(self._properties_frame, payload)
+
+    def _render_property_payload(self, parent, payload: dict):
+        fields = dict(payload.get("fields") or {})
+        if fields:
+            panel = ctk.CTkFrame(parent)
+            panel.pack(fill="x", padx=6, pady=6)
+            panel.configure(border_width=1, border_color="#5dade2")
+            ctk.CTkLabel(panel, text="Selection Properties", font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=14, pady=(12, 8))
+            for name, value in fields.items():
+                ctk.CTkLabel(panel, text=name.replace("_", " ").title(), text_color="#7f8ea3").pack(anchor="w", padx=14, pady=(0, 2))
+                ctk.CTkLabel(panel, text=str(value or ""), justify="left", wraplength=520).pack(anchor="w", padx=14, pady=(0, 8))
+        for card in list(payload.get("cards", []) or []):
+            panel = ctk.CTkFrame(parent)
+            panel.pack(fill="x", padx=6, pady=6)
+            ctk.CTkLabel(panel, text=card.get("title", "Card"), font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=14, pady=(12, 4))
+            ctk.CTkLabel(panel, text=card.get("body", ""), justify="left", wraplength=520, text_color="#b7b7c5").pack(anchor="w", padx=14, pady=(0, 12))
 
     def _apply_graph_node_changes(self):
         fields = dict(self._graph_inspector_fields or {})
@@ -409,7 +735,7 @@ class StudioShell(ctk.CTkFrame):
         self._active_graph = _build_authoring_graph(updated_preview)
         if self._active_graph and self._selected_graph_node_id not in {node["id"] for node in self._active_graph.get("nodes", [])}:
             self._selected_graph_node_id = self._active_graph.get("root_id")
-        self._render_graph(updated_preview); self._render_overview(updated_preview); self._render_source(updated_preview)
+        self._render_graph(updated_preview); self._render_overview(updated_preview); self._render_properties(updated_preview); self._render_source(updated_preview)
         self._preview_status_lbl.configure(text=success_status)
         return True
 
