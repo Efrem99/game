@@ -140,6 +140,21 @@ def load_preview(root_dir, relative_path: str):
     }
 
 
+def resolve_preview_focus_path(root_dir, relative_path: str, *, max_depth: int = 8) -> str:
+    current = str(relative_path or "").strip()
+    depth = 0
+    while current and depth < max_depth:
+        preview = load_preview(root_dir, current)
+        if str(preview.get("kind") or "") != "directory":
+            return str(preview.get("relative_path") or current)
+        children = list(preview.get("children") or [])
+        if not children:
+            return str(preview.get("relative_path") or current)
+        current = str(children[0].get("relative_path") or current)
+        depth += 1
+    return current
+
+
 def save_preview_text(root_dir, relative_path: str, raw_text: str) -> Path:
     target = _resolve_path(root_dir, relative_path)
     if target.is_dir():

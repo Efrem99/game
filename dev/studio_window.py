@@ -22,7 +22,7 @@ from launchers.studio_logic_graph import (
 from launchers.studio_manifest import get_studio_definition, list_studio_keys, resolve_studio_key
 from launchers.studio_node_catalog import build_logic_node_catalog, build_script_node_descriptor
 from launchers.studio_properties import build_properties_payload
-from launchers.studio_preview import load_preview, save_preview_text
+from launchers.studio_preview import load_preview, resolve_preview_focus_path, save_preview_text
 from launchers.studio_workspace_tree import build_workspace_tree
 from launchers.studio_story_inspector import (
     apply_story_focus_patch,
@@ -71,6 +71,7 @@ class StudioShell(ctk.CTkFrame):
         self._asset_entries = []
         self._logic_node_entries = []
         self._selected_asset_entry = None
+        self._asset_action_fields = {}
         self._selected_graph_node_id = None
         self._dock_layout = normalize_studio_dock_layout({})
         self._dragging_panel_key = None
@@ -386,11 +387,12 @@ class StudioShell(ctk.CTkFrame):
 
     def _select_asset_entry(self, entry: dict):
         self._selected_asset_entry = dict(entry)
-        if entry.get("kind") in {"script", "data"}:
-            self.focus_path(entry["relative_path"], keep_asset_selection=True)
-        else:
-            self._render_properties(self._active_preview)
-            self._preview_status_lbl.configure(text=f"Selected asset: {entry['relative_path']}")
+        self._render_properties(self._active_preview)
+        status = f"Selected asset: {entry['relative_path']}"
+        hint = self._catalog_drop_hint(entry)
+        if hint:
+            status = f"{status}. {hint}"
+        self._preview_status_lbl.configure(text=status)
 
     def _open_asset_entry(self, entry: dict):
         self._selected_asset_entry = dict(entry)
@@ -517,7 +519,7 @@ class StudioShell(ctk.CTkFrame):
             for raw_path in list(workspace.get("paths", []) or []):
                 rel_path = str(raw_path or "").strip()
                 if rel_path:
-                    self.focus_path(rel_path)
+                    self.focus_path(resolve_preview_focus_path(self._root_dir, rel_path))
                     return
 
     def _set_preview_state(self, title: str, subtitle: str, status: str, editable: bool):
@@ -660,6 +662,7 @@ class StudioShell(ctk.CTkFrame):
             child.destroy()
         self._graph_inspector_fields = {}
         self._story_inspector_fields = {}
+        self._asset_action_fields = {}
         graph_focus = build_logic_focus_from_preview(preview, self._selected_graph_node_id) if self._selected_graph_node_id else None
         story_focus = build_story_focus_from_preview(preview, self._selected_graph_node_id)
         asset_properties = build_asset_properties(self._root_dir, self._selected_asset_entry) if self._selected_asset_entry else None
@@ -670,6 +673,11 @@ class StudioShell(ctk.CTkFrame):
         ctk.CTkLabel(header, text=f"Type: {payload.get('kind', 'selection')}", text_color="#8c97a7").pack(anchor="w", padx=14, pady=(0, 12))
         if asset_properties:
             self._render_property_payload(self._properties_frame, payload)
+            asset_mode = self._catalog_entry_drop_mode(self._selected_asset_entry or {})
+            if asset_mode == "scene_asset":
+                self._render_scene_asset_action_panel(self._properties_frame, self._selected_asset_entry or {})
+            elif asset_mode == "logic_script_node":
+                self._render_script_node_action_panel(self._properties_frame, self._selected_asset_entry or {})
         elif graph_focus:
             self._render_graph_inspector(self._properties_frame, graph_focus)
         elif story_focus:
@@ -692,6 +700,169 @@ class StudioShell(ctk.CTkFrame):
             panel.pack(fill="x", padx=6, pady=6)
             ctk.CTkLabel(panel, text=card.get("title", "Card"), font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=14, pady=(12, 4))
             ctk.CTkLabel(panel, text=card.get("body", ""), justify="left", wraplength=520, text_color="#b7b7c5").pack(anchor="w", padx=14, pady=(0, 12))
+
+    def _render_scene_asset_action_panel(self, parent, entry: dict):
+        panel = ctk.CTkFrame(parent)
+        panel.pack(fill="x", padx=6, pady=6)
+        panel.configure(border_width=1, border_color="#27ae60")
+        ctk.CTkLabel(panel, text="Scene Placement", font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=14, pady=(12, 8))
+        ctk.CTkLabel(
+            panel,
+            text="Tune the canonical prop before inserting it into the current scene.",
+            justify="left",
+            wraplength=520,
+            text_color="#7f8ea3",
+        ).pack(anchor="w", padx=14, pady=(0, 10))
+        ctk.CTkLabel(panel, text="Type", text_color="#7f8ea3").pack(anchor="w", padx=14, pady=(0, 4))
+        default_type = Path(str(entry.get("relative_path") or "asset")).stem.replace(" ", "_").replace("-", "_") or "asset"
+        type_entry = ctk.CTkEntry(panel)
+        type_entry.pack(fill="x", padx=14, pady=(0, 10))
+        type_entry.insert(0, default_type)
+
+        vector_fields = {}
+        for group, defaults in (
+            ("position", ("0.0", "0.0", "0.0")),
+            ("rotation", ("0.0", "0.0", "0.0")),
+            ("scale", ("1.0", "1.0", "1.0")),
+        ):
+            ctk.CTkLabel(panel, text=group.title(), text_color="#7f8ea3").pack(anchor="w", padx=14, pady=(0, 4))
+            row = ctk.CTkFrame(panel, fg_color="transparent")
+            row.pack(fill="x", padx=14, pady=(0, 10))
+            axis_fields = {}
+            for axis, value in zip(("x", "y", "z"), defaults):
+                axis_wrap = ctk.CTkFrame(row, fg_color="transparent")
+                axis_wrap.pack(side="left", fill="x", expand=True, padx=(0, 8))
+                ctk.CTkLabel(axis_wrap, text=axis.upper(), text_color="#8c97a7").pack(anchor="w")
+                field = ctk.CTkEntry(axis_wrap)
+                field.pack(fill="x", pady=(2, 0))
+                field.insert(0, value)
+                axis_fields[axis] = field
+            vector_fields[group] = axis_fields
+        ctk.CTkButton(
+            panel,
+            text="Insert Into Scene",
+            fg_color="#27ae60",
+            hover_color="#229954",
+            command=self._insert_selected_scene_asset,
+        ).pack(fill="x", padx=14, pady=(0, 12))
+        self._asset_action_fields = {
+            "mode": "scene_asset",
+            "type": type_entry,
+            "position": vector_fields["position"],
+            "rotation": vector_fields["rotation"],
+            "scale": vector_fields["scale"],
+        }
+
+    def _render_script_node_action_panel(self, parent, entry: dict):
+        descriptor = build_script_node_descriptor(entry)
+        if not descriptor:
+            return
+        panel = ctk.CTkFrame(parent)
+        panel.pack(fill="x", padx=6, pady=6)
+        panel.configure(border_width=1, border_color="#8e44ad")
+        ctk.CTkLabel(panel, text="Script Node Setup", font=ctk.CTkFont(size=15, weight="bold")).pack(anchor="w", padx=14, pady=(12, 8))
+        ctk.CTkLabel(
+            panel,
+            text="Create a script-backed dialogue node in the current graph with explicit node settings.",
+            justify="left",
+            wraplength=520,
+            text_color="#7f8ea3",
+        ).pack(anchor="w", padx=14, pady=(0, 10))
+        field_specs = [
+            ("node_id", "Node Id", self._make_unique_graph_node_id(descriptor.get("default_node_id", "script_node"))),
+            ("link_text", "Link Text", str(descriptor.get("default_link_text") or "")),
+            ("speaker", "Speaker", "System"),
+            ("script_label", "Script Label", str(descriptor.get("title") or "")),
+            ("text", "Node Text", str(descriptor.get("default_text") or "")),
+        ]
+        action_fields = {"mode": "logic_script_node", "descriptor": descriptor}
+        for key, label, value in field_specs:
+            ctk.CTkLabel(panel, text=label, text_color="#7f8ea3").pack(anchor="w", padx=14, pady=(0, 4))
+            widget = ctk.CTkTextbox(panel, height=90) if key == "text" else ctk.CTkEntry(panel)
+            widget.pack(fill="x", padx=14, pady=(0, 10))
+            if isinstance(widget, ctk.CTkTextbox):
+                widget.insert("1.0", value)
+            else:
+                widget.insert(0, value)
+            action_fields[key] = widget
+        ctk.CTkButton(
+            panel,
+            text="Create Script Node",
+            fg_color="#8e44ad",
+            hover_color="#7d3c98",
+            command=self._insert_selected_script_node,
+        ).pack(fill="x", padx=14, pady=(0, 12))
+        self._asset_action_fields = action_fields
+
+    def _read_asset_vector_fields(self, key: str, default_values: tuple[float, float, float]):
+        fields = dict(self._asset_action_fields.get(key) or {})
+        values = []
+        for axis, default in zip(("x", "y", "z"), default_values):
+            widget = fields.get(axis)
+            try:
+                raw = widget.get().strip() if widget is not None else ""
+                values.append(float(raw or default))
+            except Exception:
+                values.append(float(default))
+        return values
+
+    def _insert_selected_scene_asset(self):
+        if not self._selected_asset_entry or self._asset_action_fields.get("mode") != "scene_asset":
+            return
+        type_widget = self._asset_action_fields.get("type")
+        default_type = Path(str(self._selected_asset_entry.get("relative_path") or "asset")).stem.replace(" ", "_").replace("-", "_") or "asset"
+        placement = {
+            "type": type_widget.get().strip() if type_widget is not None else default_type,
+            "position": self._read_asset_vector_fields("position", (0.0, 0.0, 0.0)),
+            "rotation": self._read_asset_vector_fields("rotation", (0.0, 0.0, 0.0)),
+            "scale": self._read_asset_vector_fields("scale", (1.0, 1.0, 1.0)),
+        }
+        updated = insert_scene_asset_from_preview(
+            self._current_preview_from_source_buffer(),
+            self._selected_asset_entry,
+            node_id=self._selected_graph_node_id,
+            placement=placement,
+        )
+        if self._apply_preview_text(updated, f"Inserted {self._selected_asset_entry['label']} with configured placement. Save to persist."):
+            if self._active_graph and any(node.get("id") == "props" for node in self._active_graph.get("nodes", [])):
+                self._selected_graph_node_id = "props"
+                self._render_graph(self._active_preview)
+                self._render_overview(self._active_preview)
+                self._render_properties(self._active_preview)
+                self._render_source(self._active_preview)
+
+    def _insert_selected_script_node(self):
+        if not self._selected_asset_entry or self._asset_action_fields.get("mode") != "logic_script_node":
+            return
+        descriptor = dict(self._asset_action_fields.get("descriptor") or {})
+        source_node_id = self._selected_graph_node_id or (self._active_graph or {}).get("root_id") or "start"
+        node_id_widget = self._asset_action_fields.get("node_id")
+        link_text_widget = self._asset_action_fields.get("link_text")
+        speaker_widget = self._asset_action_fields.get("speaker")
+        label_widget = self._asset_action_fields.get("script_label")
+        text_widget = self._asset_action_fields.get("text")
+        new_node_id = node_id_widget.get().strip() if node_id_widget is not None else ""
+        link_text = link_text_widget.get().strip() if link_text_widget is not None else ""
+        node_patch = {
+            "speaker": speaker_widget.get().strip() if speaker_widget is not None else "System",
+            "script_label": label_widget.get().strip() if label_widget is not None else str(descriptor.get("title") or ""),
+            "text": text_widget.get("1.0", "end-1c").strip() if isinstance(text_widget, ctk.CTkTextbox) else "",
+        }
+        updated = create_script_node_from_preview(
+            self._current_preview_from_source_buffer(),
+            source_node_id,
+            descriptor,
+            new_node_id=new_node_id or self._make_unique_graph_node_id(str(descriptor.get("default_node_id") or "script_node")),
+            link_text=link_text or str(descriptor.get("default_link_text") or "Run Script"),
+            node_patch=node_patch,
+        )
+        target_node_id = new_node_id or self._make_unique_graph_node_id(str(descriptor.get("default_node_id") or "script_node"))
+        if self._apply_preview_text(updated, f"Created script node {target_node_id}. Save to persist."):
+            self._selected_graph_node_id = target_node_id
+            self._render_graph(self._active_preview)
+            self._render_overview(self._active_preview)
+            self._render_properties(self._active_preview)
+            self._render_source(self._active_preview)
 
     def _apply_graph_node_changes(self):
         fields = dict(self._graph_inspector_fields or {})

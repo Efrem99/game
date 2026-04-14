@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from launchers.studio_preview import load_preview, save_preview_text
+from launchers.studio_preview import load_preview, resolve_preview_focus_path, save_preview_text
 
 
 def test_load_preview_lists_directory_children(tmp_path: Path):
@@ -41,3 +41,13 @@ def test_save_preview_text_writes_back(tmp_path: Path):
 
     assert saved.exists()
     assert '"ok": true' in path.read_text(encoding="utf-8")
+
+
+def test_resolve_preview_focus_path_descends_into_first_file_from_directory(tmp_path: Path):
+    (tmp_path / "data" / "dialogues").mkdir(parents=True)
+    (tmp_path / "data" / "dialogues" / "npc.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "data" / "dialogues" / "notes.txt").write_text("hello", encoding="utf-8")
+
+    focused = resolve_preview_focus_path(tmp_path, "data/dialogues")
+
+    assert focused == "data/dialogues/notes.txt"

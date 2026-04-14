@@ -217,3 +217,46 @@ def test_insert_scene_asset_from_preview_appends_canonical_prop_entry():
     assert inserted["position"] == [0.0, 0.0, 0.0]
     assert inserted["rotation"] == [0.0, 0.0, 0.0]
     assert inserted["scale"] == [1.0, 1.0, 1.0]
+
+
+def test_insert_scene_asset_from_preview_accepts_custom_placement():
+    preview = {
+        "kind": "json",
+        "relative_path": "data/scenes/forest.json",
+        "raw_text": json.dumps(
+            {
+                "id": "forest",
+                "name": "Dark Forest",
+                "props": [],
+                "environment": {"time_of_day": "dusk", "weather": "cloudy"},
+            },
+            indent=2,
+        ),
+    }
+    asset_entry = {
+        "label": "camp_fire.png",
+        "relative_path": "assets/images/vfx/camp_fire.png",
+        "kind": "image",
+        "source_root": "assets/images",
+        "extension": ".png",
+    }
+
+    updated = insert_scene_asset_from_preview(
+        preview,
+        asset_entry,
+        placement={
+            "type": "camp_fire_vfx",
+            "position": [12, -4, 1.5],
+            "rotation": [0, 45, 0],
+            "scale": [1.2, 1.2, 1.2],
+        },
+    )
+
+    payload = json.loads(updated)
+    inserted = payload["props"][-1]
+    assert inserted["type"] == "camp_fire_vfx"
+    assert inserted["asset"] == "assets/images/vfx/camp_fire.png"
+    assert inserted["asset_kind"] == "image"
+    assert inserted["position"] == [12.0, -4.0, 1.5]
+    assert inserted["rotation"] == [0.0, 45.0, 0.0]
+    assert inserted["scale"] == [1.2, 1.2, 1.2]

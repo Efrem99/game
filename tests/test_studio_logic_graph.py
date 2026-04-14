@@ -235,3 +235,53 @@ def test_create_script_node_from_preview_adds_script_backed_node_and_link():
         "text": "Run Quest Manager",
         "next_node": "quest_manager_node",
     }
+
+
+def test_create_script_node_from_preview_accepts_custom_node_patch_and_link_text():
+    preview = {
+        "kind": "json",
+        "relative_path": "data/dialogues/quest_giver_dialogue.json",
+        "raw_text": json.dumps(
+            {
+                "npc_name": "Elder Sophia",
+                "dialogue_tree": {
+                    "start": {
+                        "speaker": "Elder Sophia",
+                        "text": "Welcome.",
+                        "choices": [],
+                    }
+                }
+            },
+            indent=2,
+        ),
+    }
+    descriptor = {
+        "title": "Quest Manager",
+        "script_ref": "src/managers/quest_manager.py",
+        "default_node_id": "quest_manager_node",
+        "default_link_text": "Run Quest Manager",
+        "default_text": "Script Call: Quest Manager",
+    }
+
+    updated = create_script_node_from_preview(
+        preview,
+        "start",
+        descriptor,
+        new_node_id="quest_manager_custom",
+        link_text="Trigger quest sync",
+        node_patch={
+            "speaker": "Narrator",
+            "script_label": "Quest Sync",
+            "text": "Sync the quest state before continuing.",
+        },
+    )
+
+    payload = json.loads(updated)
+    created = payload["dialogue_tree"]["quest_manager_custom"]
+    assert created["speaker"] == "Narrator"
+    assert created["script_label"] == "Quest Sync"
+    assert created["text"] == "Sync the quest state before continuing."
+    assert payload["dialogue_tree"]["start"]["choices"][-1] == {
+        "text": "Trigger quest sync",
+        "next_node": "quest_manager_custom",
+    }

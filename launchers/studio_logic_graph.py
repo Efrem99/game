@@ -257,7 +257,15 @@ def create_dialogue_node(payload: dict, source_node_id: str, new_node_id: str, *
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
 
 
-def create_script_node(payload: dict, source_node_id: str, descriptor: dict, *, new_node_id: str | None = None, link_text: str | None = None):
+def create_script_node(
+    payload: dict,
+    source_node_id: str,
+    descriptor: dict,
+    *,
+    new_node_id: str | None = None,
+    link_text: str | None = None,
+    node_patch: dict | None = None,
+):
     dialogue_tree = payload.get("dialogue_tree")
     if not isinstance(dialogue_tree, dict):
         return None
@@ -272,13 +280,21 @@ def create_script_node(payload: dict, source_node_id: str, descriptor: dict, *, 
     if not node_key or node_key in dialogue_tree:
         return None
     title = _script_node_descriptor_value(descriptor, "title", "Script")
+    patch = dict(node_patch or {})
+    speaker = str(patch.get("speaker") or "System")
+    script_label = str(patch.get("script_label") or title).strip() or title
+    node_text = str(
+        patch.get("text")
+        or _script_node_descriptor_value(descriptor, "default_text", f"Script Call: {title}")
+        or f"Script Call: {title}"
+    )
     dialogue_tree[node_key] = {
-        "speaker": "System",
-        "text": _script_node_descriptor_value(descriptor, "default_text", f"Script Call: {title}") or f"Script Call: {title}",
+        "speaker": speaker,
+        "text": node_text,
         "choices": [],
         "node_kind": "script_call",
         "script_ref": script_ref,
-        "script_label": title,
+        "script_label": script_label,
     }
     choices = list(source_node.get("choices", []) or [])
     choices.append(
@@ -347,8 +363,23 @@ def delete_logic_node_from_preview(preview, node_id: str):
     return delete_dialogue_node(payload, node_id)
 
 
-def create_script_node_from_preview(preview, source_node_id: str, descriptor: dict, *, new_node_id: str | None = None, link_text: str | None = None):
+def create_script_node_from_preview(
+    preview,
+    source_node_id: str,
+    descriptor: dict,
+    *,
+    new_node_id: str | None = None,
+    link_text: str | None = None,
+    node_patch: dict | None = None,
+):
     payload = _parse_preview_payload(preview)
     if payload is None:
         return None
-    return create_script_node(payload, source_node_id, descriptor, new_node_id=new_node_id, link_text=link_text)
+    return create_script_node(
+        payload,
+        source_node_id,
+        descriptor,
+        new_node_id=new_node_id,
+        link_text=link_text,
+        node_patch=node_patch,
+    )
