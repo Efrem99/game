@@ -95,7 +95,14 @@ class DevHub(ctk.CTk):
                 return json.loads(self.config_path.read_text(encoding="utf-8"))
             except:
                 pass
-        return {"actors": {}, "profiles": {}}
+        return {"actors": {}, "profiles": {}, "studio": {}}
+
+    def _save_config(self):
+        try:
+            self.config_path.parent.mkdir(parents=True, exist_ok=True)
+            self.config_path.write_text(json.dumps(self.config_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except Exception as exc:
+            self.log(f"[Studio] Failed to save dev hub config: {exc}")
 
     def _load_test_data(self):
         # 1. Load Video Scenarios
@@ -253,6 +260,11 @@ class DevHub(ctk.CTk):
                 self._studio_shell.focus_path(relative_path)
                 self.log(f"[Studio] Focused {relative_path} in {studio_key}.")
 
+    def _on_studio_session_change(self, session_payload: dict):
+        self.config_data.setdefault("studio", {})
+        self.config_data["studio"]["session"] = dict(session_payload or {})
+        self._save_config()
+
     def _build_visual_studio_actions(self):
         return [
             {
@@ -317,6 +329,8 @@ class DevHub(ctk.CTk):
                 "visual_studio": self._build_visual_studio_actions(),
                 "logic_studio": self._build_logic_studio_actions(),
             },
+            initial_session=dict((self.config_data.get("studio") or {}).get("session") or {}),
+            on_session_change=self._on_studio_session_change,
         )
         self._studio_shell.pack(fill="both", expand=True, padx=8, pady=8)
         self.log(f"[Studio] Embedded shell ready for {studio_key}.")
