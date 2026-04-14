@@ -27,6 +27,12 @@ from launchers.studio_properties import build_properties_payload
 from launchers.studio_preview import load_preview, resolve_preview_focus_path, save_preview_text
 from launchers.studio_session import build_studio_session_payload
 from launchers.studio_workspace_tree import build_workspace_tree
+from launchers.studio_workspace_state import (
+    filter_workspace_tree,
+    normalize_workspace_paths,
+    record_recent_path,
+    toggle_favorite_path,
+)
 from launchers.studio_story_inspector import (
     apply_story_focus_patch,
     build_story_focus_from_preview,
@@ -85,9 +91,12 @@ class StudioShell(ctk.CTkFrame):
         self._mode_key_to_label = {}
         self._catalog_image_refs = []
         self._catalog_query_var = None
+        self._navigator_query_var = None
         self._graph_inspector_fields = {}
         self._story_inspector_fields = {}
         self._graph_node_bounds = {}
+        self._favorite_paths = normalize_workspace_paths(self._initial_session.get("favorite_paths"))
+        self._recent_paths = normalize_workspace_paths(self._initial_session.get("recent_paths"), limit=12)
         self._persisted_source_text = ""
         self._preview_base_title = "No file selected"
         self._preview_base_subtitle = "Choose a workspace path to start authoring."
@@ -116,10 +125,13 @@ class StudioShell(ctk.CTkFrame):
         self._active_preview = preview
         if not keep_asset_selection:
             self._selected_asset_entry = None
+        if str(preview.get("kind") or "").lower() != "directory":
+            self._recent_paths = record_recent_path(self._recent_paths, rel_path)
         self._active_graph = _build_authoring_graph(preview)
         self._selected_graph_node_id = self._active_graph.get("root_id") if self._active_graph else None
         self._persisted_source_text = str(preview.get("raw_text") or "") if preview.get("editable") else ""
         self._set_preview_state(preview.get("title") or rel_path, f"{preview.get('kind', 'preview').upper()} | {preview.get('relative_path', rel_path)}", "Editable inside shared studio shell." if preview.get("editable") else "Preview available inside shared studio shell.", bool(preview.get("editable")))
+        self._render_workspace_browser()
         self._render_graph(preview)
         self._render_overview(preview)
         self._render_properties(preview)
@@ -281,35 +293,88 @@ class StudioShell(ctk.CTkFrame):
                 ctk.CTkLabel(self._actions_container, text=action["description"], justify="left", wraplength=1080, text_color="#a8a8b6").pack(anchor="w", padx=20, pady=(0, 4))
 
     def _rebuild_workspace_browser(self, studio: dict):
-        for child in self._navigator.winfo_children():
-            child.destroy()
-        ctk.CTkLabel(self._navigator, text="Authoring Tree", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=12, pady=(10, 6))
         workspace_paths = []
         for workspace in list(studio.get("workspaces", []) or []):
             workspace_paths.extend(list(workspace.get("paths", []) or []))
         self._workspace_tree = build_workspace_tree(self._root_dir, workspace_paths)
+        self._workspace_root_count = len(workspace_paths)
+        self._render_workspace_browser()
+
+    def _render_workspace_browser(self):
+        for child in self._navigator.winfo_children():
+            child.destroy()
+        ctk.CTkLabel(self._navigator, text="Authoring Tree", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=12, pady=(10, 6))
+        if self._navigator_query_var is None:
+            self._navigator_query_var = tk.StringVar(value="")
+        search_row = ctk.CTkFrame(self._navigator, fg_color="transparent")
+        search_row.pack(fill="x", padx=12, pady=(0, 8))
+        entry = ctk.CTkEntry(search_row, textvariable=self._navigator_query_var, placeholder_text="Filter files and folders...")
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkButton(search_row, text="Search", width=84, command=self._render_workspace_browser).pack(side="left")
+        ctk.CTkButton(search_row, text="Clear", width=72, fg_color="#34495e", hover_color="#2c3e50", command=self._clear_workspace_query).pack(side="left", padx=(8, 0))
+        self._favorite_toggle_btn = ctk.CTkButton(search_row, text="Star Current", width=108, fg_color="#d68910", hover_color="#b9770e", command=self._toggle_current_favorite)
+        self._favorite_toggle_btn.pack(side="left", padx=(8, 0))
+        if self._active_path and self._active_path in self._favorite_paths:
+            self._favorite_toggle_btn.configure(text="Unstar Current", fg_color="#7f8c8d", hover_color="#707b7c")
         ctk.CTkLabel(
             self._navigator,
-            text=f"{len(self._workspace_tree)} root nodes | merged from {len(workspace_paths)} workspace paths",
+            text=f"{len(self._workspace_tree)} root nodes | merged from {getattr(self, '_workspace_root_count', 0)} workspace paths",
             text_color="#8c97a7",
         ).pack(anchor="w", padx=12, pady=(0, 10))
-        if not self._workspace_tree:
+        self._render_workspace_path_section("Favorites", self._favorite_paths, accent="#f6c46a")
+        self._render_workspace_path_section("Recent Files", self._recent_paths, accent="#8ea5ff")
+        filtered_tree = filter_workspace_tree(self._workspace_tree, self._navigator_query_var.get())
+        if not filtered_tree:
             ctk.CTkLabel(
                 self._navigator,
-                text="No workspace paths available for this studio.",
+                text="No workspace files match the current filter." if self._workspace_tree else "No workspace paths available for this studio.",
                 text_color="#6f7084",
                 justify="left",
                 wraplength=320,
             ).pack(anchor="w", padx=12, pady=(8, 14))
             return
-        for node in self._workspace_tree:
+        for node in filtered_tree:
             self._render_workspace_tree_node(node, depth=0)
+
+    def _clear_workspace_query(self):
+        if self._navigator_query_var is not None:
+            self._navigator_query_var.set("")
+        self._render_workspace_browser()
+
+    def _toggle_current_favorite(self):
+        if not self._active_path:
+            return
+        self._favorite_paths = toggle_favorite_path(self._favorite_paths, self._active_path)
+        self._render_workspace_browser()
+        self._sync_preview_chrome("Updated studio favorites.")
+        self._emit_session_change()
+
+    def _render_workspace_path_section(self, title: str, paths: list[str], *, accent: str):
+        section = ctk.CTkFrame(self._navigator)
+        section.pack(fill="x", padx=8, pady=(0, 8))
+        ctk.CTkLabel(section, text=title, font=ctk.CTkFont(size=14, weight="bold"), text_color=accent).pack(anchor="w", padx=10, pady=(10, 4))
+        if not paths:
+            ctk.CTkLabel(section, text="No entries yet.", text_color="#6f7084").pack(anchor="w", padx=10, pady=(0, 10))
+            return
+        for relative_path in list(paths[:8]):
+            ctk.CTkButton(
+                section,
+                text=relative_path,
+                anchor="w",
+                fg_color="transparent",
+                hover_color="#22314a",
+                border_width=1 if self._active_path == relative_path else 0,
+                border_color=accent,
+                command=lambda p=relative_path: self.focus_path(p),
+            ).pack(fill="x", padx=8, pady=2)
 
     def _render_workspace_tree_node(self, node: dict, *, depth: int):
         kind = str(node.get("kind") or "file")
         relative_path = str(node.get("relative_path") or "").strip()
         label = str(node.get("label") or relative_path or "item")
         icon = "[DIR]" if kind == "directory" else "[FILE]"
+        if kind != "directory" and relative_path in self._favorite_paths:
+            icon = f"[*] {icon}"
         wrap = ctk.CTkFrame(self._navigator, fg_color="transparent")
         wrap.pack(fill="x", padx=6, pady=1)
         row = ctk.CTkFrame(wrap, fg_color="transparent")
@@ -1112,6 +1177,8 @@ class StudioShell(ctk.CTkFrame):
                     studio_key=self._studio_key,
                     active_path=self._active_path or "",
                     dock_layout=self._dock_layout,
+                    favorite_paths=self._favorite_paths,
+                    recent_paths=self._recent_paths,
                 )
             )
         except Exception:
