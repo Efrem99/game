@@ -4,6 +4,7 @@ from launchers.studio_logic_graph import (
     apply_logic_focus_patch,
     build_logic_focus_from_preview,
     build_logic_graph_from_preview,
+    build_logic_validation_from_preview,
     create_logic_node_from_preview,
     create_script_node_from_preview,
     delete_logic_node_from_preview,
@@ -285,3 +286,63 @@ def test_create_script_node_from_preview_accepts_custom_node_patch_and_link_text
         "text": "Trigger quest sync",
         "next_node": "quest_manager_custom",
     }
+
+
+def test_build_logic_graph_from_preview_includes_validation_summary():
+    preview = {
+        "kind": "json",
+        "relative_path": "data/dialogues/quest_giver_dialogue.json",
+        "raw_text": json.dumps(
+            {
+                "dialogue_tree": {
+                    "start": {
+                        "speaker": "Narrator",
+                        "text": "Welcome.",
+                        "choices": [{"text": "Broken", "next_node": "missing_node"}],
+                    },
+                    "orphan": {
+                        "speaker": "Narrator",
+                        "text": "I am never reached.",
+                    },
+                }
+            },
+            indent=2,
+        ),
+    }
+
+    graph = build_logic_graph_from_preview(preview)
+
+    assert graph["validation"]["ok"] is False
+    assert graph["validation"]["issue_count"] == 2
+    assert graph["validation"]["broken_target_count"] == 1
+    assert graph["validation"]["unreachable_count"] == 1
+
+
+def test_build_logic_validation_from_preview_reports_broken_targets_and_unreachable_nodes():
+    preview = {
+        "kind": "json",
+        "relative_path": "data/dialogues/quest_giver_dialogue.json",
+        "raw_text": json.dumps(
+            {
+                "dialogue_tree": {
+                    "start": {
+                        "speaker": "Narrator",
+                        "text": "Welcome.",
+                        "choices": [{"text": "Broken", "next_node": "missing_node"}],
+                    },
+                    "orphan": {
+                        "speaker": "Narrator",
+                        "text": "I am never reached.",
+                    },
+                }
+            },
+            indent=2,
+        ),
+    }
+
+    validation = build_logic_validation_from_preview(preview)
+
+    assert validation["ok"] is False
+    assert [issue["kind"] for issue in validation["issues"]] == ["broken_target", "unreachable_node"]
+    assert validation["issues"][0]["node_id"] == "start"
+    assert validation["issues"][1]["node_id"] == "orphan"

@@ -35,3 +35,6 @@ def test_studio_shell_mentions_graph_and_story_inspectors():
     assert "Create Script Node" in source
     assert 'text="Revert"' in source
     assert "Unsaved changes in the shared source buffer." in source
+    assert "Validate Graph" in source
+    assert "Center Selection" in source
+    assert 'text="Reset Layout"' in source

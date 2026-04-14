@@ -16,6 +16,7 @@ from launchers.studio_logic_graph import (
     apply_logic_focus_patch,
     build_logic_focus_from_preview,
     build_logic_graph_from_preview,
+    build_logic_validation_from_preview,
     create_logic_node_from_preview,
     create_script_node_from_preview,
     delete_logic_node_from_preview,
@@ -24,6 +25,7 @@ from launchers.studio_manifest import get_studio_definition, list_studio_keys, r
 from launchers.studio_node_catalog import build_logic_node_catalog, build_script_node_descriptor
 from launchers.studio_properties import build_properties_payload
 from launchers.studio_preview import load_preview, resolve_preview_focus_path, save_preview_text
+from launchers.studio_session import build_studio_session_payload
 from launchers.studio_workspace_tree import build_workspace_tree
 from launchers.studio_story_inspector import (
     apply_story_focus_patch,
@@ -58,11 +60,13 @@ def _build_authoring_graph(preview: dict | None):
 
 
 class StudioShell(ctk.CTkFrame):
-    def __init__(self, parent, root_dir: Path, *, studio_manifest: dict, initial_studio_key: str, log_fn: Callable[[str], None], actions_by_key: Optional[dict] = None):
+    def __init__(self, parent, root_dir: Path, *, studio_manifest: dict, initial_studio_key: str, log_fn: Callable[[str], None], actions_by_key: Optional[dict] = None, initial_session: Optional[dict] = None, on_session_change: Optional[Callable[[dict], None]] = None):
         super().__init__(parent)
         self._root_dir = Path(root_dir)
         self._studio_manifest = dict(studio_manifest or {})
         self._studio_key = resolve_studio_key(self._studio_manifest, initial_studio_key)
+        self._initial_session = dict(initial_session or {})
+        self._on_session_change = on_session_change
         self._log = log_fn
         self._actions_by_key = dict(actions_by_key or {})
         self._active_path = None
@@ -74,7 +78,7 @@ class StudioShell(ctk.CTkFrame):
         self._selected_asset_entry = None
         self._asset_action_fields = {}
         self._selected_graph_node_id = None
-        self._dock_layout = normalize_studio_dock_layout({})
+        self._dock_layout = normalize_studio_dock_layout(self._initial_session.get("dock_layout"))
         self._dragging_panel_key = None
         self._dragging_catalog_entry = None
         self._mode_label_to_key = {}
@@ -83,6 +87,7 @@ class StudioShell(ctk.CTkFrame):
         self._catalog_query_var = None
         self._graph_inspector_fields = {}
         self._story_inspector_fields = {}
+        self._graph_node_bounds = {}
         self._persisted_source_text = ""
         self._preview_base_title = "No file selected"
         self._preview_base_subtitle = "Choose a workspace path to start authoring."
@@ -100,6 +105,7 @@ class StudioShell(ctk.CTkFrame):
         if getattr(self, "_mode_switch", None) is not None and label:
             self._mode_switch.set(label)
         self._apply_studio(self._studio_key)
+        self._emit_session_change()
 
     def focus_path(self, relative_path: str, *, keep_asset_selection: bool = False):
         rel_path = str(relative_path or "").strip()
@@ -120,6 +126,7 @@ class StudioShell(ctk.CTkFrame):
         self._render_source(preview)
         if getattr(self, "_asset_catalog_results", None) is not None:
             self._refresh_asset_catalog()
+        self._emit_session_change()
 
     def _build_shell(self):
         hero = ctk.CTkFrame(self)
@@ -164,6 +171,8 @@ class StudioShell(ctk.CTkFrame):
         actions.pack(side="right", padx=14, pady=12)
         self._reload_btn = ctk.CTkButton(actions, text="Reload", width=110, command=self._reload_current_path)
         self._reload_btn.pack(side="left", padx=(0, 8))
+        self._reset_layout_btn = ctk.CTkButton(actions, text="Reset Layout", width=120, fg_color="#34495e", hover_color="#2c3e50", command=self._reset_dock_layout)
+        self._reset_layout_btn.pack(side="left", padx=(0, 8))
         self._revert_btn = ctk.CTkButton(actions, text="Revert", width=110, fg_color="#596275", hover_color="#4b5463", state="disabled", command=self._revert_current_file)
         self._revert_btn.pack(side="left", padx=(0, 8))
         self._save_btn = ctk.CTkButton(actions, text="Save", width=110, fg_color="#27ae60", hover_color="#229954", command=self._save_current_file)
@@ -219,11 +228,23 @@ class StudioShell(ctk.CTkFrame):
         elif panel_key == "graph":
             wrap = ctk.CTkFrame(host)
             wrap.pack(fill="both", expand=True)
+            toolbar = ctk.CTkFrame(wrap)
+            toolbar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=6, pady=(6, 4))
+            self._graph_create_btn = ctk.CTkButton(toolbar, text="Create Child", width=130, fg_color="#6c5ce7", hover_color="#5b4bd6", command=self._toolbar_create_graph_node)
+            self._graph_create_btn.pack(side="left", padx=(8, 8), pady=8)
+            self._graph_delete_btn = ctk.CTkButton(toolbar, text="Delete Selected", width=130, fg_color="#c0392b", hover_color="#a93226", command=self._delete_graph_node)
+            self._graph_delete_btn.pack(side="left", padx=(0, 8), pady=8)
+            self._graph_validate_btn = ctk.CTkButton(toolbar, text="Validate Graph", width=130, fg_color="#1f6feb", hover_color="#1a5ecf", command=self._validate_active_graph)
+            self._graph_validate_btn.pack(side="left", padx=(0, 8), pady=8)
+            self._graph_center_btn = ctk.CTkButton(toolbar, text="Center Selection", width=140, fg_color="#16a085", hover_color="#138d75", command=self._center_graph_selection)
+            self._graph_center_btn.pack(side="left", padx=(0, 12), pady=8)
+            self._graph_validation_lbl = ctk.CTkLabel(toolbar, text="Open a dialogue, quest, or scene to validate its graph.", text_color="#8c97a7")
+            self._graph_validation_lbl.pack(side="left", fill="x", expand=True, padx=(0, 8))
             self._graph_canvas = tk.Canvas(wrap, bg="#101522", highlightthickness=0, borderwidth=0)
-            self._graph_canvas.grid(row=0, column=0, sticky="nsew")
-            ctk.CTkScrollbar(wrap, orientation="vertical", command=self._graph_canvas.yview).grid(row=0, column=1, sticky="ns")
-            ctk.CTkScrollbar(wrap, orientation="horizontal", command=self._graph_canvas.xview).grid(row=1, column=0, sticky="ew")
-            wrap.grid_rowconfigure(0, weight=1)
+            self._graph_canvas.grid(row=1, column=0, sticky="nsew")
+            ctk.CTkScrollbar(wrap, orientation="vertical", command=self._graph_canvas.yview).grid(row=1, column=1, sticky="ns")
+            ctk.CTkScrollbar(wrap, orientation="horizontal", command=self._graph_canvas.xview).grid(row=2, column=0, sticky="ew")
+            wrap.grid_rowconfigure(1, weight=1)
             wrap.grid_columnconfigure(0, weight=1)
         elif panel_key == "overview":
             self._overview_frame = ctk.CTkScrollableFrame(host)
@@ -526,6 +547,11 @@ class StudioShell(ctk.CTkFrame):
     def _load_initial_preview(self, studio: dict):
         self._active_path = None
         self._active_preview = None
+        session_studio_key = str(self._initial_session.get("studio_key") or "").strip()
+        session_active_path = str(self._initial_session.get("active_path") or "").strip()
+        if session_active_path and session_studio_key == self._studio_key:
+            self.focus_path(session_active_path)
+            return
         for workspace in list(studio.get("workspaces", []) or []):
             for raw_path in list(workspace.get("paths", []) or []):
                 rel_path = str(raw_path or "").strip()
@@ -579,11 +605,23 @@ class StudioShell(ctk.CTkFrame):
         if canvas is None:
             return
         graph = self._active_graph
+        self._graph_node_bounds = {}
         canvas.delete("all")
         if not graph:
             message = "Open a canonical dialogue, quest, or scene JSON to see its flow graph here." if self._studio_key == "logic_studio" else "Open a supported scene, quest, or dialogue file to get an inline graph in this shared shell."
             canvas.create_text(28, 28, anchor="nw", width=760, text=message, fill="#7f8ea3", font=("Segoe UI", 13))
+            if getattr(self, "_graph_validation_lbl", None) is not None:
+                self._graph_validation_lbl.configure(text="Open a dialogue, quest, or scene to validate its graph.", text_color="#8c97a7")
             return
+        validation = dict(graph.get("validation") or {})
+        if getattr(self, "_graph_validation_lbl", None) is not None:
+            if validation.get("ok"):
+                self._graph_validation_lbl.configure(text="Validation passed. No broken targets or unreachable nodes.", text_color="#48d597")
+            else:
+                self._graph_validation_lbl.configure(
+                    text=f"{validation.get('issue_count', 0)} issues | {validation.get('broken_target_count', 0)} broken targets | {validation.get('unreachable_count', 0)} unreachable nodes",
+                    text_color="#f6c46a",
+                )
         if not self._selected_graph_node_id:
             self._selected_graph_node_id = graph.get("root_id")
         positions = {}
@@ -603,6 +641,7 @@ class StudioShell(ctk.CTkFrame):
             canvas.create_line(sx, sy, mx, sy, mx, ty, tx, ty, fill=color, width=2, smooth=True, arrow=tk.LAST)
         for node in nodes:
             x1, y1, x2, y2 = positions[node["id"]]
+            self._graph_node_bounds[node["id"]] = (x1, y1, x2, y2)
             selected = node["id"] == self._selected_graph_node_id
             fill, outline = ("#3b2857", "#e3a8ff") if selected else ("#143454", "#4da3ff") if node.get("is_root") else ("#17392d", "#48d597") if node.get("is_terminal") else ("#1a2233", "#6b7a92")
             tag = f"graph-node::{node['id']}"
@@ -623,6 +662,7 @@ class StudioShell(ctk.CTkFrame):
             self._render_properties(self._active_preview)
             self._render_source(self._active_preview)
             self._sync_preview_chrome(f"Selected graph node: {node_id}")
+            self.after(10, self._center_graph_selection)
 
     def _render_overview(self, preview: dict):
         for child in self._overview_frame.winfo_children():
@@ -909,6 +949,22 @@ class StudioShell(ctk.CTkFrame):
         patch = {"speaker": fields["speaker"].get(), "text": fields["text"].get("1.0", "end-1c"), "next_node": fields["next_node"].get(), "choices_text": fields["choices_text"].get("1.0", "end-1c")}
         self._apply_preview_text(apply_logic_focus_patch(self._current_preview_from_source_buffer(), self._selected_graph_node_id, patch), "Applied node changes to the shared source buffer. Save to persist.")
 
+    def _toolbar_create_graph_node(self):
+        if not self._active_graph:
+            return
+        source_node_id = self._selected_graph_node_id or self._active_graph.get("root_id")
+        if not source_node_id:
+            return
+        new_node_id = self._make_unique_graph_node_id("new_node")
+        updated = create_logic_node_from_preview(self._current_preview_from_source_buffer(), source_node_id, new_node_id, link_text="Continue")
+        if self._apply_preview_text(updated, f"Created linked node {new_node_id}. Save to persist."):
+            self._selected_graph_node_id = new_node_id
+            self._render_graph(self._active_preview)
+            self._render_overview(self._active_preview)
+            self._render_properties(self._active_preview)
+            self._render_source(self._active_preview)
+            self.after(10, self._center_graph_selection)
+
     def _create_linked_graph_node(self):
         fields = dict(self._graph_inspector_fields or {})
         if not (self._selected_graph_node_id and fields):
@@ -925,7 +981,45 @@ class StudioShell(ctk.CTkFrame):
         deleting = self._selected_graph_node_id
         if self._apply_preview_text(delete_logic_node_from_preview(self._current_preview_from_source_buffer(), deleting), f"Deleted node {deleting}. Save to persist.") and self._active_graph:
             self._selected_graph_node_id = self._active_graph.get("root_id")
-            self._render_graph(self._active_preview); self._render_overview(self._active_preview); self._render_source(self._active_preview)
+            self._render_graph(self._active_preview); self._render_overview(self._active_preview); self._render_properties(self._active_preview); self._render_source(self._active_preview)
+
+    def _validate_active_graph(self):
+        validation = build_logic_validation_from_preview(self._current_preview_from_source_buffer())
+        if not validation:
+            self._sync_preview_chrome("Graph validation is only available for canonical dialogue graph files.")
+            return
+        if validation.get("ok"):
+            self._sync_preview_chrome("Graph validation passed. Save to persist.")
+            return
+        first_issue = next(iter(validation.get("issues") or []), {})
+        issue_text = str(first_issue.get("message") or "Validation found issues.")
+        self._sync_preview_chrome(f"Graph validation found {validation.get('issue_count', 0)} issues. {issue_text}")
+
+    def _center_graph_selection(self):
+        canvas = self._graph_canvas
+        if canvas is None or not self._graph_node_bounds:
+            return
+        node_id = self._selected_graph_node_id or (self._active_graph or {}).get("root_id")
+        box = self._graph_node_bounds.get(node_id)
+        if not box:
+            return
+        canvas.update_idletasks()
+        scroll_region = canvas.cget("scrollregion")
+        if not scroll_region:
+            return
+        left, top, right, bottom = [float(value) for value in str(scroll_region).split()]
+        view_width = max(float(canvas.winfo_width()), 1.0)
+        view_height = max(float(canvas.winfo_height()), 1.0)
+        node_center_x = (box[0] + box[2]) / 2.0
+        node_center_y = (box[1] + box[3]) / 2.0
+        total_width = max(right - left, view_width)
+        total_height = max(bottom - top, view_height)
+        if total_width > view_width:
+            x_offset = max(0.0, min(node_center_x - (view_width / 2.0), total_width - view_width))
+            canvas.xview_moveto(x_offset / total_width)
+        if total_height > view_height:
+            y_offset = max(0.0, min(node_center_y - (view_height / 2.0), total_height - view_height))
+            canvas.yview_moveto(y_offset / total_height)
 
     def _apply_story_changes(self):
         fields = dict((self._story_inspector_fields or {}).get("fields") or {})
@@ -989,6 +1083,7 @@ class StudioShell(ctk.CTkFrame):
                 self._render_properties(self._active_preview)
                 self._render_source(self._active_preview)
             self._sync_preview_chrome("Saved to canonical source file.")
+            self._emit_session_change()
 
     def _render_dock_layout(self):
         for panel in self._panel_frames.values():
@@ -1000,6 +1095,27 @@ class StudioShell(ctk.CTkFrame):
     def _move_panel(self, panel_key: str, target_zone: str, target_index: int | None = None):
         self._dock_layout = move_panel(self._dock_layout, panel_key, target_zone, target_index)
         self._render_dock_layout()
+        self._emit_session_change()
+
+    def _reset_dock_layout(self):
+        self._dock_layout = normalize_studio_dock_layout({})
+        self._render_dock_layout()
+        self._sync_preview_chrome("Studio dock layout reset to defaults.")
+        self._emit_session_change()
+
+    def _emit_session_change(self):
+        if self._on_session_change is None:
+            return
+        try:
+            self._on_session_change(
+                build_studio_session_payload(
+                    studio_key=self._studio_key,
+                    active_path=self._active_path or "",
+                    dock_layout=self._dock_layout,
+                )
+            )
+        except Exception:
+            pass
 
     def _on_panel_drag_start(self, panel_key: str, _event):
         self._dragging_panel_key = panel_key

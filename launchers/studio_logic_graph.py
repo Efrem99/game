@@ -90,6 +90,63 @@ def _compute_dialogue_depths(node_ids: list[str], dialogue_tree: dict, root_id: 
     return depths
 
 
+def _collect_reachable_nodes(dialogue_tree: dict, root_id: str):
+    reachable = set()
+    queue = deque([root_id])
+    while queue:
+        node_id = queue.popleft()
+        if node_id in reachable or node_id not in dialogue_tree:
+            continue
+        reachable.add(node_id)
+        for target in _iter_dialogue_targets(dialogue_tree.get(node_id) or {}):
+            queue.append(target["target"])
+    return reachable
+
+
+def build_dialogue_validation(payload: dict):
+    dialogue_tree = payload.get("dialogue_tree")
+    if not isinstance(dialogue_tree, dict) or not dialogue_tree:
+        return None
+    node_ids = [str(node_id) for node_id in dialogue_tree.keys()]
+    root_id = "start" if "start" in dialogue_tree else node_ids[0]
+    reachable = _collect_reachable_nodes(dialogue_tree, root_id)
+    issues = []
+    broken_target_count = 0
+    unreachable_count = 0
+    for node_id in node_ids:
+        node_payload = dialogue_tree.get(node_id) or {}
+        for edge in _iter_dialogue_targets(node_payload):
+            if edge["target"] not in dialogue_tree:
+                broken_target_count += 1
+                issues.append(
+                    {
+                        "kind": "broken_target",
+                        "node_id": node_id,
+                        "target": edge["target"],
+                        "label": edge["label"],
+                        "message": f"{node_id} points to missing node {edge['target']}.",
+                    }
+                )
+    for node_id in node_ids:
+        if node_id not in reachable:
+            unreachable_count += 1
+            issues.append(
+                {
+                    "kind": "unreachable_node",
+                    "node_id": node_id,
+                    "message": f"{node_id} is not reachable from root {root_id}.",
+                }
+            )
+    return {
+        "ok": not issues,
+        "root_id": root_id,
+        "issue_count": len(issues),
+        "broken_target_count": broken_target_count,
+        "unreachable_count": unreachable_count,
+        "issues": issues,
+    }
+
+
 def _parse_preview_payload(preview):
     if not isinstance(preview, dict):
         return None
@@ -168,6 +225,7 @@ def build_dialogue_graph(payload: dict, *, relative_path: str = ""):
             "edge_count": len(edges),
             "terminal_count": terminal_count,
         },
+        "validation": build_dialogue_validation(payload),
     }
 
 
@@ -333,6 +391,13 @@ def build_logic_graph_from_preview(preview):
     if payload is None:
         return None
     return build_dialogue_graph(payload, relative_path=str(preview.get("relative_path") or ""))
+
+
+def build_logic_validation_from_preview(preview):
+    payload = _parse_preview_payload(preview)
+    if payload is None:
+        return None
+    return build_dialogue_validation(payload)
 
 
 def build_logic_focus_from_preview(preview, node_id: str):
