@@ -1,10 +1,15 @@
 """Helpers to stabilize model appearance under PBR shaders."""
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from panda3d.core import LColor, Material, PNMImage, Texture, TextureStage
+from panda3d.core import LColor, Material, PNMImage, TexGenAttrib, Texture, TextureStage
+try:
+    from direct.showbase.ShowBaseGlobal import base
+except Exception:
+    base = None
 
 from utils.logger import logger
 from utils.runtime_paths import is_user_data_mode, runtime_file
@@ -16,6 +21,7 @@ except Exception:
 
 _WHITE_TEX = None
 _DEFAULT_MATERIAL = None
+_SKIP_PBR_SKIN_LOGGED = False
 
 
 def _call(node, snake_name, camel_name, *args, **kwargs):
@@ -33,7 +39,8 @@ def _white_texture():
         return _WHITE_TEX
 
     img = PNMImage(1, 1)
-    img.set_xel(0, 0, 1.0, 1.0, 1.0)
+    # Neutral albedo fallback (not pure white) to avoid overbright silhouettes.
+    img.set_xel(0, 0, 0.72, 0.70, 0.66)
     img.add_alpha()
     img.set_alpha(0, 0, 1.0)
 
@@ -49,8 +56,8 @@ def _default_material():
         return _DEFAULT_MATERIAL
 
     mat = Material("fallback_model_material")
-    mat.set_base_color(LColor(0.86, 0.84, 0.80, 1.0))
-    mat.set_roughness(0.68)
+    mat.set_base_color(LColor(0.68, 0.65, 0.60, 1.0))
+    mat.set_roughness(0.78)
     mat.set_metallic(0.0)
     _DEFAULT_MATERIAL = mat
     return _DEFAULT_MATERIAL
@@ -104,6 +111,68 @@ def _apply_common_shader_inputs(node):
             continue
 
 
+def _iter_scene_nodes(root):
+    if root is None:
+        return
+    queue = [root]
+    seen = set()
+    while queue:
+        node = queue.pop(0)
+        if not node:
+            continue
+        marker = id(node)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        yield node
+        try:
+            queue.extend(list(node.getChildren()))
+        except Exception:
+            continue
+
+
+def _should_exempt_from_env_texgen(node_name):
+    token = str(node_name or "").strip().lower()
+    if not token:
+        return False
+    prefixes = (
+        "sky_",
+        "rain_",
+        "cloud_",
+        "dash_fx",
+        "ambient_fire_fx",
+        "lightning_overlay",
+    )
+    return token.startswith(prefixes)
+
+
+def exempt_problematic_scene_nodes_from_env_texgen(root):
+    patched = 0
+    default_stage = TextureStage.get_default()
+    for node in _iter_scene_nodes(root):
+        try:
+            if _call(node, "is_empty", "isEmpty"):
+                continue
+        except Exception:
+            pass
+        try:
+            node_name = _call(node, "get_name", "getName")
+        except Exception:
+            node_name = ""
+        if not _should_exempt_from_env_texgen(node_name):
+            continue
+        try:
+            _call(node, "set_shader_off", "setShaderOff", 1003)
+        except Exception:
+            pass
+        try:
+            _call(node, "set_tex_gen", "setTexGen", default_stage, TexGenAttrib.MOff)
+            patched += 1
+        except Exception:
+            continue
+    return patched
+
+
 def _fix_dark_color_scale(target):
     try:
         scale = _call(target, "get_color_scale", "getColorScale")
@@ -117,7 +186,7 @@ def _fix_dark_color_scale(target):
             return True
         except Exception:
             return False
-    if dark_rgb < 0.06:
+    if dark_rgb < 0.02:
         try:
             _call(target, "set_color_scale", "setColorScale", 1.0, 1.0, 1.0, float(scale[3]))
             return True
@@ -143,7 +212,7 @@ def _fix_dark_vertex_color(target):
         return False
 
     dark_rgb = min(float(color[0]), float(color[1]), float(color[2]))
-    if dark_rgb < 0.04:
+    if dark_rgb < 0.02:
         try:
             _call(target, "set_color", "setColor", 1.0, 1.0, 1.0, float(color[3]))
             return True
@@ -238,7 +307,21 @@ def _fix_dark_hierarchy(node):
 
 
 def _apply_hardware_skinning(node, debug_label):
+    global _SKIP_PBR_SKIN_LOGGED
+    if str(os.environ.get("XBOT_DEBUG_SKIP_PBR_SKIN", "0") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        if not _SKIP_PBR_SKIN_LOGGED:
+            logger.warning("[Debug] Skipping complexpbr skin via XBOT_DEBUG_SKIP_PBR_SKIN=1")
+            _SKIP_PBR_SKIN_LOGGED = True
+        return False
     if complexpbr is None or not hasattr(complexpbr, "skin"):
+        return False
+    skin_attrib = getattr(base, "complexpbr_skin_attrib", None) if base is not None else None
+    if skin_attrib is None:
         return False
     try:
         complexpbr.skin(node)
@@ -278,11 +361,12 @@ def ensure_model_visual_defaults(
     patched = 0
     patched += _fix_dark_hierarchy(node)
     try:
-        patched += _ensure_geom_visibility(node)
+        p = _ensure_geom_visibility(node)
+        if p > 0:
+            logger.debug(f"[Visuals] Repaired {p} geoms in {debug_label} ({node.get_name()})")
+        patched += p
     except Exception as exc:
         logger.warning(f"[Visuals] Failed to enforce geom visibility for {debug_label}: {exc}")
-    if patched > 0:
-        logger.debug(f"[Visuals] Applied {patched} fallback visual patches to {debug_label}.")
     return patched
 
 

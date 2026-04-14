@@ -1,0 +1,14 @@
+{
+  "started_at": 1774881662.2128952,
+  "finished_at": 1774881662.2351842,
+  "total_steps": 1,
+  "failed_steps": 0,
+  "warned_steps": 0,
+  "avg_fps": 55.756347677185296,
+  "avg_draw_calls": 107.0,
+  "report_path": "C:\\xampp\\htdocs\\king-wizard\\qa_test_output_threads\\report.html",
+  "output_dir": "C:\\xampp\\htdocs\\king-wizard\\qa_test_output_threads",
+  "top_bug_types": {
+    "unknown": 1
+  }
+}

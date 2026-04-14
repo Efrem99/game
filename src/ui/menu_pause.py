@@ -71,5 +71,8 @@ class PauseMenu(BaseMenu):
             self.app.aspect2d.hide()
 
     def _on_resume_game(self):
-        self.hide()
-        self.app.state_mgr.set_state(self.app.GameState.PLAYING)
+        if hasattr(self.app, "_hide_pause_menu"):
+            self.app._hide_pause_menu()
+        else:
+            self.hide()
+            self.app.state_mgr.set_state(self.app.GameState.PLAYING)

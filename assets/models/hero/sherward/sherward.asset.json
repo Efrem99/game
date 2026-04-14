@@ -1,6 +1,6 @@
 {
   "id": "sherward_first_pass_blender",
-  "generated_at_utc": "2026-03-04T10:32:14.531092Z",
+  "generated_at_utc": "2026-04-04T12:05:08.195314Z",
   "pipeline": "blender_build_sherward_base",
   "blender_exe": "C:\\Program Files\\Blender Foundation\\Blender 5.0\\blender.exe",
   "build_script": "models/build_sherward_base.py",

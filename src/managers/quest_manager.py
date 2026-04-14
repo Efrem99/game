@@ -1,3 +1,6 @@
+from utils.logger import logger
+
+
 class QuestManager:
     def __init__(self, app, quests_data):
         self.app = app
@@ -54,7 +57,7 @@ class QuestManager:
         quest = self._find_quest(quest_id)
         if quest:
             self.active_quests[quest_id] = 0
-            print(f"[QuestManager] Started quest: {quest['title']}")
+            logger.info(f"[QuestManager] Started quest: {quest['title']}")
             if hasattr(self.app, "on_quest_started"):
                 try:
                     self.app.on_quest_started(quest_id, quest)
@@ -73,7 +76,7 @@ class QuestManager:
         if quest_id in self.active_quests:
             del self.active_quests[quest_id]
         self.completed_quests.add(quest_id)
-        print(f"[QuestManager] Completed quest: {quest.get('title', quest_id)}")
+        logger.info(f"[QuestManager] Completed quest: {quest.get('title', quest_id)}")
 
         if bool(grant_rewards):
             rewards = quest.get("rewards", {})
@@ -127,12 +130,12 @@ class QuestManager:
         if self.active_quests[quest_id] >= len(quest['objectives']):
             self.complete_quest(quest_id, grant_rewards=True)
         else:
-            print(f"[QuestManager] Objective updated for: {quest['title']}")
+            logger.info(f"[QuestManager] Objective updated for: {quest['title']}")
 
     def _give_rewards(self, rewards):
         if hasattr(self.app, "grant_rewards"):
             self.app.grant_rewards(rewards)
-        print(f"[QuestManager] Rewards given: {rewards}")
+        logger.info(f"[QuestManager] Rewards given: {rewards}")
 
     def get_hud_data(self, player_pos=None):
         # Return active objectives with tracking information.
@@ -190,5 +193,5 @@ class QuestManager:
                 if target:
                     dist = self._distance(player_pos, target)
                     if dist < 5.0:
-                        print(f"[QuestManager] Interacted with {current_obj.get('target')}!")
+                        logger.info(f"[QuestManager] Interacted with {current_obj.get('target')}!")
                         self._advance_quest(quest_id)

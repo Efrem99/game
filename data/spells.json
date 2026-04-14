@@ -4,6 +4,13 @@
         "damage": 25,
         "speed": 40,
         "cooldown": 1.5,
+        "anim_trigger": "cast_fire",
+        "runtime": {
+            "scatter": {
+                "enabled": true,
+                "max_lateral": 0.52
+            }
+        },
         "particle_tag": "fire_burst"
     },
     "LightningBolt": {
@@ -11,6 +18,13 @@
         "damage": 40,
         "speed": 100,
         "cooldown": 3.0,
+        "anim_trigger": "cast_lightning",
+        "runtime": {
+            "scatter": {
+                "enabled": true,
+                "max_lateral": 0.62
+            }
+        },
         "particle_tag": "lightning_arc"
     },
     "IceShards": {
@@ -18,6 +32,13 @@
         "damage": 10,
         "speed": 35,
         "cooldown": 0.5,
+        "anim_trigger": "cast_ice",
+        "runtime": {
+            "scatter": {
+                "enabled": true,
+                "max_lateral": 0.48
+            }
+        },
         "particle_tag": "ice_spike"
     },
     "ForceWave": {
@@ -25,12 +46,45 @@
         "damage": 5,
         "speed": 20,
         "cooldown": 5.0,
+        "anim_trigger": "cast_arcane",
+        "runtime": {
+            "cast_family": "aoe",
+            "telegraph": {
+                "radius": 5.5,
+                "duration": 0.2,
+                "anchor": "self",
+                "color": [0.5, 0.8, 1.0, 0.32]
+            }
+        },
         "particle_tag": "force_push"
     },
     "HealingAura": {
         "mana_cost": 40,
         "heal_value": 50,
         "cooldown": 10.0,
+        "anim_trigger": "cast_heal",
+        "runtime": {
+            "cast_family": "support",
+            "telegraph": {
+                "radius": 4.8,
+                "duration": 0.24,
+                "anchor": "self",
+                "color": [0.7, 1.0, 0.72, 0.28]
+            }
+        },
         "particle_tag": "heal_glow"
+    },
+    "ShadowIllusion": {
+        "mana_cost": 30,
+        "cooldown": 15.0,
+        "anim_trigger": "cast_arcane",
+        "runtime": {
+            "cast_family": "instant",
+            "vfx_windows": {
+                "prepare": { "color": [0.1, 0.1, 0.2, 0.8] },
+                "release": { "color": [0.0, 0.0, 0.0, 1.0] }
+            }
+        },
+        "particle_tag": "shadow_burst"
     }
 }

@@ -1,0 +1,18 @@
+{
+    "id": "wolf",
+    "kind": "wolf",
+    "aliases": ["direwolf", "dire_wolf", "warg"],
+    "speed": 9.6,
+    "run_speed": 15.3,
+    "accel": 13.4,
+    "decel": 16.2,
+    "turn_rate": 162.0,
+    "ground_offset": 0.56,
+    "mount_offset": [0.0, 0.0, 0.92],
+    "dismount_offset": [1.2, -0.7, 0.0],
+    "camera_profile": "mounted_horse",
+    "model": "assets/models/enemies/shadow_stalker.glb",
+    "model_scale": 1.08,
+    "model_offset": [0.0, 0.0, -0.22],
+    "model_hpr": [180.0, 0.0, 0.0]
+}

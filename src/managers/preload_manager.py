@@ -10,7 +10,7 @@ from utils.runtime_paths import runtime_file
 
 
 class PreloadManager:
-    """Handles asynchronous asset loading with runtime + persistent warm cache."""
+    """Handles asynchronous asset loading with runtime cache and persistent warm manifest."""
 
     CACHE_REL_PATH = Path("cache") / "preload_manifest.json"
     MAX_HOT_ASSETS = 160
@@ -30,6 +30,10 @@ class PreloadManager:
 
     def _norm(self, path):
         return str(path or "").strip().replace("\\", "/")
+
+    def _is_runtime_sidecar(self, path):
+        token = self._norm(path).lower()
+        return "/cache/asset_bam/" in token and token.endswith(".bam")
 
     def _asset_exists(self, path):
         token = self._norm(path)
@@ -67,6 +71,8 @@ class PreloadManager:
             asset_path = self._norm(row.get("path"))
             if not asset_path:
                 continue
+            if self._is_runtime_sidecar(asset_path):
+                continue
             try:
                 score = float(row.get("score", 0.0) or 0.0)
             except Exception:
@@ -84,6 +90,8 @@ class PreloadManager:
             if len(rows) >= self.MAX_HOT_ASSETS:
                 break
             if not self._asset_exists(path):
+                continue
+            if self._is_runtime_sidecar(path):
                 continue
             rows.append({"path": path, "score": round(float(score), 3)})
         payload = {
@@ -122,6 +130,8 @@ class PreloadManager:
             if path in seen:
                 continue
             if not self._asset_exists(path):
+                continue
+            if self._is_runtime_sidecar(path):
                 continue
             hot.append(path)
             seen.add(path)

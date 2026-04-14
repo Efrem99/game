@@ -2,9 +2,12 @@
     "version": 1,
     "terrain": {
         "size": 220.0,
-        "resolution": 84,
+        "resolution": 48,
         "castle_hill": {
-            "center": [0.0, 78.0],
+            "center": [
+                0.0,
+                78.0
+            ],
             "height": 30.0,
             "radius": 32.0,
             "plateau_radius": 10.0
@@ -22,21 +25,66 @@
     "river": {
         "name": "Alder River",
         "points": [
-            [34.0, 86.0],
-            [30.0, 74.0],
-            [23.0, 62.0],
-            [16.0, 52.0],
-            [9.0, 43.0],
-            [2.0, 34.0],
-            [-5.0, 24.0],
-            [-10.0, 13.0],
-            [-12.0, 2.0],
-            [-11.0, -12.0],
-            [-7.0, -24.0],
-            [-2.0, -36.0],
-            [3.0, -48.0],
-            [7.0, -58.0],
-            [12.0, -66.0]
+            [
+                34.0,
+                86.0
+            ],
+            [
+                30.0,
+                74.0
+            ],
+            [
+                23.0,
+                62.0
+            ],
+            [
+                16.0,
+                52.0
+            ],
+            [
+                9.0,
+                43.0
+            ],
+            [
+                2.0,
+                34.0
+            ],
+            [
+                -5.0,
+                24.0
+            ],
+            [
+                -10.0,
+                13.0
+            ],
+            [
+                -12.0,
+                2.0
+            ],
+            [
+                -11.0,
+                -12.0
+            ],
+            [
+                -7.0,
+                -24.0
+            ],
+            [
+                -2.0,
+                -36.0
+            ],
+            [
+                3.0,
+                -48.0
+            ],
+            [
+                7.0,
+                -58.0
+            ],
+            [
+                12.0,
+                -66.0
+            ]
         ],
         "width_start": 5.4,
         "width_end": 11.6,
@@ -44,18 +92,48 @@
     },
     "routes": {
         "serpentine_path": [
-            [2.0, 74.0],
-            [10.0, 66.0],
-            [4.0, 58.0],
-            [12.0, 50.0],
-            [6.0, 42.0],
-            [14.0, 34.0],
-            [8.0, 25.0],
-            [16.0, 16.0],
-            [10.0, 8.0]
+            [
+                2.0,
+                74.0
+            ],
+            [
+                10.0,
+                66.0
+            ],
+            [
+                4.0,
+                58.0
+            ],
+            [
+                12.0,
+                50.0
+            ],
+            [
+                6.0,
+                42.0
+            ],
+            [
+                14.0,
+                34.0
+            ],
+            [
+                8.0,
+                25.0
+            ],
+            [
+                16.0,
+                16.0
+            ],
+            [
+                10.0,
+                8.0
+            ]
         ],
         "forest_zone": {
-            "center": [-28.0, 10.0],
+            "center": [
+                -28.0,
+                10.0
+            ],
             "radius": 58.0
         }
     },
@@ -63,239 +141,1000 @@
         {
             "id": "castle_hill",
             "name": "Castle Hill",
-            "center": [0.0, 78.0, 22.0],
+            "center": [
+                0.0,
+                78.0,
+                22.0
+            ],
             "radius": 28.0
         },
         {
             "id": "inner_castle",
             "name": "Castle Courtyard",
-            "center": [0.0, 78.0, 25.0],
+            "center": [
+                0.0,
+                78.0,
+                25.0
+            ],
             "radius": 14.0
         },
         {
             "id": "castle_interior",
             "name": "Castle Interior",
-            "center": [0.0, 79.0, 24.0],
+            "center": [
+                0.0,
+                79.0,
+                24.0
+            ],
             "radius": 18.0
         },
         {
             "id": "prince_chamber",
             "name": "Prince Chamber",
-            "center": [6.0, 74.0, 24.0],
+            "center": [
+                6.0,
+                74.0,
+                24.0
+            ],
             "radius": 9.0
         },
         {
             "id": "world_map_gallery",
             "name": "World Map Gallery",
-            "center": [-4.0, 72.0, 24.0],
+            "center": [
+                -4.0,
+                72.0,
+                24.0
+            ],
             "radius": 8.0
         },
         {
             "id": "royal_laundry",
             "name": "Royal Laundry",
-            "center": [-9.0, 70.0, 22.0],
+            "center": [
+                -9.0,
+                70.0,
+                22.0
+            ],
             "radius": 8.0
         },
         {
             "id": "throne_hall",
             "name": "Throne Hall",
-            "center": [0.0, 88.0, 25.0],
+            "center": [
+                0.0,
+                88.0,
+                25.0
+            ],
             "radius": 12.0
         },
         {
             "id": "castle_flight_edge",
             "name": "Castle Flight Edge",
-            "center": [24.0, 86.0, 28.0],
+            "center": [
+                24.0,
+                86.0,
+                28.0
+            ],
             "radius": 10.0
         },
         {
             "id": "old_forest",
             "name": "Old Forest",
-            "center": [-28.0, 10.0, 3.0],
+            "center": [
+                -28.0,
+                10.0,
+                3.0
+            ],
             "radius": 52.0
         },
         {
             "id": "sharuan_forest_bridge",
             "name": "Sharuan Forest Bridge",
-            "center": [-22.0, 20.0, 4.0],
+            "center": [
+                -22.0,
+                20.0,
+                4.0
+            ],
             "radius": 18.0
         },
         {
             "id": "paradise_vision",
             "name": "Paradise Vision",
-            "center": [56.0, 84.0, 14.0],
+            "center": [
+                56.0,
+                84.0,
+                14.0
+            ],
             "radius": 16.0
+        },
+        {
+            "id": "town_center",
+            "name": "Town Center",
+            "center": [
+                0.0,
+                0.0,
+                2.0
+            ],
+            "radius": 18.0
         },
         {
             "id": "river_road",
             "name": "River Road",
-            "center": [-8.0, -22.0, 1.0],
+            "center": [
+                -8.0,
+                -22.0,
+                1.0
+            ],
             "radius": 30.0
         },
         {
             "id": "port_town",
             "name": "Port Market",
-            "center": [18.0, -62.0, 1.0],
+            "center": [
+                18.0,
+                -62.0,
+                1.0
+            ],
             "radius": 34.0
         },
         {
             "id": "port_market_walk",
             "name": "Port Market Walk",
-            "center": [12.0, -52.0, 2.0],
+            "center": [
+                12.0,
+                -52.0,
+                2.0
+            ],
             "radius": 16.0
         },
         {
             "id": "port_market_memory",
             "name": "Adalin Market Spot",
-            "center": [20.0, -58.0, 2.0],
+            "center": [
+                20.0,
+                -58.0,
+                2.0
+            ],
             "radius": 12.0
         },
         {
             "id": "coastline",
             "name": "Southern Coast",
-            "center": [0.0, -82.0, -1.0],
+            "center": [
+                0.0,
+                -82.0,
+                -1.0
+            ],
             "radius": 46.0
         },
         {
             "id": "training_grounds",
             "name": "Training Grounds",
-            "center": [18.0, 24.0, 2.0],
+            "center": [
+                18.0,
+                24.0,
+                2.0
+            ],
             "radius": 30.0
         },
         {
             "id": "parkour_grounds",
             "name": "Forest Parkour Grounds",
-            "center": [42.0, 33.0, 5.0],
+            "center": [
+                42.0,
+                33.0,
+                5.0
+            ],
             "radius": 20.0
+        },
+        {
+            "id": "stealth_climb_grounds",
+            "name": "Stealth Climb Grounds",
+            "center": [
+                72.0,
+                24.0,
+                4.0
+            ],
+            "radius": 18.0
         },
         {
             "id": "flight_grounds",
             "name": "Coastal Flight Grounds",
-            "center": [-5.0, 23.0, 8.0],
+            "center": [
+                -5.0,
+                23.0,
+                8.0
+            ],
             "radius": 24.0
         },
         {
-            "id": "krimora_forest_crash",
-            "name": "Krimora Forest Crash Site",
-            "center": [76.0, 12.0, 3.0],
-            "radius": 20.0
+            "id": "kremor_forest_crash",
+            "name": "Kremor Forest Crash Site",
+            "center": [
+                84.0,
+                -12.0,
+                3.0
+            ],
+            "radius": 32.0
         },
         {
-            "id": "krimora_forest_cage",
-            "name": "Krimora Cage Clearing",
-            "center": [70.0, 2.0, 3.0],
+            "id": "kremor_forest_cage",
+            "name": "Kremor Cage Clearing",
+            "center": [
+                70.0,
+                2.0,
+                3.0
+            ],
             "radius": 16.0
         },
         {
             "id": "dwarven_caves_gate",
             "name": "Dwarven Caves Gate",
-            "center": [92.0, -6.0, 4.0],
+            "center": [
+                92.0,
+                -6.0,
+                4.0
+            ],
             "radius": 14.0
         },
         {
             "id": "dwarven_caves_halls",
             "name": "Dwarven Forge Halls",
-            "center": [96.0, -14.0, 2.0],
+            "center": [
+                96.0,
+                -14.0,
+                2.0
+            ],
             "radius": 16.0
         },
         {
             "id": "dwarven_caves_throne",
             "name": "Dwarven Grand Throne",
-            "center": [102.0, -24.0, 3.0],
+            "center": [
+                102.0,
+                -24.0,
+                3.0
+            ],
             "radius": 16.0
         }
     ],
+    "location_doors": [
+        {
+            "id": "door_castle_gate_enter",
+            "from": "Castle Hill",
+            "to": "Castle Courtyard",
+            "center": [
+                0.0,
+                57.0,
+                20.5
+            ],
+            "radius": 4.0,
+            "heading": 0.0
+        },
+        {
+            "id": "door_castle_gate_exit",
+            "from": "Castle Courtyard",
+            "to": "Castle Hill",
+            "center": [
+                0.0,
+                57.0,
+                20.5
+            ],
+            "radius": 4.0,
+            "heading": 180.0
+        },
+        {
+            "id": "door_castle_interior_enter",
+            "from": "Castle Courtyard",
+            "to": "Castle Interior",
+            "center": [
+                0.0,
+                74.0,
+                23.8
+            ],
+            "radius": 3.2,
+            "heading": 0.0
+        },
+        {
+            "id": "door_castle_interior_exit",
+            "from": "Castle Interior",
+            "to": "Castle Courtyard",
+            "center": [
+                0.0,
+                74.0,
+                23.8
+            ],
+            "radius": 3.2,
+            "heading": 180.0
+        },
+        {
+            "id": "door_prince_chamber_enter",
+            "from": "Castle Interior",
+            "to": "Prince Chamber",
+            "center": [
+                5.4,
+                74.2,
+                24.2
+            ],
+            "radius": 2.2,
+            "heading": 90.0
+        },
+        {
+            "id": "door_prince_chamber_exit",
+            "from": "Prince Chamber",
+            "to": "Castle Interior",
+            "center": [
+                5.4,
+                74.2,
+                24.2
+            ],
+            "radius": 2.2,
+            "heading": -90.0
+        },
+        {
+            "id": "door_world_map_gallery_enter",
+            "from": "Castle Interior",
+            "to": "World Map Gallery",
+            "center": [
+                -3.8,
+                72.0,
+                24.1
+            ],
+            "radius": 2.2,
+            "heading": -90.0
+        },
+        {
+            "id": "door_world_map_gallery_exit",
+            "from": "World Map Gallery",
+            "to": "Castle Interior",
+            "center": [
+                -3.8,
+                72.0,
+                24.1
+            ],
+            "radius": 2.2,
+            "heading": 90.0
+        },
+        {
+            "id": "door_throne_hall_enter",
+            "from": "Castle Interior",
+            "to": "Throne Hall",
+            "center": [
+                0.0,
+                84.0,
+                24.8
+            ],
+            "radius": 2.8,
+            "heading": 0.0
+        },
+        {
+            "id": "door_throne_hall_exit",
+            "from": "Throne Hall",
+            "to": "Castle Interior",
+            "center": [
+                0.0,
+                84.0,
+                24.8
+            ],
+            "radius": 2.8,
+            "heading": 180.0
+        }
+    ],
     "castle": {
-        "keep": [0.0, 78.0],
+        "keep": [
+            0.0,
+            78.0
+        ],
         "wall_points": [
-            [-17.0, 95.0],
-            [0.0, 102.0],
-            [17.0, 95.0],
-            [23.0, 74.0],
-            [16.0, 57.0],
-            [0.0, 50.0],
-            [-16.0, 57.0],
-            [-23.0, 74.0],
-            [-17.0, 95.0]
+            [
+                -17.0,
+                95.0
+            ],
+            [
+                0.0,
+                102.0
+            ],
+            [
+                17.0,
+                95.0
+            ],
+            [
+                23.0,
+                74.0
+            ],
+            [
+                16.0,
+                57.0
+            ],
+            [
+                0.0,
+                50.0
+            ],
+            [
+                -16.0,
+                57.0
+            ],
+            [
+                -23.0,
+                74.0
+            ],
+            [
+                -17.0,
+                95.0
+            ]
         ],
         "inner_buildings": [
-            {"type": "hall", "pos": [-6.0, 72.0]},
-            {"type": "smith", "pos": [7.0, 73.0]},
-            {"type": "barracks", "pos": [-5.0, 84.0]},
-            {"type": "chapel", "pos": [6.0, 86.0]}
+            {
+                "type": "hall",
+                "pos": [
+                    -6.0,
+                    72.0
+                ]
+            },
+            {
+                "type": "smith",
+                "pos": [
+                    7.0,
+                    73.0
+                ]
+            },
+            {
+                "type": "stable",
+                "pos": [
+                    12.0,
+                    67.0
+                ]
+            },
+            {
+                "type": "barracks",
+                "pos": [
+                    -5.0,
+                    84.0
+                ]
+            },
+            {
+                "type": "chapel",
+                "pos": [
+                    6.0,
+                    86.0
+                ]
+            }
         ]
     },
     "port": {
-        "center": [18.0, -62.0],
+        "center": [
+            18.0,
+            -62.0
+        ],
         "district_radius": 32.0,
         "dock_segments": [
-            {"pos": [8.0, -70.0], "size": [5.0, 12.0]},
-            {"pos": [18.0, -72.0], "size": [5.0, 10.0]},
-            {"pos": [28.0, -69.0], "size": [5.0, 13.0]}
+            {
+                "pos": [
+                    8.0,
+                    -70.0
+                ],
+                "size": [
+                    5.0,
+                    12.0
+                ]
+            },
+            {
+                "pos": [
+                    18.0,
+                    -72.0
+                ],
+                "size": [
+                    5.0,
+                    10.0
+                ]
+            },
+            {
+                "pos": [
+                    28.0,
+                    -69.0
+                ],
+                "size": [
+                    5.0,
+                    13.0
+                ]
+            },
+            {
+                "pos": [
+                    36.0,
+                    -66.0
+                ],
+                "size": [
+                    4.4,
+                    11.5
+                ]
+            },
+            {
+                "pos": [
+                    -2.0,
+                    -67.0
+                ],
+                "size": [
+                    4.2,
+                    9.8
+                ]
+            }
         ],
         "market_stalls": [
-            {"pos": [11.0, -56.0]},
-            {"pos": [16.0, -54.0]},
-            {"pos": [21.0, -55.0]},
-            {"pos": [26.0, -57.0]}
+            {
+                "pos": [
+                    11.0,
+                    -56.0
+                ]
+            },
+            {
+                "pos": [
+                    16.0,
+                    -54.0
+                ]
+            },
+            {
+                "pos": [
+                    21.0,
+                    -55.0
+                ]
+            },
+            {
+                "pos": [
+                    26.0,
+                    -57.0
+                ]
+            },
+            {
+                "pos": [
+                    30.0,
+                    -58.0
+                ]
+            },
+            {
+                "pos": [
+                    6.0,
+                    -58.0
+                ]
+            }
         ],
         "houses": [
-            {"pos": [9.0, -49.0]},
-            {"pos": [15.0, -47.0]},
-            {"pos": [22.0, -48.0]},
-            {"pos": [28.0, -50.0]},
-            {"pos": [32.0, -56.0]}
+            {
+                "pos": [
+                    9.0,
+                    -49.0
+                ]
+            },
+            {
+                "pos": [
+                    15.0,
+                    -47.0
+                ]
+            },
+            {
+                "pos": [
+                    22.0,
+                    -48.0
+                ]
+            },
+            {
+                "pos": [
+                    28.0,
+                    -50.0
+                ]
+            },
+            {
+                "pos": [
+                    32.0,
+                    -56.0
+                ]
+            },
+            {
+                "pos": [
+                    4.0,
+                    -52.0
+                ]
+            },
+            {
+                "pos": [
+                    36.0,
+                    -58.0
+                ]
+            }
+        ],
+        "moored_boats": [
+            {
+                "pos": [
+                    6.0,
+                    -74.0
+                ],
+                "heading": 10.0,
+                "hull_len": 5.2,
+                "hull_beam": 1.7,
+                "mast_h": 2.9
+            },
+            {
+                "pos": [
+                    14.0,
+                    -76.5
+                ],
+                "heading": -16.0,
+                "hull_len": 5.6,
+                "hull_beam": 1.8,
+                "mast_h": 3.1
+            },
+            {
+                "pos": [
+                    23.0,
+                    -74.2
+                ],
+                "heading": 14.0,
+                "hull_len": 5.1,
+                "hull_beam": 1.6,
+                "mast_h": 2.7
+            },
+            {
+                "pos": [
+                    31.0,
+                    -76.8
+                ],
+                "heading": -12.0,
+                "hull_len": 5.8,
+                "hull_beam": 1.9,
+                "mast_h": 3.2
+            },
+            {
+                "pos": [
+                    40.0,
+                    -74.4
+                ],
+                "heading": 18.0,
+                "hull_len": 6.2,
+                "hull_beam": 2.0,
+                "mast_h": 3.4
+            }
+        ],
+        "harbor_lanterns": [
+            {
+                "pos": [
+                    4.0,
+                    -66.0
+                ]
+            },
+            {
+                "pos": [
+                    11.0,
+                    -67.0
+                ]
+            },
+            {
+                "pos": [
+                    18.0,
+                    -68.0
+                ]
+            },
+            {
+                "pos": [
+                    25.0,
+                    -67.0
+                ]
+            },
+            {
+                "pos": [
+                    33.0,
+                    -65.5
+                ]
+            }
         ]
     },
     "story_landmarks": {
         "sharuan_bridge": {
-            "center": [-22.0, 20.0],
+            "center": [
+                -22.0,
+                20.0
+            ],
             "length": 9.0,
-            "width": 2.8
+            "width": 3.4,
+            "arch_count": 3,
+            "railing_height": 0.9,
+            "stone_color": [
+                0.52,
+                0.50,
+                0.46
+            ]
         },
         "adrian_cage": {
-            "center": [70.0, 2.0],
-            "size": [3.2, 2.4, 2.8]
+            "center": [
+                70.0,
+                2.0
+            ],
+            "size": [
+                3.2,
+                2.4,
+                2.8
+            ]
         },
         "dwarven_gate": {
-            "center": [92.0, -6.0],
-            "size": [8.0, 2.0, 7.5]
+            "center": [
+                92.0,
+                -6.0
+            ],
+            "size": [
+                8.0,
+                2.0,
+                7.5
+            ]
         }
     },
+    "party_encounters": [
+        {
+            "member_id": "emberfox",
+            "npc_id": "emberfox",
+            "encounter": "tame",
+            "zone_id": "river_road"
+        },
+        {
+            "member_id": "eldrin_elf",
+            "npc_id": "eldrin_elf",
+            "encounter": "hire",
+            "zone_id": "old_forest"
+        },
+        {
+            "member_id": "kiron_centaur",
+            "npc_id": "kiron_centaur",
+            "encounter": "story",
+            "zone_id": "river_road"
+        },
+        {
+            "member_id": "adrian",
+            "npc_id": "adrian",
+            "encounter": "rescue",
+            "zone_id": "kremor_forest_cage"
+        },
+        {
+            "member_id": "torvin",
+            "npc_id": "torvin",
+            "encounter": "story",
+            "zone_id": "dwarven_caves_gate"
+        }
+    ],
     "navigation_zones": [
         {
             "id": "coastal_sea",
-            "kinds": ["ship", "boat"],
+            "kinds": [
+                "ship",
+                "boat"
+            ],
             "type": "polygon",
             "points": [
-                [-108.0, -112.0],
-                [108.0, -112.0],
-                [108.0, -50.0],
-                [42.0, -42.0],
-                [-8.0, -44.0],
-                [-108.0, -58.0]
+                [
+                    -108.0,
+                    -112.0
+                ],
+                [
+                    108.0,
+                    -112.0
+                ],
+                [
+                    108.0,
+                    -50.0
+                ],
+                [
+                    42.0,
+                    -42.0
+                ],
+                [
+                    -8.0,
+                    -44.0
+                ],
+                [
+                    -108.0,
+                    -58.0
+                ]
             ]
         },
         {
             "id": "river_estuary",
-            "kinds": ["ship", "boat"],
+            "kinds": [
+                "ship",
+                "boat"
+            ],
             "type": "corridor",
             "points": [
-                [12.0, -68.0],
-                [8.0, -58.0],
-                [2.0, -48.0],
-                [-3.0, -38.0],
-                [-7.0, -28.0],
-                [-10.0, -17.0]
+                [
+                    12.0,
+                    -68.0
+                ],
+                [
+                    8.0,
+                    -58.0
+                ],
+                [
+                    2.0,
+                    -48.0
+                ],
+                [
+                    -3.0,
+                    -38.0
+                ],
+                [
+                    -7.0,
+                    -28.0
+                ],
+                [
+                    -10.0,
+                    -17.0
+                ]
             ],
             "width": 8.6
         }
     ],
+    "kremor_clearings": [
+        {
+            "id": "kremor_clearing_1",
+            "center": [
+                -28.0,
+                6.0
+            ],
+            "radius": 8.0
+        },
+        {
+            "id": "kremor_clearing_2",
+            "center": [
+                -18.0,
+                22.0
+            ],
+            "radius": 6.0
+        },
+        {
+            "id": "kremor_clearing_ruins",
+            "center": [
+                -36.0,
+                16.0
+            ],
+            "radius": 7.0
+        }
+    ],
     "vehicle_spawns": [
-        {"id": "horse_stable_1", "kind": "horse", "pos": [9.0, 61.0], "heading": 194.0},
-        {"id": "horse_stable_2", "kind": "horse", "pos": [13.0, 58.0], "heading": 168.0},
-        {"id": "carriage_market_1", "kind": "carriage", "pos": [12.0, -52.0], "heading": 194.0},
-        {"id": "ship_port_1", "kind": "ship", "pos": [18.0, -78.0], "heading": 180.0, "nav_zone_id": "coastal_sea"},
-        {"id": "ship_estuary_1", "kind": "ship", "pos": [5.0, -60.0], "heading": 168.0, "nav_zone_id": "river_estuary"}
-    ]
+        {
+            "id": "horse_stable_1",
+            "kind": "horse",
+            "pos": [
+                12.0,
+                67.0
+            ],
+            "heading": 180.0
+        },
+        {
+            "id": "horse_stable_2",
+            "kind": "horse",
+            "pos": [
+                14.0,
+                65.0
+            ],
+            "heading": 160.0
+        },
+        {
+            "id": "wolf_rider_1",
+            "kind": "dire_wolf",
+            "pos": [
+                19.0,
+                54.0
+            ],
+            "heading": 176.0
+        },
+        {
+            "id": "stag_rider_1",
+            "kind": "stag",
+            "pos": [
+                4.0,
+                57.0
+            ],
+            "heading": 150.0
+        },
+        {
+            "id": "carriage_market_1",
+            "kind": "carriage",
+            "pos": [
+                12.0,
+                -52.0
+            ],
+            "heading": 194.0
+        },
+        {
+            "id": "ship_port_1",
+            "kind": "ship",
+            "pos": [
+                18.0,
+                -78.0
+            ],
+            "heading": 180.0,
+            "nav_zone_id": "coastal_sea"
+        },
+        {
+            "id": "ship_estuary_1",
+            "kind": "ship",
+            "pos": [
+                5.0,
+                -60.0
+            ],
+            "heading": 168.0,
+            "nav_zone_id": "river_estuary"
+        }
+    ],
+    "performance": {
+        "batch_location_meshes": true,
+        "batch_location_meshes_min_count": 3,
+        "cull_location_meshes": true,
+        "location_mesh_cull_distance": 170.0,
+        "location_mesh_cull_hysteresis": 18.0,
+        "location_mesh_cull_update_interval": 0.25,
+        "location_mesh_hlod_enabled": true,
+        "location_mesh_hlod_distance": 118.0,
+        "location_mesh_hlod_hysteresis": 22.0,
+        "location_mesh_cull_profiles": {
+            "castle_hill": {
+                "distance": 130.0,
+                "hysteresis": 12.0,
+                "interval": 0.14
+            },
+            "castle_courtyard": {
+                "distance": 125.0,
+                "hysteresis": 12.0,
+                "interval": 0.14
+            },
+            "castle_interior": {
+                "distance": 112.0,
+                "hysteresis": 10.0,
+                "interval": 0.12
+            },
+            "throne_hall": {
+                "distance": 105.0,
+                "hysteresis": 10.0,
+                "interval": 0.11
+            },
+            "port_market": {
+                "distance": 138.0,
+                "hysteresis": 14.0,
+                "interval": 0.16
+            },
+            "dwarven_caves_gate": {
+                "distance": 108.0,
+                "hysteresis": 10.0,
+                "interval": 0.12
+            },
+            "dwarven_forge_halls": {
+                "distance": 96.0,
+                "hysteresis": 8.0,
+                "interval": 0.10
+            },
+            "dwarven_grand_throne": {
+                "distance": 90.0,
+                "hysteresis": 8.0,
+                "interval": 0.10
+            }
+        },
+        "location_mesh_hlod_profiles": {
+            "castle_hill": {
+                "enabled": true,
+                "distance": 88.0,
+                "hysteresis": 18.0
+            },
+            "castle_interior": {
+                "enabled": true,
+                "distance": 72.0,
+                "hysteresis": 14.0
+            },
+            "port_market": {
+                "enabled": true,
+                "distance": 96.0,
+                "hysteresis": 18.0
+            },
+            "throne_hall": {
+                "enabled": true,
+                "distance": 70.0,
+                "hysteresis": 12.0
+            }
+        }
+    }
 }

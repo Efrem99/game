@@ -1,0 +1,4 @@
+tools/ffmpeg/*.zip filter=lfs diff=lfs merge=lfs -text
+tools/ffmpeg/**/*.exe filter=lfs diff=lfs merge=lfs -text
+tools/piper/models/*.onnx filter=lfs diff=lfs merge=lfs -text
+tools/piper/*.ort filter=lfs diff=lfs merge=lfs -text

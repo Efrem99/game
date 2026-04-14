@@ -3,243 +3,424 @@
         "name": "Sharuan Palace",
         "type": "complex",
         "lighting": "indoor_warm",
+        "ambient_color": [0.55, 0.45, 0.32, 1.0],
+        "fog_density": 0.0,
         "rooms": [
             {
-                "id": "prince_chambers",
-                "name": "Prince's Chambers",
-                "pos": [
-                    0,
-                    0,
-                    0
-                ],
-                "size": [
-                    12,
-                    12,
-                    6
-                ],
-                "color": [
-                    0.45,
-                    0.4,
-                    0.35,
-                    1
-                ],
+                "id": "entrance_hall",
+                "name": "Palace Entrance",
+                "pos": [0, 80, -2],
+                "size": [22, 22, 10],
+                "color": [0.65, 0.65, 0.70, 1],
                 "props": [
-                    {
-                        "model": "models/bed_royal.glb",
-                        "pos": [
-                            0,
-                            4,
-                            0
-                        ],
-                        "hpr": [
-                            180,
-                            0,
-                            0
-                        ],
-                        "scale": 1.3
-                    },
-                    {
-                        "model": "models/window_frame.glb",
-                        "pos": [
-                            0,
-                            -6,
-                            2
-                        ],
-                        "hpr": [
-                            0,
-                            0,
-                            0
-                        ],
-                        "scale": 1.5
-                    },
-                    {
-                        "model": "models/desk.glb",
-                        "pos": [
-                            4,
-                            2,
-                            0
-                        ],
-                        "hpr": [
-                            -90,
-                            0,
-                            0
-                        ]
-                    }
+                    {"model": "models/props/portcullis.glb", "pos": [0, 9, 0], "hpr": [0,0,0], "scale": 1.2},
+                    {"model": "models/props/torch_wall.glb", "pos": [-8, 7, 3], "hpr": [90,0,0], "scale": 1.0},
+                    {"model": "models/props/torch_wall.glb", "pos": [8, 7, 3], "hpr": [-90,0,0], "scale": 1.0},
+                    {"model": "models/props/torch_wall.glb", "pos": [-8, -7, 3], "hpr": [90,0,0], "scale": 1.0},
+                    {"model": "models/props/torch_wall.glb", "pos": [8, -7, 3], "hpr": [-90,0,0], "scale": 1.0},
+                    {"model": "models/props/flag_stand.glb", "pos": [-5, 8, 0], "hpr": [0,0,0], "scale": 1.3},
+                    {"model": "models/props/flag_stand.glb", "pos": [5, 8, 0], "hpr": [0,0,0], "scale": 1.3},
+                    {"model": "models/props/guard_alcove.glb", "pos": [-9, 6, 0], "hpr": [90,0,0], "scale": 1.0},
+                    {"model": "models/props/guard_alcove.glb", "pos": [9, 6, 0], "hpr": [-90,0,0], "scale": 1.0},
+                    {"model": "models/props/stone_tile_mat.glb", "pos": [0, 0, -0.05], "hpr": [0,0,0], "scale": [20,20,1]}
+                ],
+                "exits": [
+                    {"pos": [0, 9, 0], "radius": 4.0, "target_type": "location", "target": "palace_courtyard", "target_pos": [0, 0, 0]}
                 ]
             },
             {
                 "id": "corridor_upper",
                 "name": "Royal Wing Corridor",
-                "pos": [
-                    0,
-                    20,
-                    0
-                ],
-                "size": [
-                    5,
-                    28,
-                    6
-                ],
-                "color": [
-                    0.5,
-                    0.5,
-                    0.6,
-                    1
+                "pos": [0, 58, 0],
+                "size": [6, 30, 6],
+                "color": [0.52, 0.50, 0.60, 1],
+                "props": [
+                    {"model": "models/props/torch_wall.glb", "pos": [-2.5, 10, 2.5], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [2.5, 10, 2.5], "hpr": [-90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [-2.5, 0, 2.5], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [2.5, 0, 2.5], "hpr": [-90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [-2.5, -10, 2.5], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [2.5, -10, 2.5], "hpr": [-90,0,0]},
+                    {"model": "models/props/painting.glb", "pos": [-2.5, 5, 2.8], "hpr": [90,0,0], "scale": 0.9},
+                    {"model": "models/props/painting.glb", "pos": [-2.5, -5, 2.8], "hpr": [90,0,0], "scale": 0.9},
+                    {"model": "models/props/painting.glb", "pos": [2.5, 5, 2.8], "hpr": [-90,0,0], "scale": 0.9},
+                    {"model": "models/props/stone_bench.glb", "pos": [-2, -12, 0], "hpr": [0,0,0], "scale": 0.8},
+                    {"model": "models/props/stone_bench.glb", "pos": [2, -12, 0], "hpr": [180,0,0], "scale": 0.8},
+                    {"model": "models/props/rug_runner.glb", "pos": [0, 0, 0.01], "hpr": [0,0,0], "scale": [1.5, 12, 1]}
                 ]
             },
             {
                 "id": "great_hall",
                 "name": "Great Throne Hall",
-                "pos": [
-                    0,
-                    50,
-                    -2
-                ],
-                "size": [
-                    30,
-                    40,
-                    15
-                ],
-                "color": [
-                    0.6,
-                    0.55,
-                    0.5,
-                    1
-                ],
+                "pos": [0, 50, -2],
+                "size": [34, 44, 16],
+                "color": [0.62, 0.58, 0.52, 1],
                 "props": [
-                    {
-                        "model": "models/throne.glb",
-                        "pos": [
-                            0,
-                            -15,
-                            0
-                        ],
-                        "hpr": [
-                            0,
-                            0,
-                            0
-                        ],
-                        "scale": 1.5
-                    }
+                    {"model": "models/throne.glb", "pos": [0, -18, 0], "hpr": [0,0,0], "scale": 1.6},
+                    {"model": "models/props/carpet_throne.glb", "pos": [0, -5, 0.01], "hpr": [0,0,0], "scale": [4.5, 20, 1]},
+                    {"model": "models/props/banner_pole.glb", "pos": [-12, -16, 0], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/banner_pole.glb", "pos": [12, -16, 0], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/banner_pole.glb", "pos": [-12, 0, 0], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/banner_pole.glb", "pos": [12, 0, 0], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/banner_pole.glb", "pos": [-12, 16, 0], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/banner_pole.glb", "pos": [12, 16, 0], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/torch_stand.glb", "pos": [-14, -18, 0], "hpr": [0,0,0], "scale": 1.2},
+                    {"model": "models/props/torch_stand.glb", "pos": [14, -18, 0], "hpr": [0,0,0], "scale": 1.2},
+                    {"model": "models/props/torch_stand.glb", "pos": [-14, 18, 0], "hpr": [0,0,0], "scale": 1.2},
+                    {"model": "models/props/torch_stand.glb", "pos": [14, 18, 0], "hpr": [0,0,0], "scale": 1.2},
+                    {"model": "models/props/pew_row.glb", "pos": [-7, 10, 0], "hpr": [0,0,0], "scale": 1.1},
+                    {"model": "models/props/pew_row.glb", "pos": [7, 10, 0], "hpr": [0,0,0], "scale": 1.1},
+                    {"model": "models/props/pew_row.glb", "pos": [-7, 2, 0], "hpr": [0,0,0], "scale": 1.1},
+                    {"model": "models/props/pew_row.glb", "pos": [7, 2, 0], "hpr": [0,0,0], "scale": 1.1},
+                    {"model": "models/props/pew_row.glb", "pos": [-7, -6, 0], "hpr": [0,0,0], "scale": 1.1},
+                    {"model": "models/props/pew_row.glb", "pos": [7, -6, 0], "hpr": [0,0,0], "scale": 1.1},
+                    {"model": "models/props/chandelier.glb", "pos": [0, -5, 13], "hpr": [0,0,0], "scale": 2.0},
+                    {"model": "models/props/window_frame.glb", "pos": [-16, 10, 5], "hpr": [90,0,0], "scale": 1.8},
+                    {"model": "models/props/window_frame.glb", "pos": [16, 10, 5], "hpr": [-90,0,0], "scale": 1.8},
+                    {"model": "models/props/window_frame.glb", "pos": [-16, -5, 5], "hpr": [90,0,0], "scale": 1.8},
+                    {"model": "models/props/window_frame.glb", "pos": [16, -5, 5], "hpr": [-90,0,0], "scale": 1.8}
                 ]
             },
             {
-                "id": "entrance_hall",
-                "name": "Palace Entrance",
-                "pos": [
-                    0,
-                    80,
-                    -2
-                ],
-                "size": [
-                    20,
-                    20,
-                    10
-                ],
-                "color": [
-                    0.65,
-                    0.65,
-                    0.7,
-                    1
-                ],
-                "exits": [
-                    {
-                        "pos": [
-                            0,
-                            9,
-                            0
-                        ],
-                        "radius": 4.0,
-                        "target_type": "location",
-                        "target": "palace_courtyard",
-                        "target_pos": [
-                            0,
-                            0,
-                            0
-                        ]
-                    }
+                "id": "prince_chambers",
+                "name": "Prince's Chambers",
+                "pos": [6, 74, 0],
+                "size": [14, 14, 6],
+                "color": [0.48, 0.42, 0.36, 1],
+                "props": [
+                    {"model": "models/bed_royal.glb", "pos": [3, -5, 0], "hpr": [180,0,0], "scale": 1.3},
+                    {"model": "models/props/wardrobe.glb", "pos": [5, 5, 0], "hpr": [-90,0,0], "scale": 1.1},
+                    {"model": "models/desk.glb", "pos": [-4, 3, 0], "hpr": [90,0,0]},
+                    {"model": "models/props/bookcase.glb", "pos": [-5, -3, 0], "hpr": [90,0,0], "scale": 1.2},
+                    {"model": "models/props/candle_group.glb", "pos": [-3.5, 3.4, 0.76]},
+                    {"model": "models/props/candle_group.glb", "pos": [3.2, -4.8, 0.9]},
+                    {"model": "models/props/tapestry.glb", "pos": [0, -6.8, 3], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/window_frame.glb", "pos": [0, 7, 2.5], "hpr": [0,0,0], "scale": 1.3},
+                    {"model": "models/props/rug_small.glb", "pos": [0, 0, 0.01], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/mirror_frame.glb", "pos": [6.8, 0, 2], "hpr": [-90,0,0], "scale": 1.0}
+                ]
+            },
+            {
+                "id": "world_map_gallery",
+                "name": "World Map Gallery",
+                "pos": [-4, 72, 0],
+                "size": [10, 10, 5],
+                "color": [0.60, 0.58, 0.64, 1],
+                "props": [
+                    {"model": "models/props/map_table.glb", "pos": [0, 0, 0], "hpr": [0,0,0], "scale": 1.5},
+                    {"model": "models/props/chart_stand.glb", "pos": [-3, -3, 0], "hpr": [30,0,0], "scale": 1.0},
+                    {"model": "models/props/chart_stand.glb", "pos": [3, -3, 0], "hpr": [-30,0,0], "scale": 1.0},
+                    {"model": "models/props/bookcase.glb", "pos": [0, 4.5, 0], "hpr": [180,0,0], "scale": 1.1},
+                    {"model": "models/props/candle_group.glb", "pos": [0, 0, 0.88]},
+                    {"model": "models/props/painting.glb", "pos": [0, -4.8, 2.8], "hpr": [0,0,0], "scale": 1.4}
+                ]
+            },
+            {
+                "id": "throne_hall",
+                "name": "Throne Hall",
+                "pos": [0, 88, 0],
+                "size": [16, 14, 8],
+                "color": [0.68, 0.62, 0.55, 1],
+                "props": [
+                    {"model": "models/throne.glb", "pos": [0, -5, 0], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/torch_wall.glb", "pos": [-6, -5, 3.5], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [6, -5, 3.5], "hpr": [-90,0,0]},
+                    {"model": "models/props/carpet_throne.glb", "pos": [0, 1, 0.01], "hpr": [0,0,0], "scale": [3.5, 10, 1]},
+                    {"model": "models/props/banner_pole.glb", "pos": [-5, -5, 0]},
+                    {"model": "models/props/banner_pole.glb", "pos": [5, -5, 0]}
+                ]
+            },
+            {
+                "id": "armory",
+                "name": "Royal Armory",
+                "pos": [8, 68, 0],
+                "size": [10, 12, 5],
+                "color": [0.38, 0.36, 0.40, 1],
+                "props": [
+                    {"model": "models/props/weapon_rack.glb", "pos": [0, 5, 0], "hpr": [180,0,0], "scale": 1.3},
+                    {"model": "models/props/weapon_rack.glb", "pos": [0, -5, 0], "hpr": [0,0,0], "scale": 1.3},
+                    {"model": "models/props/armor_stand.glb", "pos": [-3, 0, 0], "hpr": [45,0,0], "scale": 1.1},
+                    {"model": "models/props/armor_stand.glb", "pos": [3, 0, 0], "hpr": [-45,0,0], "scale": 1.1},
+                    {"model": "models/props/barrel_stack.glb", "pos": [-4, -4, 0], "scale": 0.9},
+                    {"model": "models/props/torch_wall.glb", "pos": [0, 5.5, 3], "hpr": [180,0,0]}
+                ]
+            },
+            {
+                "id": "kitchen",
+                "name": "Palace Kitchen",
+                "pos": [-10, 66, 0],
+                "size": [12, 14, 5],
+                "color": [0.52, 0.46, 0.38, 1],
+                "props": [
+                    {"model": "models/props/fireplace_large.glb", "pos": [0, 6.5, 0], "hpr": [180,0,0], "scale": 1.3},
+                    {"model": "models/props/table_kitchen.glb", "pos": [0, 0, 0], "hpr": [0,0,0], "scale": 1.4},
+                    {"model": "models/props/barrel_stack.glb", "pos": [-4, -3, 0]},
+                    {"model": "models/props/barrel_stack.glb", "pos": [4, -3, 0]},
+                    {"model": "models/props/crate_stack.glb", "pos": [-4, 2, 0]},
+                    {"model": "models/props/hanging_meats.glb", "pos": [0, 0, 4.5], "scale": 1.1},
+                    {"model": "models/props/torch_wall.glb", "pos": [-5.5, 4, 3], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [5.5, 4, 3], "hpr": [-90,0,0]}
+                ]
+            },
+            {
+                "id": "library",
+                "name": "Palace Library",
+                "pos": [-6, 84, 0],
+                "size": [10, 12, 6],
+                "color": [0.58, 0.52, 0.46, 1],
+                "props": [
+                    {"model": "models/props/bookcase.glb", "pos": [-4, 0, 0], "hpr": [90,0,0], "scale": 1.2},
+                    {"model": "models/props/bookcase.glb", "pos": [4, 0, 0], "hpr": [-90,0,0], "scale": 1.2},
+                    {"model": "models/props/bookcase.glb", "pos": [0, 5, 0], "hpr": [180,0,0], "scale": 1.2},
+                    {"model": "models/desk.glb", "pos": [0, -2, 0], "hpr": [0,0,0], "scale": 1.1},
+                    {"model": "models/props/candle_group.glb", "pos": [0, -1.5, 0.76]},
+                    {"model": "models/props/candle_group.glb", "pos": [3.8, 0, 0.76]},
+                    {"model": "models/props/globe_stand.glb", "pos": [-3, -3, 0], "scale": 1.0},
+                    {"model": "models/props/stone_bench.glb", "pos": [0, -4, 0], "hpr": [0,0,0], "scale": 0.9},
+                    {"model": "models/props/torch_wall.glb", "pos": [-4.5, -4, 3], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [4.5, -4, 3], "hpr": [-90,0,0]}
+                ]
+            },
+            {
+                "id": "dungeon_stair",
+                "name": "Dungeon Stairway",
+                "pos": [0, 96, -3],
+                "size": [6, 16, 5],
+                "color": [0.28, 0.26, 0.30, 1],
+                "props": [
+                    {"model": "models/props/torch_wall.glb", "pos": [-2.5, 6, 2.5], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [-2.5, -2, 2.5], "hpr": [90,0,0]},
+                    {"model": "models/props/chain_wall.glb", "pos": [2, 4, 2], "hpr": [-90,0,0]},
+                    {"model": "models/props/barred_door.glb", "pos": [0, 7, 0], "hpr": [0,0,0], "scale": 1.0}
+                ]
+            },
+            {
+                "id": "chapel_interior",
+                "name": "Royal Chapel",
+                "pos": [6, 86, 0],
+                "size": [10, 14, 7],
+                "color": [0.72, 0.70, 0.75, 1],
+                "props": [
+                    {"model": "models/props/altar.glb", "pos": [0, -5, 0], "hpr": [0,0,0], "scale": 1.2},
+                    {"model": "models/props/candle_group.glb", "pos": [-1.5, -5, 1.1]},
+                    {"model": "models/props/candle_group.glb", "pos": [1.5, -5, 1.1]},
+                    {"model": "models/props/pew_row.glb", "pos": [-2, 0, 0], "scale": 0.9},
+                    {"model": "models/props/pew_row.glb", "pos": [2, 0, 0], "scale": 0.9},
+                    {"model": "models/props/pew_row.glb", "pos": [-2, 4, 0], "scale": 0.9},
+                    {"model": "models/props/pew_row.glb", "pos": [2, 4, 0], "scale": 0.9},
+                    {"model": "models/props/stained_window.glb", "pos": [0, -6.8, 4], "hpr": [0,0,0], "scale": 1.6},
+                    {"model": "models/props/torch_wall.glb", "pos": [-4.5, 2, 3], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [4.5, 2, 3], "hpr": [-90,0,0]}
                 ]
             }
         ],
         "connections": [
-            {
-                "from": "prince_chambers",
-                "to": "corridor_upper",
-                "pos": [
-                    0,
-                    6,
-                    0
-                ]
-            },
-            {
-                "from": "corridor_upper",
-                "to": "great_hall",
-                "pos": [
-                    0,
-                    14,
-                    0
-                ]
-            },
-            {
-                "from": "great_hall",
-                "to": "entrance_hall",
-                "pos": [
-                    0,
-                    20,
-                    0
-                ]
-            }
+            {"from": "entrance_hall", "to": "corridor_upper", "pos": [0, -10, 0]},
+            {"from": "corridor_upper", "to": "great_hall", "pos": [0, -14, 0]},
+            {"from": "great_hall", "to": "throne_hall", "pos": [0, 18, 0]},
+            {"from": "corridor_upper", "to": "prince_chambers", "pos": [6, 0, 0]},
+            {"from": "corridor_upper", "to": "world_map_gallery", "pos": [-4, 0, 0]},
+            {"from": "corridor_upper", "to": "armory", "pos": [8, 5, 0]},
+            {"from": "corridor_upper", "to": "kitchen", "pos": [-10, -5, 0]},
+            {"from": "great_hall", "to": "library", "pos": [-6, 12, 0]},
+            {"from": "great_hall", "to": "chapel_interior", "pos": [6, 12, 0]},
+            {"from": "throne_hall", "to": "dungeon_stair", "pos": [0, 6, 0]}
         ]
     },
     "dwarven_caves": {
         "name": "Dwarven Excavation",
         "type": "complex",
         "lighting": "cave_dim",
+        "ambient_color": [0.08, 0.10, 0.18, 1.0],
+        "fog_density": 0.008,
+        "fog_color": [0.04, 0.05, 0.08],
         "rooms": [
             {
                 "id": "entry_tunnel",
                 "name": "Mine Entrance Tunnel",
                 "pos": [0, 0, 0],
-                "size": [8, 40, 6],
-                "color": [0.2, 0.2, 0.25, 1],
-                "exits": [
-                    {
-                        "pos": [0, -18, 0],
-                        "radius": 3.0,
-                        "target_type": "location",
-                        "target": "sharuan_mines",
-                        "target_pos": [0, 0, 0]
-                    }
-                ],
+                "size": [9, 42, 7],
+                "color": [0.22, 0.20, 0.26, 1],
                 "props": [
-                    { "model": "models/props/rail_tracks.glb", "pos": [0, 0, 0], "scale": 1.0 },
-                    { "model": "models/props/rail_tracks.glb", "pos": [0, 10, 0], "scale": 1.0 },
-                    { "model": "models/props/rail_tracks.glb", "pos": [0, -10, 0], "scale": 1.0 }
+                    {"model": "models/props/rail_tracks.glb", "pos": [0, 0, 0], "scale": 1.0},
+                    {"model": "models/props/rail_tracks.glb", "pos": [0, 10, 0], "scale": 1.0},
+                    {"model": "models/props/rail_tracks.glb", "pos": [0, -10, 0], "scale": 1.0},
+                    {"model": "models/props/mine_cart.glb", "pos": [-1, -5, 0], "hpr": [20,0,0]},
+                    {"model": "models/props/lantern_chain.glb", "pos": [0, 0, 5.5], "hpr": [0,0,0], "scale": 1.0},
+                    {"model": "models/props/lantern_chain.glb", "pos": [0, 10, 5.5]},
+                    {"model": "models/props/lantern_chain.glb", "pos": [0, -10, 5.5]},
+                    {"model": "models/props/ore_vein.glb", "pos": [4, 8, 2], "hpr": [30,10,0], "scale": 0.8},
+                    {"model": "models/props/ore_vein.glb", "pos": [-4, -4, 1.5], "hpr": [-20,5,0], "scale": 0.9},
+                    {"model": "models/props/support_beam.glb", "pos": [3.5, 5, 0]},
+                    {"model": "models/props/support_beam.glb", "pos": [-3.5, -8, 0]},
+                    {"model": "models/props/support_beam.glb", "pos": [3.5, -15, 0]},
+                    {"model": "models/props/pickaxe_lean.glb", "pos": [2, -12, 0], "hpr": [10,0,0]}
+                ],
+                "exits": [
+                    {"pos": [0, -18, 0], "radius": 3.5, "target_type": "location", "target": "sharuan_mines", "target_pos": [0, 0, 0]}
                 ]
             },
             {
                 "id": "central_hub",
-                "name": "Central Hub",
+                "name": "Dwarven Central Hub",
                 "pos": [0, 40, -5],
-                "size": [30, 30, 15],
-                "color": [0.15, 0.15, 0.2, 1],
+                "size": [32, 32, 16],
+                "color": [0.16, 0.14, 0.20, 1],
                 "props": [
-                    { "model": "models/props/cart.glb", "pos": [5, 5, 0], "hpr": [30,0,0] },
-                    { "model": "models/props/crystals_blue.glb", "pos": [-10, 10, 0], "scale": 2.0 },
-                    { "model": "models/props/crystals_blue.glb", "pos": [12, -8, 0], "scale": 1.5 }
+                    {"model": "models/props/crystals_blue.glb", "pos": [-12, 12, 0], "hpr": [20,0,0], "scale": 2.2},
+                    {"model": "models/props/crystals_blue.glb", "pos": [14, -8, 0], "hpr": [-30,10,0], "scale": 1.8},
+                    {"model": "models/props/crystals_blue.glb", "pos": [0, 14, 0], "hpr": [5,0,20], "scale": 1.5},
+                    {"model": "models/props/crystals_purple.glb", "pos": [-8, -12, 0], "scale": 1.4},
+                    {"model": "models/props/mine_cart.glb", "pos": [5, 5, 0], "hpr": [30,0,0]},
+                    {"model": "models/props/mine_cart.glb", "pos": [-5, 2, 0], "hpr": [155,0,0]},
+                    {"model": "models/props/barrel_stack.glb", "pos": [10, -10, 0]},
+                    {"model": "models/props/barrel_stack.glb", "pos": [-10, -5, 0]},
+                    {"model": "models/props/crate_stack.glb", "pos": [8, 10, 0]},
+                    {"model": "models/props/stalactite.glb", "pos": [4, -2, 14], "hpr": [0,180,0], "scale": 1.8},
+                    {"model": "models/props/stalactite.glb", "pos": [-6, 8, 14], "hpr": [0,180,0], "scale": 1.4},
+                    {"model": "models/props/stalactite.glb", "pos": [10, 2, 14], "hpr": [0,180,0], "scale": 2.0},
+                    {"model": "models/props/stalactite.glb", "pos": [-4, -10, 13], "hpr": [0,180,0], "scale": 1.2},
+                    {"model": "models/props/lantern_chain.glb", "pos": [0, 0, 14]},
+                    {"model": "models/props/ore_vein.glb", "pos": [14, 6, 4], "hpr": [60,20,0]},
+                    {"model": "models/props/ore_vein.glb", "pos": [-14, -2, 3], "hpr": [-40,10,0]},
+                    {"model": "models/props/mushroom_large.glb", "pos": [-10, 4, 0], "scale": 1.3},
+                    {"model": "models/props/mushroom_large.glb", "pos": [3, -14, 0], "scale": 1.1},
+                    {"model": "models/props/mushroom_cluster.glb", "pos": [12, 12, 0], "scale": 0.9}
+                ]
+            },
+            {
+                "id": "forge_chamber",
+                "name": "Dwarven Forge",
+                "pos": [-18, 42, -6],
+                "size": [18, 20, 10],
+                "color": [0.20, 0.14, 0.12, 1],
+                "props": [
+                    {"model": "models/props/forge_fire.glb", "pos": [0, 0, 0], "scale": 1.6},
+                    {"model": "models/props/anvil.glb", "pos": [4, -3, 0], "scale": 1.2},
+                    {"model": "models/props/anvil.glb", "pos": [-4, 4, 0], "hpr": [45,0,0], "scale": 1.0},
+                    {"model": "models/props/bellows.glb", "pos": [2, 0, 0]},
+                    {"model": "models/props/barrel_stack.glb", "pos": [-7, -6, 0]},
+                    {"model": "models/props/crate_stack.glb", "pos": [7, 7, 0]},
+                    {"model": "models/props/weapon_rack.glb", "pos": [0, 9, 0], "hpr": [180,0,0], "scale": 1.2},
+                    {"model": "models/props/torch_wall.glb", "pos": [-8, 5, 4], "hpr": [90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [8, 5, 4], "hpr": [-90,0,0]},
+                    {"model": "models/props/torch_wall.glb", "pos": [0, -9, 4], "hpr": [0,0,0]},
+                    {"model": "models/props/coal_pile.glb", "pos": [-3, 2, 0], "scale": 1.1},
+                    {"model": "models/props/ingot_stack.glb", "pos": [5, -5, 0]}
+                ]
+            },
+            {
+                "id": "gem_vault",
+                "name": "Gem Vault",
+                "pos": [18, 38, -8],
+                "size": [14, 16, 8],
+                "color": [0.10, 0.10, 0.18, 1],
+                "props": [
+                    {"model": "models/props/crystals_blue.glb", "pos": [-5, 0, 0], "scale": 2.5},
+                    {"model": "models/props/crystals_purple.glb", "pos": [5, 3, 0], "scale": 2.0},
+                    {"model": "models/props/crystals_blue.glb", "pos": [2, -5, 0], "scale": 1.8},
+                    {"model": "models/props/crystals_purple.glb", "pos": [-3, 6, 0], "scale": 1.4},
+                    {"model": "models/props/treasure_chest.glb", "pos": [0, -6, 0], "hpr": [0,0,0], "scale": 1.2},
+                    {"model": "models/props/treasure_chest.glb", "pos": [4, -5, 0], "hpr": [30,0,0], "scale": 0.9},
+                    {"model": "models/props/gem_pedestal.glb", "pos": [0, 3, 0], "scale": 1.0},
+                    {"model": "models/props/stalactite.glb", "pos": [0, 0, 6.5], "hpr": [0,180,0], "scale": 1.6},
+                    {"model": "models/props/stalactite.glb", "pos": [-4, 4, 7], "hpr": [0,180,0], "scale": 1.2},
+                    {"model": "models/props/stalactite.glb", "pos": [5, -2, 6.5], "hpr": [0,180,0], "scale": 1.4}
+                ]
+            },
+            {
+                "id": "mushroom_grove",
+                "name": "Glowing Mushroom Grove",
+                "pos": [0, 65, -8],
+                "size": [24, 22, 10],
+                "color": [0.06, 0.08, 0.06, 1],
+                "props": [
+                    {"model": "models/props/mushroom_large.glb", "pos": [-8, 4, 0], "scale": 2.0},
+                    {"model": "models/props/mushroom_large.glb", "pos": [8, -3, 0], "scale": 2.4},
+                    {"model": "models/props/mushroom_large.glb", "pos": [-3, -6, 0], "scale": 1.6},
+                    {"model": "models/props/mushroom_large.glb", "pos": [5, 7, 0], "scale": 1.8},
+                    {"model": "models/props/mushroom_cluster.glb", "pos": [10, 4, 0], "scale": 1.2},
+                    {"model": "models/props/mushroom_cluster.glb", "pos": [-10, -3, 0], "scale": 1.1},
+                    {"model": "models/props/mushroom_cluster.glb", "pos": [0, 8, 0], "scale": 1.0},
+                    {"model": "models/props/mushroom_cluster.glb", "pos": [-5, 0, 0], "scale": 1.3},
+                    {"model": "models/props/crystals_blue.glb", "pos": [11, -5, 0], "scale": 1.0},
+                    {"model": "models/props/crystals_blue.glb", "pos": [-11, 5, 0], "scale": 0.8},
+                    {"model": "models/props/stalactite.glb", "pos": [0, 0, 8.5], "hpr": [0,180,0], "scale": 2.5},
+                    {"model": "models/props/stalactite.glb", "pos": [6, 4, 9], "hpr": [0,180,0], "scale": 1.8},
+                    {"model": "models/props/stalactite.glb", "pos": [-7, -3, 8], "hpr": [0,180,0], "scale": 2.0},
+                    {"model": "models/props/skeleton.glb", "pos": [10, -8, 0], "hpr": [40,0,0]},
+                    {"model": "models/props/skeleton.glb", "pos": [-8, 7, 0], "hpr": [200,0,0]}
+                ]
+            },
+            {
+                "id": "underground_lake",
+                "name": "Underground Lake",
+                "pos": [0, 90, -14],
+                "size": [28, 28, 12],
+                "color": [0.05, 0.07, 0.10, 1],
+                "water": true,
+                "water_level": -1.5,
+                "props": [
+                    {"model": "models/props/stalactite.glb", "pos": [5, 5, 10], "hpr": [0,180,0], "scale": 3.0},
+                    {"model": "models/props/stalactite.glb", "pos": [-8, 3, 11], "hpr": [0,180,0], "scale": 2.2},
+                    {"model": "models/props/stalactite.glb", "pos": [2, -8, 10], "hpr": [0,180,0], "scale": 2.8},
+                    {"model": "models/props/stalactite.glb", "pos": [-3, -4, 11], "hpr": [0,180,0], "scale": 1.8},
+                    {"model": "models/props/crystals_blue.glb", "pos": [12, 0, -1.4], "scale": 1.5},
+                    {"model": "models/props/crystals_blue.glb", "pos": [-12, 8, -1.4], "scale": 1.2},
+                    {"model": "models/props/crystals_purple.glb", "pos": [0, 12, -1.4], "scale": 1.8},
+                    {"model": "models/props/rope_bridge.glb", "pos": [0, 0, -1.0], "hpr": [0,0,0], "scale": 1.5},
+                    {"model": "models/props/skeleton.glb", "pos": [-10, -10, -1.4], "hpr": [130,0,0]}
                 ]
             },
             {
                 "id": "lower_shaft",
                 "name": "Lower Shaft",
                 "pos": [20, 60, -15],
-                "size": [10, 20, 8],
-                "color": [0.1, 0.1, 0.15, 1]
+                "size": [12, 22, 9],
+                "color": [0.12, 0.10, 0.16, 1],
+                "props": [
+                    {"model": "models/props/rope_ladder.glb", "pos": [0, 9, 0], "hpr": [0,0,0], "scale": 1.0},
+                    {"model": "models/props/lantern_chain.glb", "pos": [0, 0, 7.5]},
+                    {"model": "models/props/lantern_chain.glb", "pos": [0, 8, 7.5]},
+                    {"model": "models/props/ore_vein.glb", "pos": [5, 5, 3], "hpr": [80,20,0]},
+                    {"model": "models/props/ore_vein.glb", "pos": [-5, -5, 2], "hpr": [-60,15,0]},
+                    {"model": "models/props/mushroom_cluster.glb", "pos": [4, -6, 0], "scale": 0.8},
+                    {"model": "models/props/pickaxe_lean.glb", "pos": [3, 4, 0], "hpr": [60,0,0]},
+                    {"model": "models/props/skeleton.glb", "pos": [-3, -8, 0], "hpr": [280,0,0]}
+                ]
+            },
+            {
+                "id": "throne_cave",
+                "name": "Dwarven Grand Throne",
+                "pos": [0, 80, -10],
+                "size": [26, 30, 14],
+                "color": [0.18, 0.15, 0.22, 1],
+                "props": [
+                    {"model": "models/props/dwarven_throne.glb", "pos": [0, -12, 0], "hpr": [0,0,0], "scale": 1.8},
+                    {"model": "models/props/crystals_blue.glb", "pos": [-10, -10, 0], "scale": 2.8},
+                    {"model": "models/props/crystals_blue.glb", "pos": [10, -10, 0], "scale": 2.8},
+                    {"model": "models/props/crystals_purple.glb", "pos": [0, -14, 0], "scale": 2.0},
+                    {"model": "models/props/banner_pole.glb", "pos": [-8, -12, 0], "scale": 1.2},
+                    {"model": "models/props/banner_pole.glb", "pos": [8, -12, 0], "scale": 1.2},
+                    {"model": "models/props/forge_fire.glb", "pos": [-10, 5, 0], "scale": 1.2},
+                    {"model": "models/props/forge_fire.glb", "pos": [10, 5, 0], "scale": 1.2},
+                    {"model": "models/props/stalactite.glb", "pos": [0, 0, 13], "hpr": [0,180,0], "scale": 4.0},
+                    {"model": "models/props/stalactite.glb", "pos": [6, -4, 12], "hpr": [0,180,0], "scale": 2.5},
+                    {"model": "models/props/stalactite.glb", "pos": [-6, 6, 12.5], "hpr": [0,180,0], "scale": 3.0},
+                    {"model": "models/props/ore_vein.glb", "pos": [12, 10, 5], "hpr": [90,20,0], "scale": 1.5},
+                    {"model": "models/props/ore_vein.glb", "pos": [-12, -5, 4], "hpr": [-80,15,0], "scale": 1.3}
+                ]
             }
         ],
         "connections": [
-            { "from": "entry_tunnel", "to": "central_hub", "pos": [0, 20, 0] },
-            { "from": "central_hub", "to": "lower_shaft", "pos": [15, 15, -5] }
+            {"from": "entry_tunnel", "to": "central_hub", "pos": [0, 20, 0]},
+            {"from": "central_hub", "to": "forge_chamber", "pos": [-12, 0, 0]},
+            {"from": "central_hub", "to": "gem_vault", "pos": [12, 0, 0]},
+            {"from": "central_hub", "to": "mushroom_grove", "pos": [0, 12, 0]},
+            {"from": "central_hub", "to": "lower_shaft", "pos": [12, 10, -5]},
+            {"from": "mushroom_grove", "to": "underground_lake", "pos": [0, 12, 0]},
+            {"from": "mushroom_grove", "to": "throne_cave", "pos": [0, 8, 0]},
+            {"from": "lower_shaft", "to": "throne_cave", "pos": [0, 8, 0]}
         ]
     }
 }

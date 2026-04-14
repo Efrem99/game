@@ -1,0 +1,42 @@
+{
+  "npc_id": "adrian",
+  "npc_name": "Adrian",
+  "dialogue_tree": {
+    "start": {
+      "speaker": "Adrian",
+      "text": "Krimora threw me in this cage and left the key to rust. Break this hold and I will repay it blade for blade.",
+      "choices": [
+        {
+          "text": "You're coming with me. We cut our way out together.",
+          "condition": "can_recruit:adrian:rescue",
+          "action": "rescue_companion:adrian",
+          "next_node": "rescued"
+        },
+        {
+          "text": "You've already made it out with me.",
+          "condition": "has_companion:adrian",
+          "next_node": "already_rescued"
+        },
+        {
+          "text": "Hold on a little longer.",
+          "next_node": "end"
+        }
+      ]
+    },
+    "rescued": {
+      "speaker": "Adrian",
+      "text": "Then let's move before Krimora notices the chain is broken.",
+      "choices": []
+    },
+    "already_rescued": {
+      "speaker": "Adrian",
+      "text": "I owe you a life already. Use it where the fight is thickest.",
+      "choices": []
+    },
+    "end": {
+      "speaker": "Adrian",
+      "text": "I'll keep the bars rattling until you come back.",
+      "choices": []
+    }
+  }
+}

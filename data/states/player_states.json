@@ -137,7 +137,7 @@
         },
         {
             "name": "attacking",
-            "animation": "Sword_Slash",
+            "animation": "attack_light_right",
             "layer": "action",
             "priority": 30,
             "can_move": false,
@@ -145,7 +145,7 @@
         },
         {
             "name": "dodging",
-            "animation": "Dodge_Backward",
+            "animation": "dodging",
             "layer": "action",
             "priority": 30,
             "can_move": false,
@@ -153,7 +153,7 @@
         },
         {
             "name": "blocking",
-            "animation": "Block_Idle",
+            "animation": "blocking",
             "layer": "action",
             "priority": 31,
             "can_move": false,
@@ -161,15 +161,44 @@
         },
         {
             "name": "casting",
-            "animation": "Spell_Cast",
+            "animation": "cast_fast",
             "layer": "action",
             "priority": 30,
             "can_move": false,
             "can_act": false
         },
         {
+            "name": "cast_prepare",
+            "animation": "cast_prepare",
+            "layer": "action",
+            "priority": 30,
+            "can_move": false,
+            "can_act": false,
+            "duration": 0.3,
+            "blend_time": 0.08
+        },
+        {
+            "name": "cast_channel",
+            "animation": "cast_channel",
+            "layer": "action",
+            "priority": 30,
+            "can_move": false,
+            "can_act": false,
+            "blend_time": 0.08
+        },
+        {
+            "name": "cast_release",
+            "animation": "cast_release",
+            "layer": "action",
+            "priority": 30,
+            "can_move": false,
+            "can_act": false,
+            "duration": 0.25,
+            "blend_time": 0.08
+        },
+        {
             "name": "vaulting",
-            "animation": "Vault_Over",
+            "animation": "vaulting",
             "layer": "action",
             "priority": 32,
             "can_move": false,
@@ -177,7 +206,7 @@
         },
         {
             "name": "climbing",
-            "animation": "Ledge_Climb",
+            "animation": "climbing",
             "layer": "action",
             "priority": 32,
             "can_move": false,
@@ -185,7 +214,7 @@
         },
         {
             "name": "wallrun",
-            "animation": "Wall_Run",
+            "animation": "wallrun",
             "layer": "action",
             "priority": 31,
             "can_move": false,
@@ -208,8 +237,48 @@
             "can_act": true
         },
         {
+            "name": "flight_takeoff",
+            "animation": "flight_takeoff",
+            "layer": "locomotion",
+            "priority": 40,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "flight_hover",
+            "animation": "flight_hover",
+            "layer": "locomotion",
+            "priority": 40,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "flight_glide",
+            "animation": "flight_glide",
+            "layer": "locomotion",
+            "priority": 40,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "flight_dive",
+            "animation": "flight_dive",
+            "layer": "locomotion",
+            "priority": 40,
+            "can_move": true,
+            "can_act": true
+        },
+        {
+            "name": "flight_land",
+            "animation": "flight_land",
+            "layer": "locomotion",
+            "priority": 40,
+            "can_move": true,
+            "can_act": true
+        },
+        {
             "name": "jumping",
-            "animation": "Jump_Start",
+            "animation": "jumping",
             "layer": "locomotion",
             "priority": 41,
             "can_move": true,
@@ -218,7 +287,7 @@
         },
         {
             "name": "falling",
-            "animation": "Fall_Loop",
+            "animation": "falling",
             "layer": "locomotion",
             "priority": 41,
             "can_move": true,
@@ -226,7 +295,7 @@
         },
         {
             "name": "landing",
-            "animation": "Jump_Land",
+            "animation": "landing",
             "layer": "locomotion",
             "priority": 41,
             "can_move": false,
@@ -235,7 +304,7 @@
         },
         {
             "name": "idle",
-            "animation": "Idle_Loop",
+            "animation": "idle",
             "layer": "locomotion",
             "priority": 45,
             "can_move": true,
@@ -243,7 +312,7 @@
         },
         {
             "name": "walking",
-            "animation": "Walk_Loop",
+            "animation": "walk",
             "layer": "locomotion",
             "priority": 45,
             "can_move": true,
@@ -251,7 +320,7 @@
         },
         {
             "name": "running",
-            "animation": "Sprint_Loop",
+            "animation": "run_blade",
             "layer": "locomotion",
             "priority": 45,
             "can_move": true,
@@ -416,6 +485,33 @@
         },
         {
             "from": [
+                "recovering"
+            ],
+            "to": "attacking",
+            "trigger": "attack",
+            "priority": 29,
+            "force": true
+        },
+        {
+            "from": [
+                "recovering"
+            ],
+            "to": "casting",
+            "trigger": "cast_spell",
+            "priority": 29,
+            "force": true
+        },
+        {
+            "from": [
+                "recovering"
+            ],
+            "to": "dodging",
+            "trigger": "dodge",
+            "priority": 29,
+            "force": true
+        },
+        {
+            "from": [
                 "idle",
                 "walking",
                 "running",
@@ -492,6 +588,42 @@
             ],
             "to": "wallrun",
             "trigger": "wall_contact",
+            "priority": 31
+        },
+        {
+            "from": [
+                "wallrun"
+            ],
+            "to": "falling",
+            "trigger": "exit_wallrun",
+            "condition": "!on_ground",
+            "priority": 31
+        },
+        {
+            "from": [
+                "wallrun"
+            ],
+            "to": "running",
+            "trigger": "exit_wallrun",
+            "condition": "on_ground && speed > 0.1 && shift_pressed && !mounted && !in_water && !is_flying",
+            "priority": 31
+        },
+        {
+            "from": [
+                "wallrun"
+            ],
+            "to": "walking",
+            "trigger": "exit_wallrun",
+            "condition": "on_ground && speed > 0.1 && !shift_pressed && !mounted && !in_water && !is_flying",
+            "priority": 31
+        },
+        {
+            "from": [
+                "wallrun"
+            ],
+            "to": "idle",
+            "trigger": "exit_wallrun",
+            "condition": "on_ground && speed <= 0.1",
             "priority": 31
         },
         {
@@ -584,8 +716,44 @@
                 "jumping"
             ],
             "to": "falling",
-            "condition": "!on_ground",
+            "condition": "!on_ground && vertical_speed < -0.12",
             "priority": 40
+        },
+        {
+            "from": [
+                "climbing",
+                "vaulting"
+            ],
+            "to": "falling",
+            "condition": "!on_ground",
+            "priority": 39
+        },
+        {
+            "from": [
+                "climbing",
+                "vaulting"
+            ],
+            "to": "running",
+            "condition": "on_ground && speed > 0.1 && shift_pressed && !mounted && !in_water && !is_flying",
+            "priority": 39
+        },
+        {
+            "from": [
+                "climbing",
+                "vaulting"
+            ],
+            "to": "walking",
+            "condition": "on_ground && speed > 0.1 && !shift_pressed && !mounted && !in_water && !is_flying",
+            "priority": 39
+        },
+        {
+            "from": [
+                "climbing",
+                "vaulting"
+            ],
+            "to": "idle",
+            "condition": "on_ground && speed <= 0.1",
+            "priority": 39
         },
         {
             "from": [

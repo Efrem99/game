@@ -49,7 +49,12 @@
         "quest_complete": "Check if quest is complete (quest_complete:quest_id)",
         "has_item": "Check if player has item (has_item:item_id)",
         "gold_amount": "Check player gold (gold_amount:>=100)",
-        "level": "Check player level (level:>=5)"
+        "level": "Check player level (level:>=5)",
+        "can_recruit": "Check if a pet or companion can currently be recruited (can_recruit:member_id or can_recruit:member_id:hire)",
+        "has_companion": "Check if a specific companion is already owned (has_companion:member_id)",
+        "has_pet": "Check if a specific pet is already owned (has_pet:member_id)",
+        "active_companion": "Check the currently active companion (active_companion:member_id)",
+        "active_pet": "Check the currently active pet (active_pet:member_id)"
     },
     "action_types": {
         "give_quest": "Start a quest (give_quest:quest_id)",
@@ -57,6 +62,15 @@
         "open_shop": "Open merchant shop (open_shop)",
         "give_item": "Give item to player (give_item:item_id:count)",
         "give_gold": "Give gold to player (give_gold:amount)",
+        "hire_companion": "Hire a dialogue-gated companion (hire_companion:member_id)",
+        "rescue_companion": "Recruit a companion by rescue outcome (rescue_companion:member_id)",
+        "story_companion": "Recruit a companion from a story beat (story_companion:member_id)",
+        "grant_story_companion": "Alias for story-based companion recruitment (grant_story_companion:member_id)",
+        "tame_pet": "Recruit a pet through a taming encounter (tame_pet:member_id)",
+        "activate_companion": "Set an owned companion as active (activate_companion:member_id)",
+        "activate_pet": "Set an owned pet as active (activate_pet:member_id)",
+        "dismiss_companion": "Clear the active companion slot",
+        "dismiss_pet": "Clear the active pet slot",
         "end_dialogue": "End the dialogue conversation"
     }
 }

@@ -5,7 +5,13 @@
     "cooldown": 1.6,
     "cast_time": 0.22,
     "damage_type": "fire",
-    "anim_trigger": "cast_spell",
+    "anim_trigger": "cast_fire",
+    "runtime": {
+        "scatter": {
+            "enabled": true,
+            "max_lateral": 0.52
+        }
+    },
     "sfx": {
         "cast": "spell_cast",
         "impact": "spell_fire"

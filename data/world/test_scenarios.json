@@ -401,6 +401,35 @@
                                    ]
                       },
                       {
+                          "id":  "mechanics_01",
+                          "profile":  "mechanics",
+                          "location":  "training",
+                          "world_location":  "Training Grounds",
+                          "note":  "mechanics_full_sandbox",
+                          "tags":  [
+                                       "mechanics",
+                                       "combat",
+                                       "magic",
+                                       "vfx",
+                                       "parkour",
+                                       "mounts",
+                                       "flight",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "mechanics_02",
+                          "profile":  "mechanics",
+                          "location":  "18,24,0",
+                          "world_location":  "Training Grounds",
+                          "note":  "mechanics_spawn_anchor",
+                          "tags":  [
+                                       "mechanics",
+                                       "training",
+                                       "scenario"
+                                   ]
+                      },
+                      {
                           "id":  "parkour_01",
                           "profile":  "parkour",
                           "location":  "parkour",
@@ -463,6 +492,95 @@
                           "note":  "parkour_to_flight",
                           "tags":  [
                                        "parkour",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "parkour_07",
+                          "profile":  "parkour",
+                          "location":  "66,24,0",
+                          "world_location":  "Stealth Climb Grounds",
+                          "note":  "parkour_minimalist_lane",
+                          "tags":  [
+                                       "parkour",
+                                       "minimalist",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "parkour_08",
+                          "profile":  "parkour",
+                          "location":  "74,30,0",
+                          "world_location":  "Stealth Climb Grounds",
+                          "note":  "parkour_minimalist_precision",
+                          "tags":  [
+                                       "parkour",
+                                       "minimalist",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "stealth_climb_01",
+                          "profile":  "stealth_climb",
+                          "location":  "stealth_climb",
+                          "world_location":  "Stealth Climb Grounds",
+                          "note":  "stealth_climb_baseline",
+                          "tags":  [
+                                       "stealth",
+                                       "climb",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "stealth_climb_02",
+                          "profile":  "stealth_climb",
+                          "location":  "72,29,0",
+                          "world_location":  "Stealth Climb Grounds",
+                          "note":  "stealth_climb_cover_route",
+                          "tags":  [
+                                       "stealth",
+                                       "climb",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "catastrophe_01",
+                          "profile":  "movement",
+                          "location":  "docks",
+                          "world_location":  "Southern Docks",
+                          "note":  "catastrophe_harbor_quake",
+                          "tags":  [
+                                       "catastrophe",
+                                       "earthquake",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "catastrophe_02",
+                          "profile":  "stealth_climb",
+                          "location":  "stealth_climb",
+                          "world_location":  "Stealth Climb Grounds",
+                          "note":  "catastrophe_stealth_escape",
+                          "tags":  [
+                                       "catastrophe",
+                                       "earthquake",
+                                       "stealth",
+                                       "scenario"
+                                   ]
+                      },
+                      {
+                          "id":  "ultimate_sandbox_01",
+                          "profile":  "ultimate_sandbox",
+                          "location":  "ultimate_sandbox",
+                          "world_location":  "Ultimate Sandbox",
+                          "note":  "ultimate_sandbox_full_mechanics",
+                          "tags":  [
+                                       "ultimate_sandbox",
+                                       "combat",
+                                       "magic",
+                                       "parkour",
+                                       "mounts",
+                                       "flight",
                                        "scenario"
                                    ]
                       }

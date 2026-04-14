@@ -5,7 +5,16 @@
     "cooldown": 2.4,
     "cast_time": 0.25,
     "damage_type": "arcane",
-    "anim_trigger": "cast_spell",
+    "anim_trigger": "cast_arcane",
+    "runtime": {
+        "cast_family": "aoe",
+        "telegraph": {
+            "radius": 6.0,
+            "duration": 0.2,
+            "anchor": "self",
+            "color": [0.5, 0.8, 1.0, 0.32]
+        }
+    },
     "sfx": {
         "cast": "spell_cast",
         "impact": "spell_arcane"

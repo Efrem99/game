@@ -1,5 +1,7 @@
 from enum import Enum
 
+from utils.logger import logger
+
 class GameState(Enum):
     MAIN_MENU = 1
     LOADING = 2
@@ -18,7 +20,7 @@ class StateManager:
         if new_state == self.current_state:
             return
 
-        print(f"[StateManager] Transitioning from {self.current_state.name} to {new_state.name}")
+        logger.debug(f"[StateManager] Transitioning from {self.current_state.name} to {new_state.name}")
         self.previous_state = self.current_state
         self.current_state = new_state
 

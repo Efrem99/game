@@ -2,12 +2,14 @@
 
 import math
 import random
+import zlib
 from pathlib import Path
 
+from utils.core_runtime import HAS_CORE, gc
 from direct.actor.Actor import Actor
 from panda3d.core import Vec3
 
-from entities.mannequin import create_procedural_actor
+from entities.mannequin import build_mannequin, create_procedural_actor
 from render.model_visuals import ensure_model_visual_defaults
 from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
@@ -18,12 +20,24 @@ class NPCManager:
         self.app = app
         self._rng = random.Random(7731)
         self.units = []
+        self._core_runtime = None
+        self._core_runtime_announced = False
+        if HAS_CORE and hasattr(gc, "NpcRuntimeSystem"):
+            try:
+                self._core_runtime = gc.NpcRuntimeSystem()
+            except Exception as exc:
+                logger.warning(f"[NPCManager] C++ runtime path unavailable, using Python loop: {exc}")
         self._default_model = "assets/models/xbot/Xbot.glb"
         self._base_anims = {
             "idle": "assets/models/xbot/idle.glb",
             "walk": "assets/models/xbot/walk.glb",
             "run": "assets/models/xbot/run.glb",
         }
+        self._dialogue_profile_markers = (
+            ("guard_dialogue", ("guard", "sentry", "sentinel", "watch", "captain", "knight", "soldier", "patrol")),
+            ("merchant_dialogue", ("merchant", "shopkeeper", "trader", "vendor", "wares")),
+            ("villager_dialogue", ("miner", "woodcutter", "lumberjack", "villager", "elder", "child", "worker", "guide", "servant", "attendant")),
+        )
 
     def clear(self):
         for unit in self.units:
@@ -61,10 +75,17 @@ class NPCManager:
         if not isinstance(pos, (list, tuple)) or len(pos) < 3:
             pos = [0.0, 0.0, 0.0]
 
-        x = float(pos[0])
-        y = float(pos[1])
-        z = float(pos[2])
-        z = self._ground_height(x, y, fallback=z)
+        try:
+            x = float(pos[0])
+            y = float(pos[1])
+            z_raw = float(pos[2])
+            if math.isnan(x) or math.isinf(x): x = 0.0
+            if math.isnan(y) or math.isinf(y): y = 0.0
+            if math.isnan(z_raw) or math.isinf(z_raw): z_raw = 0.0
+        except Exception:
+            x, y, z_raw = 0.0, 0.0, 0.0
+            
+        z = self._ground_height(x, y, fallback=z_raw)
 
         appr = payload.get("appearance", {})
         if not isinstance(appr, dict):
@@ -82,11 +103,37 @@ class NPCManager:
         if not actor:
             return None
 
+        # Determine age and gender for visuals
+        name_lower = str(payload.get("name", "")).lower()
+        role_lower = str(payload.get("role", "")).lower()
+        
+        age = "adult"
+        if "child" in role_lower or "kid" in role_lower:
+            age = "child"
+        elif "old" in name_lower or "elder" in role_lower or "grand" in name_lower:
+            age = "elderly"
+
+        gender = "male"
+        if any(mark in (role_lower + name_lower) for mark in ("woman", "lady", "girl", "adalin", "female", "she")):
+            gender = "female"
+            
+        from entities.mannequin import dress_actor
+        dress_actor(actor, role_lower, gender=gender, age=age)
+
         actor.reparentTo(self.app.render)
-        actor.setScale(scale)
+        # Apply spatial safety
         actor.setPos(x, y, z)
+        try:
+            fs = float(scale or 1.0)
+            if math.isnan(fs) or math.isinf(fs): fs = 1.0
+            actor.setScale(max(0.01, fs))
+        except Exception:
+            actor.setScale(1.0)
         actor.setTag("npc_id", npc_id)
         actor.setTag("npc_name", str(payload.get("name", npc_id)))
+        # Level Editor 2.0 Tags (Strict SQLite + Msgpack)
+        actor.setTag("entity_id", npc_id)
+        actor.setTag("type", "npc")
         ensure_model_visual_defaults(
             actor,
             apply_skin=True,
@@ -97,8 +144,9 @@ class NPCManager:
             python_mode=(getattr(self.app, "char_state", None) is None),
         )
         self._apply_appearance_tint(actor, appr)
+        dracolid_visual = self._attach_dracolid_visual(actor, npc_id, payload, appr)
 
-        dialogue_path = str(payload.get("dialogue", npc_id))
+        dialogue_path = self._resolve_dialogue_path(npc_id, payload)
         npc_name = str(payload.get("name", npc_id))
 
         interaction_mgr = getattr(self.app, "npc_interaction", None)
@@ -140,7 +188,40 @@ class NPCManager:
             "suspicion": 0.0,
             "alerted": False,
             "detected_player": False,
+            "dracolid_visual": dracolid_visual,
         }
+
+    def _resolve_dialogue_path(self, npc_id, payload):
+        payload = payload if isinstance(payload, dict) else {}
+        explicit = str(payload.get("dialogue", "") or "").strip()
+        if explicit:
+            return explicit
+
+        token_blob = " ".join(
+            str(value or "").strip().lower()
+            for value in (
+                npc_id,
+                payload.get("name"),
+                payload.get("role"),
+                payload.get("archetype"),
+            )
+            if str(value or "").strip()
+        )
+        for profile_name, markers in self._dialogue_profile_markers:
+            if any(marker in token_blob for marker in markers):
+                logger.info(
+                    "[NPCManager] У NPC '%s' не задан отдельный dialogue, используем профиль '%s' по роли '%s'.",
+                    npc_id,
+                    profile_name,
+                    str(payload.get("role", "") or "").strip(),
+                )
+                return profile_name
+
+        logger.info(
+            "[NPCManager] У NPC '%s' не задан отдельный dialogue, используем общий профиль жителя.",
+            npc_id,
+        )
+        return "villager_dialogue"
 
     def _apply_appearance_tint(self, actor, appearance):
         if not actor or not isinstance(appearance, dict):
@@ -155,6 +236,492 @@ class NPCManager:
             actor.setColorScale(r, g, b, 1.0)
         except Exception:
             pass
+
+    def _collect_profile_tokens(self, npc_id, payload, appearance):
+        payload = payload if isinstance(payload, dict) else {}
+        appearance = appearance if isinstance(appearance, dict) else {}
+        values = [
+            npc_id,
+            payload.get("name"),
+            payload.get("role"),
+            payload.get("archetype"),
+            payload.get("species"),
+            payload.get("race"),
+            appearance.get("species"),
+            appearance.get("race"),
+            appearance.get("kind"),
+            appearance.get("archetype"),
+            appearance.get("lineage"),
+            appearance.get("model"),
+        ]
+        tokens = set()
+        for value in values:
+            text = str(value or "").strip().lower()
+            if not text:
+                continue
+            tokens.add(text)
+            normalized = text.replace("-", " ").replace("_", " ").replace("/", " ")
+            for part in normalized.split():
+                token = str(part or "").strip()
+                if token:
+                    tokens.add(token)
+        return tokens
+
+    def _is_dracolid_profile(self, npc_id, payload, appearance):
+        markers = (
+            "draco",
+            "dracol",
+            "dragonkin",
+            "dragonfolk",
+            "dracon",
+            "argonian",
+            "lizardfolk",
+            "reptile",
+        )
+        for token in self._collect_profile_tokens(npc_id, payload, appearance):
+            if any(marker in token for marker in markers):
+                return True
+        return False
+
+    def _is_armored_appearance(self, payload, appearance):
+        payload = payload if isinstance(payload, dict) else {}
+        appearance = appearance if isinstance(appearance, dict) else {}
+        armor_token = str(
+            appearance.get("armor_type")
+            or payload.get("armor_type")
+            or appearance.get("armor")
+            or payload.get("armor")
+            or ""
+        ).strip().lower()
+        role_token = str(payload.get("role", "") or "").strip().lower()
+
+        unarmored_markers = ("none", "civilian", "worker", "cloth", "robe", "tunic")
+        armored_markers = ("armor", "armour", "plate", "mail", "steel", "guard", "knight", "heavy")
+
+        if armor_token and any(mark in armor_token for mark in unarmored_markers):
+            return False
+        if armor_token and any(mark in armor_token for mark in armored_markers):
+            return True
+        if any(mark in role_token for mark in ("guard", "captain", "knight", "sentinel", "soldier")):
+            return True
+        return False
+
+    def _build_dracolid_visual_spec(self, npc_id, payload, appearance):
+        if not self._is_dracolid_profile(npc_id, payload, appearance):
+            return {"enabled": False}
+
+        appearance = appearance if isinstance(appearance, dict) else {}
+        armored = self._is_armored_appearance(payload, appearance)
+        raw_skin = appearance.get("skin_color")
+        skin = (0.42, 0.64, 0.46)
+        if isinstance(raw_skin, (list, tuple)) and len(raw_skin) >= 3:
+            try:
+                skin = (
+                    max(0.0, min(1.0, float(raw_skin[0]))),
+                    max(0.0, min(1.0, float(raw_skin[1]))),
+                    max(0.0, min(1.0, float(raw_skin[2]))),
+                )
+            except Exception:
+                skin = (0.42, 0.64, 0.46)
+
+        body_color = (
+            max(0.18, min(0.95, skin[0] * 0.88)),
+            max(0.24, min(0.98, skin[1] * 0.92)),
+            max(0.18, min(0.95, skin[2] * 0.90)),
+        )
+        scale = float(appearance.get("scale", 1.0) or 1.0)
+        scale = max(0.65, min(1.6, scale))
+        wing_span = max(1.05, min(2.5, scale * (1.38 if armored else 1.58)))
+        crest_spines = 3 if armored else 2
+        snout_length = 0.42 if armored else 0.36
+        jaw_length = snout_length * 0.84
+        shoulder_spines = 2 if armored else 1
+
+        return {
+            "enabled": True,
+            "armored": bool(armored),
+            "body_style": "humanoid",
+            "head_style": "dragon_humanoid",
+            "has_wings": True,
+            "has_tail": True,
+            "has_dragon_head": True,
+            "armor_shell": bool(armored),
+            "wing_span": wing_span,
+            "wing_segments": 3,
+            "tail_segments": 5 if armored else 4,
+            "crest_spines": crest_spines,
+            "snout_length": snout_length,
+            "jaw_length": jaw_length,
+            "shoulder_spines": shoulder_spines,
+            "body_color": body_color,
+            "scale": scale,
+        }
+
+    def _try_expose_joint(self, actor, names):
+        if not actor or not hasattr(actor, "exposeJoint"):
+            return None
+        for bone in names:
+            try:
+                node = actor.exposeJoint(None, "modelRoot", bone)
+                if node and not node.isEmpty():
+                    return node
+            except Exception:
+                continue
+        return None
+
+    def _attach_dracolid_visual(self, actor, npc_id, payload, appearance):
+        spec = self._build_dracolid_visual_spec(npc_id, payload, appearance)
+        if not spec.get("enabled") or not actor:
+            return None
+
+        spine = self._try_expose_joint(actor, ["mixamorig:Spine2", "Spine2", "Spine", "spine_03"])
+        head = self._try_expose_joint(actor, ["mixamorig:Head", "Head", "head", "Dragon_Head"])
+        hips = self._try_expose_joint(actor, ["mixamorig:Hips", "Hips", "hips", "pelvis"])
+
+        body_color = spec.get("body_color", (0.42, 0.64, 0.46))
+        wing_color = (
+            max(0.10, body_color[0] * 0.70),
+            max(0.12, body_color[1] * 0.72),
+            max(0.10, body_color[2] * 0.70),
+        )
+        horn_color = (
+            max(0.35, min(0.88, body_color[0] + 0.24)),
+            max(0.33, min(0.86, body_color[1] + 0.20)),
+            max(0.28, min(0.80, body_color[2] + 0.15)),
+        )
+        root = actor.attachNewNode(f"dracolid_visual_{npc_id}")
+
+        # Humanoid armor shell stays centered on spine so the base body remains readable.
+        armor_parent = spine or actor
+        if spec.get("armor_shell"):
+            build_mannequin(
+                armor_parent,
+                f"dracolid_armor_{npc_id}",
+                0.74,
+                0.30,
+                0.92,
+                0.0,
+                0.20,
+                0.36,
+                0.34,
+                0.36,
+                0.40,
+            )
+            build_mannequin(
+                armor_parent,
+                f"dracolid_armor_collar_{npc_id}",
+                0.46,
+                0.26,
+                0.22,
+                0.0,
+                0.26,
+                0.76,
+                0.72,
+                0.72,
+                0.76,
+            )
+        shoulder_spines = max(0, int(spec.get("shoulder_spines", 0) or 0))
+        for idx in range(shoulder_spines):
+            z = 0.60 - (idx * 0.06)
+            y = -0.08 - (idx * 0.02)
+            for side_sign, side_name in ((-1.0, "l"), (1.0, "r")):
+                build_mannequin(
+                    armor_parent,
+                    f"dracolid_shoulder_spine_{side_name}_{idx}_{npc_id}",
+                    0.06,
+                    0.12,
+                    0.24,
+                    side_sign * (0.28 + (idx * 0.04)),
+                    y,
+                    z,
+                    horn_color[0] * 0.92,
+                    horn_color[1] * 0.90,
+                    horn_color[2] * 0.88,
+                )
+
+        head_parent = head or actor
+        head_root = head_parent.attachNewNode(f"dracolid_head_root_{npc_id}")
+        head_root.setPos(0.0, 0.06, 0.02)
+        snout_length = float(spec.get("snout_length", 0.36) or 0.36)
+        jaw_length = float(spec.get("jaw_length", snout_length * 0.84) or (snout_length * 0.84))
+        build_mannequin(
+            head_root,
+            f"dracolid_muzzle_{npc_id}",
+            0.28,
+            snout_length,
+            0.22,
+            0.0,
+            0.44,
+            -0.02,
+            body_color[0] * 0.92,
+            body_color[1] * 0.94,
+            body_color[2] * 0.92,
+        )
+        build_mannequin(
+            head_root,
+            f"dracolid_jaw_{npc_id}",
+            0.24,
+            jaw_length,
+            0.12,
+            0.0,
+            0.34,
+            -0.14,
+            body_color[0] * 0.88,
+            body_color[1] * 0.90,
+            body_color[2] * 0.88,
+        )
+        build_mannequin(
+            head_root,
+            f"dracolid_brow_{npc_id}",
+            0.32,
+            0.20,
+            0.10,
+            0.0,
+            0.14,
+            0.16,
+            body_color[0] * 0.84,
+            body_color[1] * 0.86,
+            body_color[2] * 0.84,
+        )
+        crest_spines = max(2, int(spec.get("crest_spines", 2) or 2))
+        for idx in range(crest_spines):
+            taper = 1.0 - (idx * 0.14)
+            build_mannequin(
+                head_root,
+                f"dracolid_head_crest_{idx}_{npc_id}",
+                max(0.05, 0.08 * taper),
+                max(0.05, 0.14 * taper),
+                max(0.08, 0.24 * taper),
+                0.0,
+                -0.02 - (idx * 0.08),
+                0.24 + (idx * 0.08),
+                horn_color[0],
+                horn_color[1],
+                horn_color[2],
+            )
+        build_mannequin(
+            head_root,
+            f"dracolid_horn_l_{npc_id}",
+            0.08,
+            0.22,
+            0.24,
+            -0.15,
+            -0.02,
+            0.26,
+            horn_color[0],
+            horn_color[1],
+            horn_color[2],
+        )
+        build_mannequin(
+            head_root,
+            f"dracolid_horn_r_{npc_id}",
+            0.08,
+            0.22,
+            0.24,
+            0.15,
+            -0.02,
+            0.26,
+            horn_color[0],
+            horn_color[1],
+            horn_color[2],
+        )
+
+        wings_parent = (spine or actor).attachNewNode(f"dracolid_wings_{npc_id}")
+        wings_parent.setPos(0.0, -0.18, 0.52)
+        wing_span = float(spec.get("wing_span", 1.4) or 1.4)
+        wing_l = wings_parent.attachNewNode("wing_left")
+        wing_r = wings_parent.attachNewNode("wing_right")
+        wing_l.setPos(-0.42, 0.02, 0.10)
+        wing_r.setPos(0.42, 0.02, 0.10)
+        wing_l.setHpr(-18.0, 0.0, 8.0)
+        wing_r.setHpr(18.0, 0.0, -8.0)
+        wing_l_mid = wing_l.attachNewNode("wing_left_mid")
+        wing_r_mid = wing_r.attachNewNode("wing_right_mid")
+        wing_l_mid.setPos(-wing_span * 0.34, wing_span * 0.20, 0.06)
+        wing_r_mid.setPos(wing_span * 0.34, wing_span * 0.20, 0.06)
+        wing_l_tip = wing_l_mid.attachNewNode("wing_left_tip")
+        wing_r_tip = wing_r_mid.attachNewNode("wing_right_tip")
+        wing_l_tip.setPos(-wing_span * 0.28, wing_span * 0.18, 0.02)
+        wing_r_tip.setPos(wing_span * 0.28, wing_span * 0.18, 0.02)
+        for idx, wing_root in enumerate((wing_l, wing_r)):
+            side_sign = -1.0 if idx == 0 else 1.0
+            build_mannequin(
+                wing_root,
+                f"dracolid_wing_bone_{idx}_{npc_id}",
+                0.12,
+                wing_span * 0.75,
+                0.10,
+                side_sign * 0.14,
+                side_sign * (wing_span * 0.30),
+                0.02,
+                wing_color[0],
+                wing_color[1],
+                wing_color[2],
+            )
+            membrane = build_mannequin(
+                wing_root,
+                f"dracolid_wing_membrane_{idx}_{npc_id}",
+                0.16,
+                wing_span * 0.72,
+                0.05,
+                side_sign * 0.14,
+                side_sign * (wing_span * 0.34),
+                -0.10,
+                wing_color[0] * 0.92,
+                wing_color[1] * 0.95,
+                wing_color[2] * 0.92,
+            )
+            try:
+                membrane.setColorScale(1.0, 1.0, 1.0, 0.72)
+            except Exception:
+                pass
+        for idx, wing_mid in enumerate((wing_l_mid, wing_r_mid)):
+            side_sign = -1.0 if idx == 0 else 1.0
+            build_mannequin(
+                wing_mid,
+                f"dracolid_wing_mid_bone_{idx}_{npc_id}",
+                0.10,
+                wing_span * 0.48,
+                0.08,
+                side_sign * 0.10,
+                side_sign * (wing_span * 0.18),
+                0.02,
+                wing_color[0] * 0.96,
+                wing_color[1] * 0.98,
+                wing_color[2] * 0.96,
+            )
+            membrane = build_mannequin(
+                wing_mid,
+                f"dracolid_wing_mid_membrane_{idx}_{npc_id}",
+                0.12,
+                wing_span * 0.56,
+                0.04,
+                side_sign * 0.12,
+                side_sign * (wing_span * 0.24),
+                -0.08,
+                wing_color[0] * 0.88,
+                wing_color[1] * 0.92,
+                wing_color[2] * 0.88,
+            )
+            try:
+                membrane.setColorScale(1.0, 1.0, 1.0, 0.64)
+            except Exception:
+                pass
+        for idx, wing_tip in enumerate((wing_l_tip, wing_r_tip)):
+            side_sign = -1.0 if idx == 0 else 1.0
+            build_mannequin(
+                wing_tip,
+                f"dracolid_wing_claw_{idx}_{npc_id}",
+                0.05,
+                0.12,
+                0.16,
+                side_sign * 0.04,
+                side_sign * 0.10,
+                0.0,
+                horn_color[0],
+                horn_color[1],
+                horn_color[2],
+            )
+
+        tail_parent = (hips or actor).attachNewNode(f"dracolid_tail_{npc_id}")
+        tail_parent.setPos(0.0, -0.24, 0.92)
+        tail_segments = max(3, int(spec.get("tail_segments", 4) or 4))
+        tail_joints = []
+        chain = tail_parent
+        for idx in range(tail_segments):
+            taper = 1.0 - (idx * 0.14)
+            seg = build_mannequin(
+                chain,
+                f"dracolid_tail_seg_{idx}_{npc_id}",
+                max(0.05, 0.18 * taper),
+                max(0.05, 0.22 * taper),
+                max(0.10, 0.46 * taper),
+                0.0,
+                -0.18,
+                -0.06,
+                body_color[0] * 0.82,
+                body_color[1] * 0.84,
+                body_color[2] * 0.82,
+            )
+            chain = seg.attachNewNode(f"dracolid_tail_joint_{idx}_{npc_id}")
+            chain.setPos(0.0, -0.23, -0.02)
+            tail_joints.append(chain)
+
+        try:
+            root.setTwoSided(True)
+        except Exception:
+            pass
+        ensure_model_visual_defaults(
+            root,
+            force_two_sided=True,
+            debug_label=f"npc:{npc_id}:dracolid",
+        )
+        return {
+            "root": root,
+            "wing_l": wing_l,
+            "wing_r": wing_r,
+            "wing_l_mid": wing_l_mid,
+            "wing_r_mid": wing_r_mid,
+            "wing_l_tip": wing_l_tip,
+            "wing_r_tip": wing_r_tip,
+            "tail_joints": tail_joints,
+            "phase": self._rng.uniform(0.0, math.tau),
+        }
+
+    def _update_dracolid_visual(self, unit, dt, moving):
+        visual = unit.get("dracolid_visual")
+        if not isinstance(visual, dict):
+            return
+        phase = float(visual.get("phase", 0.0) or 0.0) + (max(0.0, float(dt)) * (5.8 if moving else 2.1))
+        visual["phase"] = phase
+        flap = math.sin(phase)
+        wing_amp = 22.0 if moving else 8.0
+        wing_l = visual.get("wing_l")
+        wing_r = visual.get("wing_r")
+        wing_l_mid = visual.get("wing_l_mid")
+        wing_r_mid = visual.get("wing_r_mid")
+        wing_l_tip = visual.get("wing_l_tip")
+        wing_r_tip = visual.get("wing_r_tip")
+        if wing_l:
+            try:
+                wing_l.setP(-4.0 + (wing_amp * flap))
+            except Exception:
+                pass
+        if wing_r:
+            try:
+                wing_r.setP(4.0 - (wing_amp * flap))
+            except Exception:
+                pass
+        if wing_l_mid:
+            try:
+                wing_l_mid.setP(-6.0 + ((wing_amp * 0.62) * flap))
+            except Exception:
+                pass
+        if wing_r_mid:
+            try:
+                wing_r_mid.setP(6.0 - ((wing_amp * 0.62) * flap))
+            except Exception:
+                pass
+        if wing_l_tip:
+            try:
+                wing_l_tip.setP(-4.0 + ((wing_amp * 0.38) * flap))
+            except Exception:
+                pass
+        if wing_r_tip:
+            try:
+                wing_r_tip.setP(4.0 - ((wing_amp * 0.38) * flap))
+            except Exception:
+                pass
+
+        tail_joints = visual.get("tail_joints", [])
+        for idx, joint in enumerate(tail_joints):
+            if not joint:
+                continue
+            sway = math.sin((phase * 0.72) - (idx * 0.45)) * (10.0 / float(idx + 1))
+            try:
+                joint.setH(sway)
+            except Exception:
+                continue
 
     def _build_actor(self, npc_id, payload, appearance):
         candidates = []
@@ -256,12 +823,16 @@ class NPCManager:
             actor.setTwoSided(True)
         except Exception:
             pass
-
     def _ground_height(self, x, y, fallback=0.0):
+        # Precise check for Sandbox Ground (Z=5)
         world = getattr(self.app, "world", None)
+        if world and (getattr(world, "world_type", "") == "ultimate_sandbox" or str(getattr(world, "active_location", "")).lower() == "ultimate_sandbox"):
+             return 5.0
+
         if world and hasattr(world, "_th"):
             try:
-                return float(world._th(float(x), float(y)))
+                h = float(world._th(float(x), float(y)))
+                return h if h > -200 else float(fallback)
             except Exception:
                 pass
         return float(fallback)
@@ -667,8 +1238,117 @@ class NPCManager:
         except Exception:
             pass
 
-    def update(self, dt, world_state=None, stealth_state=None):
-        dt = max(0.0, float(dt))
+    def _build_core_runtime_context(self, dt, world_state):
+        if not self._core_runtime or not hasattr(gc, "NpcRuntimeContext"):
+            return None
+        context = gc.NpcRuntimeContext()
+        context.dt = float(dt)
+        context.weather = str(world_state.get("weather", "") or "")
+        context.phase = str(world_state.get("phase", "") or "")
+        context.isNight = bool(world_state.get("is_night", False))
+        context.visibility = float(world_state.get("visibility", 1.0) or 1.0)
+        return context
+
+    def _build_core_runtime_unit(self, unit, actor):
+        runtime_unit = gc.NpcRuntimeUnit()
+        runtime_unit.id = int(zlib.crc32(str(unit.get("id", "")).encode("utf-8")) & 0x7FFFFFFF)
+        pos = actor.getPos(self.app.render)
+        target = unit.get("target", unit.get("home", Vec3(0, 0, 0)))
+        home = unit.get("home", Vec3(0, 0, 0))
+        runtime_unit.home = gc.Vec3(float(home.x), float(home.y), float(home.z))
+        runtime_unit.target = gc.Vec3(float(target.x), float(target.y), float(target.z))
+        runtime_unit.actorPos = gc.Vec3(float(pos.x), float(pos.y), float(pos.z))
+        runtime_unit.baseWalkSpeed = float(unit.get("base_walk_speed", unit.get("walk_speed", 1.5)) or 1.5)
+        runtime_unit.walkSpeed = float(unit.get("walk_speed", runtime_unit.baseWalkSpeed) or runtime_unit.baseWalkSpeed)
+        runtime_unit.baseWanderRadius = float(unit.get("base_wander_radius", unit.get("wander_radius", 0.0)) or 0.0)
+        runtime_unit.wanderRadius = float(unit.get("wander_radius", runtime_unit.baseWanderRadius) or runtime_unit.baseWanderRadius)
+        runtime_unit.baseIdleMin = float(unit.get("base_idle_min", unit.get("idle_min", 1.5)) or 1.5)
+        runtime_unit.baseIdleMax = float(unit.get("base_idle_max", unit.get("idle_max", 4.2)) or 4.2)
+        runtime_unit.idleMin = float(unit.get("idle_min", runtime_unit.baseIdleMin) or runtime_unit.baseIdleMin)
+        runtime_unit.idleMax = float(unit.get("idle_max", runtime_unit.baseIdleMax) or runtime_unit.baseIdleMax)
+        runtime_unit.idleTimer = float(unit.get("idle_timer", 1.0) or 1.0)
+        runtime_unit.suspicion = float(unit.get("suspicion", 0.0) or 0.0)
+        runtime_unit.alerted = bool(unit.get("alerted", False))
+        runtime_unit.detectedPlayer = bool(unit.get("detected_player", False))
+        runtime_unit.role = str(unit.get("role", "") or "")
+        runtime_unit.activity = str(unit.get("activity", "") or "")
+        runtime_unit.anim = str(unit.get("anim", "idle") or "idle")
+        runtime_unit.actionRoll = float(self._rng.random())
+        runtime_unit.targetAngle = float(self._rng.uniform(0.0, math.tau))
+        runtime_unit.targetDistance01 = float(self._rng.random())
+        runtime_unit.idleReset01 = float(self._rng.random())
+        return runtime_unit
+
+    def _apply_core_runtime_result(self, unit, actor, runtime_unit):
+        unit["walk_speed"] = float(runtime_unit.walkSpeed)
+        unit["wander_radius"] = float(runtime_unit.wanderRadius)
+        unit["idle_min"] = float(runtime_unit.idleMin)
+        unit["idle_max"] = float(runtime_unit.idleMax)
+        unit["idle_timer"] = float(runtime_unit.idleTimer)
+        if bool(runtime_unit.targetChanged):
+            tx = float(runtime_unit.target.x)
+            ty = float(runtime_unit.target.y)
+            tz = self._ground_height(tx, ty, fallback=float(runtime_unit.home.z))
+            unit["target"] = Vec3(tx, ty, tz)
+        if bool(runtime_unit.moving):
+            px = float(runtime_unit.actorPos.x)
+            py = float(runtime_unit.actorPos.y)
+            pz = self._ground_height(px, py, fallback=float(runtime_unit.actorPos.z))
+            actor.setPos(px, py, pz)
+            actor.setH(float(runtime_unit.desiredHeading))
+            desired_anim = str(runtime_unit.desiredAnim or "walk")
+            if unit.get("anim") != desired_anim:
+                self._play_anim(actor, desired_anim, loop=True)
+                unit["anim"] = desired_anim
+            try:
+                actor.setPlayRate(float(runtime_unit.desiredPlayRate), desired_anim)
+            except Exception:
+                pass
+            self._update_dracolid_visual(unit, 0.0, moving=True)
+            return
+
+        desired_anim = str(runtime_unit.desiredAnim or "idle")
+        if unit.get("anim") != desired_anim:
+            self._play_anim(actor, desired_anim, loop=True)
+            unit["anim"] = desired_anim
+        self._update_dracolid_visual(unit, 0.0, moving=False)
+
+    def _update_with_core_runtime(self, dt, world_state, stealth_state):
+        if not self._core_runtime or not hasattr(self._core_runtime, "updateUnits"):
+            return False
+        if not self._core_runtime_announced:
+            logger.info("[NPCManager] Crowd runtime path: C++ batch update")
+            self._core_runtime_announced = True
+
+        context = self._build_core_runtime_context(dt, world_state)
+        if context is None:
+            return False
+
+        active = []
+        runtime_units = []
+        for unit in self.units:
+            actor = unit.get("actor")
+            if not actor:
+                continue
+            self._update_player_detection(unit, dt, stealth_state if isinstance(stealth_state, dict) else {})
+            self._update_activity_state(unit, world_state, dt)
+            active.append((unit, actor))
+            runtime_units.append(self._build_core_runtime_unit(unit, actor))
+
+        if not runtime_units:
+            return True
+
+        try:
+            updated_units = self._core_runtime.updateUnits(runtime_units, context)
+        except Exception as exc:
+            logger.warning(f"[NPCManager] C++ runtime update failed, using Python loop: {exc}")
+            return False
+
+        for (unit, actor), runtime_unit in zip(active, updated_units):
+            self._apply_core_runtime_result(unit, actor, runtime_unit)
+        return True
+
+    def _update_python(self, dt, world_state=None, stealth_state=None):
         ws = world_state if isinstance(world_state, dict) else {}
         for unit in self.units:
             actor = unit.get("actor")
@@ -725,6 +1405,7 @@ class NPCManager:
                     actor.setPlayRate(max(0.65, min(1.35, speed / 1.5)), "walk")
                 except Exception:
                     pass
+                self._update_dracolid_visual(unit, dt, moving=True)
                 unit["idle_timer"] = self._rng.uniform(unit["idle_min"], unit["idle_max"])
                 continue
 
@@ -732,7 +1413,15 @@ class NPCManager:
             if unit["anim"] != "idle":
                 self._play_anim(actor, "idle", loop=True)
                 unit["anim"] = "idle"
+            self._update_dracolid_visual(unit, dt, moving=False)
 
             if unit["idle_timer"] <= 0.0:
                 self._pick_next_target(unit)
                 unit["idle_timer"] = self._rng.uniform(unit["idle_min"], unit["idle_max"])
+
+    def update(self, dt, world_state=None, stealth_state=None):
+        dt = max(0.0, float(dt))
+        ws = world_state if isinstance(world_state, dict) else {}
+        if self._update_with_core_runtime(dt, ws, stealth_state):
+            return
+        self._update_python(dt, ws, stealth_state)

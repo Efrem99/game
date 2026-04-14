@@ -10,7 +10,7 @@ in vec3 v_world_normal;
 in vec2 v_texcoord;
 in vec3 v_world_pos;
 in float v_height;
-
+in vec4 v_color;
 out vec4 fragColor;
 
 // --- Lighting ---
@@ -25,6 +25,10 @@ const vec3  FILL_COLOR = vec3(0.12, 0.16, 0.22);
 const vec3  FOG_COLOR  = vec3(0.55, 0.68, 0.88);
 const float FOG_START  = 40.0;
 const float FOG_END    = 150.0;
+
+// --- Cursed State ---
+uniform float cursed_blend;
+const vec3 CURSED_FOG_COLOR = vec3(0.18, 0.02, 0.01);
 
 vec3 gamma_correct(vec3 c) { return pow(clamp(c, 0.0, 1.0), vec3(1.0/2.2)); }
 
@@ -67,13 +71,19 @@ void main() {
     float height_mod = clamp((v_height + 5.0) / 30.0, 0.0, 1.0) * 0.12 + 0.94;
 
     // Combine
-    vec3 color = albedo * height_mod * (amb + sun + fills) + vec3(spec) + vec3(rim) * SUN_COLOR * 0.5;
+    vec3 color = albedo * v_color.rgb * height_mod * (amb + sun + fills) + vec3(spec) + vec3(rim) * SUN_COLOR * 0.5;
+
+    // Darken in cursed zone
+    color *= (1.0 - cursed_blend * 0.45);
 
     // Distance fog
-    float dist    = length(v_world_pos);
-    float fog_fac = clamp((dist - FOG_START) / (FOG_END - FOG_START), 0.0, 1.0);
-    fog_fac       = fog_fac * fog_fac;  // quadratic falloff
-    color         = mix(color, FOG_COLOR, fog_fac);
+    float dist      = length(v_world_pos);
+    vec3  f_col     = mix(FOG_COLOR, CURSED_FOG_COLOR, cursed_blend);
+    float f_start   = mix(FOG_START, 20.0, cursed_blend);
+    float f_end     = mix(FOG_END, 80.0, cursed_blend);
+    float fog_fac   = clamp((dist - f_start) / (f_end - f_start), 0.0, 1.0);
+    fog_fac         = fog_fac * fog_fac;
+    color           = mix(color, f_col, fog_fac);
 
     fragColor = vec4(gamma_correct(color), 1.0);
 }

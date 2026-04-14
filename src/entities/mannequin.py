@@ -1,4 +1,5 @@
 from panda3d.core import GeomNode, GeomVertexData, GeomVertexFormat, GeomVertexWriter, Geom, GeomTriangles, Texture
+from utils.logger import logger
 
 def build_mannequin(parent, name, sx, sy, sz, px, py, pz, r, g, b):
     """Build a mannequin from primitives."""
@@ -69,3 +70,129 @@ def create_procedural_actor(render, color=(0.44, 0.50, 0.63)):
     build_mannequin(l_knee, "lShin", 0.28, 0.28, 0.75, 0, 0, -0.375, *color)
 
     return root, r_leg, l_leg, r_arm, l_arm, r_hand
+
+def dress_actor(root, role, gender="male", age="adult"):
+    """Attach procedural 'clothing' blocks to the mannequin based on role."""
+    from panda3d.core import LPoint3, LVector3
+    from direct.actor.Actor import Actor
+    from render.model_visuals import ensure_model_visual_defaults
+    
+    role = str(role or "").lower()
+    logger.info(f"[Mannequin] Dressing NPC: {role} ({gender}, {age})")
+    
+    # Try discovery for bone anchoring if it's an Actor
+    attachment_root = root
+    spine_joint = None
+    if isinstance(root, Actor):
+        # Common bone names for Mixamo/Xbot
+        for bone_name in ["mixamorig:Spine2", "Spine2", "spine.003", "Bip01 Spine2"]:
+            joint = root.exposeJoint(None, "modelRoot", bone_name)
+            if joint and not joint.isEmpty():
+                spine_joint = joint
+                break
+    
+    # Apply age-based scaling
+    if age == "child":
+        root.setScale(0.65, 0.65, 0.65)
+    elif age == "elderly":
+        root.setScale(0.92, 0.92, 0.92)
+        # Add a slight hunch
+        torso = root.find("**/torso")
+        if not torso.isEmpty():
+            torso.setP(12) # Hunch forward
+
+    # Role-based attachments
+    if "guard" in role or "captain" in role or "knight" in role:
+        # Metallic Armor
+        armor_color = (0.72, 0.74, 0.78)
+        # Chestplate - prefer spine joint to follow animation
+        armor_parent = spine_joint if spine_joint else root
+        z_offset = 0.15 if spine_joint else 2.15
+        
+        chest = build_mannequin(armor_parent, "chestplate", 0.9, 0.6, 0.8, 0, 0.05, z_offset, *armor_color)
+        ensure_model_visual_defaults(chest, debug_label="guard_plate")
+
+        # Helmet (Head joint search)
+        head_joint = None
+        if isinstance(root, Actor):
+            for bone_name in ["mixamorig:Head", "Head", "head", "Bip01 Head"]:
+                joint = root.exposeJoint(None, "modelRoot", bone_name)
+                if joint and not joint.isEmpty():
+                    head_joint = joint
+                    break
+        
+        helmet_parent = head_joint if head_joint else root
+        hz = 0.2 if head_joint else 3.0
+        helmet = build_mannequin(helmet_parent, "helmet", 0.55, 0.55, 0.4, 0, 0, hz, *armor_color)
+        ensure_model_visual_defaults(helmet, debug_label="guard_helmet")
+
+    elif "merchant" in role or "trader" in role or "adalin" in role:
+        # Practical business/work clothes (apron/tunic)
+        work_color = (0.42, 0.32, 0.22) # Brown/Leather
+        z_off = 0.0 if spine_joint else 1.8
+        apron = build_mannequin(spine_joint or root, "apron", 0.82, 0.52, 1.2, 0, 0.02, z_off, *work_color)
+        ensure_model_visual_defaults(apron, debug_label="merchant_apron")
+
+    elif "guide" in role or "commoner" in role or "villager" in role:
+        # Simple civilian attire
+        civ_color = (0.35, 0.45, 0.35) # Forest green-ish
+        z_off = 0.0 if spine_joint else 1.7
+        tunic = build_mannequin(spine_joint or root, "tunic", 0.8, 0.5, 1.3, 0, 0, z_off, *civ_color)
+        ensure_model_visual_defaults(tunic, debug_label="civ_tunic")
+
+    elif "sorceress" in role or "mage" in role or "witch" in role:
+        # Sorceress: Red Cloak, Hood, and Ginger Hair
+        cloak_color = (0.8, 0.1, 0.1) # Red
+        hair_color = (0.9, 0.4, 0.1)  # Ginger/Red hair
+        
+        # Cloak - attached to spine
+        cloak_parent = spine_joint if spine_joint else root
+        cz = 0.0 if spine_joint else 1.8
+        cloak = build_mannequin(cloak_parent, "cloak", 1.1, 0.6, 1.6, 0, -0.1, cz, *cloak_color)
+        ensure_model_visual_defaults(cloak, debug_label="sorceress_cloak")
+        
+        # Hood & Hair - attached to head
+        head_joint = None
+        if isinstance(root, Actor):
+            for bone_name in ["mixamorig:Head", "Head", "head", "Bip01 Head"]:
+                joint = root.exposeJoint(None, "modelRoot", bone_name)
+                if joint and not joint.isEmpty():
+                    head_joint = joint
+                    break
+        
+        head_parent = head_joint if head_joint else root
+        hz = 0.2 if head_joint else 3.0
+        
+        hood = build_mannequin(head_parent, "hood", 0.65, 0.65, 0.5, 0, 0.05, hz + 0.05, *cloak_color)
+        ensure_model_visual_defaults(hood, debug_label="sorceress_hood")
+        
+        hair = build_mannequin(head_parent, "hair", 0.5, 0.4, 0.6, 0, -0.15, hz - 0.1, *hair_color)
+        ensure_model_visual_defaults(hair, debug_label="sorceress_hair")
+
+    elif gender == "female" and "adalin" not in role:
+        # Default female: Dress
+        dress_color = (0.6, 0.3, 0.5) # Purple/Magenta
+        # Skirt block starting from hips (search for hips)
+        hips_joint = None
+        if isinstance(root, Actor):
+            for bone_name in ["mixamorig:Hips", "Hips", "pelvis"]:
+                joint = root.exposeJoint(None, "modelRoot", bone_name)
+                if joint and not joint.isEmpty():
+                    hips_joint = joint
+                    break
+        skirt = build_mannequin(hips_joint or root, "skirt", 1.0, 0.8, 1.2, 0, 0, 0.8 if not hips_joint else -0.4, *dress_color)
+        ensure_model_visual_defaults(skirt, debug_label="female_dress")
+
+    elif "worker" in role or "miner" in role or "woodcutter" in role:
+        # Working class uniform
+        uniform_color = (0.2, 0.3, 0.4) # Dark Blue/Grey
+        z_off = 0.0 if spine_joint else 1.6
+        overalls = build_mannequin(spine_joint or root, "overalls", 0.85, 0.55, 1.4, 0, 0, z_off, *uniform_color)
+        ensure_model_visual_defaults(overalls, debug_label="worker_uniform")
+    
+    else:
+        # Default fallback so no one is "naked"
+        fall_color = (0.5, 0.5, 0.5)
+        z_off = 0.0 if spine_joint else 1.8
+        shirt = build_mannequin(spine_joint or root, "fallback_shirt", 0.75, 0.45, 1.1, 0, 0, z_off, *fall_color)
+        ensure_model_visual_defaults(shirt, debug_label="civ_fallback")

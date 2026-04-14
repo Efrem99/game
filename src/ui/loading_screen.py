@@ -4,6 +4,7 @@ import os
 
 from direct.gui.DirectGui import DirectFrame, DirectWaitBar, OnscreenImage, OnscreenText
 from direct.gui import DirectGuiGlobals as DGG
+from direct.interval.IntervalGlobal import Sequence, Func, LerpColorScaleInterval
 from panda3d.core import TextNode, TransparencyAttrib
 
 from ui.design_system import THEME, body_font, title_font, place_ui_on_top
@@ -30,7 +31,7 @@ class LoadingScreen:
         place_ui_on_top(self.frame, 60)
 
         self.bg = DirectFrame(
-            frameColor=(0.01, 0.01, 0.02, 0.92),
+            frameColor=(0.01, 0.01, 0.02, 1.0),
             frameSize=(-2, 2, -1, 1),
             parent=self.frame,
         )
@@ -214,6 +215,7 @@ class LoadingScreen:
         logger.debug("[LoadingScreen] Showing...")
         if context:
             self.set_context(context)
+        self.frame.setColorScale(1, 1, 1, 1)
         self.frame.show()
         self.set_progress(self.bar["value"] / 100.0)
         self.update_hint(self._context)
@@ -226,3 +228,15 @@ class LoadingScreen:
         if self.app.taskMgr.hasTaskNamed(self._spin_task_name):
             self.app.taskMgr.remove(self._spin_task_name)
         self.frame.hide()
+
+    def fade_out(self, duration=1.0):
+        logger.debug("[LoadingScreen] Fading out...")
+        self.frame.setColorScale(1, 1, 1, 1)
+        self.frame.setTransparency(TransparencyAttrib.MAlpha)
+        fade = LerpColorScaleInterval(self.frame, duration, (1, 1, 1, 0), (1, 1, 1, 1))
+
+        def _cleanup():
+            self.hide()
+            self.frame.setColorScale(1, 1, 1, 1)
+
+        Sequence(fade, Func(_cleanup)).start()

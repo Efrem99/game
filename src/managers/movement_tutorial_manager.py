@@ -700,6 +700,9 @@ class MovementTutorialManager:
         header = t("ui.tutorial_header", "Movement Tutorial") if phase == "core" else t("ui.tutorial_header_advanced", "Advanced Training")
         title = t(step.get("title_key", ""), step.get("title_default", step.get("id", "Step")))
         text = t(step.get("text_key", ""), step.get("default", ""))
+        checkpoint_feedback = self._checkpoint_feedback(step)
+        checkpoint_distance = checkpoint_feedback["distance"]
+        near_checkpoint = checkpoint_feedback["near_checkpoint"]
         if total <= 0:
             progress_ratio = 0.0
         else:
@@ -708,8 +711,8 @@ class MovementTutorialManager:
         return {
             "visible": True,
             "phase": phase,
-            "display_mode": "banner",
-            "header": header,
+            "display_mode": "card" if near_checkpoint else "banner",
+            "header": t("ui.tutorial_checkpoint_title", "Training Objective") if near_checkpoint else header,
             "title": title,
             "text": text,
             "progress_label": progress_label,
@@ -717,6 +720,7 @@ class MovementTutorialManager:
             "keys": self._step_bindings(step),
             "flash": bool(self._step_flash_ttl > 0.0),
             "step_id": str(step.get("id", "")),
+            "checkpoint_distance": checkpoint_distance,
         }
 
     def get_hud_message(self):
@@ -770,6 +774,30 @@ class MovementTutorialManager:
         dy = py - float(target[1])
         dz = pz - float(target[2])
         return math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+
+    def _player_world_pos(self):
+        player = getattr(self.app, "player", None)
+        actor = getattr(player, "actor", None)
+        if not (actor and hasattr(actor, "getPos")):
+            return None
+        try:
+            return actor.getPos(getattr(self.app, "render", None))
+        except Exception:
+            return None
+
+    def _checkpoint_feedback(self, step):
+        step_id = str(step.get("id", "") or "")
+        checkpoint_target = self._step_targets.get(step_id, self._core_target)
+        checkpoint_radius = float(self._step_radius.get(step_id, 6.0) or 6.0)
+        checkpoint_distance = self._distance_to_target(self._player_world_pos(), checkpoint_target)
+        near_checkpoint = (
+            checkpoint_distance is not None
+            and checkpoint_distance <= max(4.2, checkpoint_radius * 1.1)
+        )
+        return {
+            "distance": checkpoint_distance,
+            "near_checkpoint": bool(near_checkpoint),
+        }
 
     def get_checkpoint_entry(self, player_pos=None):
         if not self.enabled:

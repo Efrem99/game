@@ -4,7 +4,7 @@
         "msaa_samples": 8,
         "max_lights": 8,
         "shadow_map_size": 2048,
-        "exposure": 1.2,
+        "exposure": 1.12,
         "enable_shadows": true,
         "use_normal_maps": true,
         "use_emission_maps": true
@@ -12,21 +12,21 @@
     "post_processing": {
         "bloom": {
             "enabled": true,
-            "intensity": 1.4999999999999987,
+            "intensity": 0.36,
             "size": "large",
-            "threshold": 0.6,
+            "threshold": 0.78,
             "desat": 0.5
         },
         "ssao": {
-            "enabled": true,
+            "enabled": false,
             "radius": 0.08,
-            "amount": 2.0,
-            "strength": 0.5
+            "amount": 0.92,
+            "strength": 0.35
         },
         "dof": {
             "enabled": false,
             "focus_distance": 10.0,
-            "blur_amount": 0.5
+            "blur_amount": 0.32
         }
     },
     "shadows": {
@@ -90,7 +90,8 @@
             "dof": true
         }
     },
-    "quality": "Ultra",
+    "quality": "Low",
     "adaptive_mode": "balanced",
-    "language": "ru"
+    "language": "ru",
+    "vsync": true
 }

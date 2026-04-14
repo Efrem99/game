@@ -22,14 +22,17 @@
     "model": "assets/models/hero/sherward/sherward.glb",
     "model_candidates": [
       "assets/models/hero/sherward/sherward.glb",
+      "assets/models/hero/sherward/sherward_rework_full_corrective.glb",
+      "assets/models/hero/sherward/sherward_rework.glb",
       "assets/models/xbot/Xbot.glb"
     ],
+    "prefer_animation_compatible": false,
     "fallback_model": "assets/models/xbot/Xbot.glb",
     "scale": 1.0,
     "base_anims": {
-      "idle": "assets/models/xbot/idle.glb",
-      "walk": "assets/models/xbot/walk.glb",
-      "run": "assets/models/xbot/run.glb"
+      "idle": "assets/models/xbot/runtime_clips/idle.glb",
+      "walk": "assets/models/xbot/runtime_clips/walk.glb",
+      "run": "assets/models/xbot/runtime_clips/run.glb"
     }
   }
 }

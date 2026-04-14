@@ -1,0 +1,121 @@
+{
+  "emberfox": {
+    "name": "Emberfox",
+    "kind": "pet",
+    "recruitment": {
+      "method": "tame",
+      "encounter": "roadside",
+      "encounter_npc_id": "emberfox",
+      "zone_id": "river_road",
+      "locations": [
+        "river_road",
+        "old_forest",
+        "sharuan_forest_bridge"
+      ]
+    },
+    "support": {
+      "role": "support",
+      "healing_pulse": 0.15,
+      "cooldown": 7.6,
+      "threshold": 0.78,
+      "combat_assist": "ember_bolt",
+      "utility": "finds_hidden_stashes"
+    },
+    "assist": {
+      "follow_style": "close",
+      "battle_style": "harry",
+      "combat_assist": "ember_bolt",
+      "range": 15.0,
+      "cooldown": 2.0,
+      "damage": 7.0
+    }
+  },
+  "eldrin_elf": {
+    "name": "Eldrin",
+    "kind": "companion",
+    "recruitment": {
+      "method": "hire",
+      "cost": 150,
+      "dialogue_required": true,
+      "encounter_npc_id": "eldrin_elf",
+      "zone_id": "old_forest",
+      "locations": [
+        "old_forest",
+        "sharuan_forest_bridge"
+      ]
+    },
+    "assist": {
+      "role": "assist",
+      "combat_assist": "arcane_archery",
+      "range": 18.0,
+      "cooldown": 1.8,
+      "damage": 14.0,
+      "revive_help": true
+    }
+  },
+  "kiron_centaur": {
+    "name": "Kiron",
+    "kind": "companion",
+    "recruitment": {
+      "method": "story",
+      "story_beat": "centaur_alliance",
+      "encounter_npc_id": "kiron_centaur",
+      "zone_id": "river_road",
+      "locations": [
+        "river_road",
+        "southern_coast"
+      ]
+    },
+    "assist": {
+      "role": "assist",
+      "combat_assist": "guardian_charge",
+      "range": 10.0,
+      "cooldown": 3.1,
+      "damage": 18.0,
+      "battle_tone": "aggressive"
+    }
+  },
+  "adrian": {
+    "name": "Adrian",
+    "kind": "companion",
+    "recruitment": {
+      "method": "rescue",
+      "story_beat": "adrian_rescue",
+      "encounter_npc_id": "adrian",
+      "zone_id": "krimora_forest_cage",
+      "locations": [
+        "krimora_forest_cage"
+      ]
+    },
+    "assist": {
+      "role": "assist",
+      "combat_assist": "training_blade_support",
+      "range": 7.5,
+      "cooldown": 1.35,
+      "damage": 9.0,
+      "battle_tone": "aggressive"
+    }
+  },
+  "torvin": {
+    "name": "Torvin",
+    "kind": "companion",
+    "recruitment": {
+      "method": "story",
+      "story_beat": "dwarven_gate",
+      "encounter_npc_id": "torvin",
+      "zone_id": "dwarven_caves_gate",
+      "locations": [
+        "dwarven_caves_gate",
+        "old_forest"
+      ]
+    },
+    "assist": {
+      "role": "assist",
+      "combat_assist": "shield_wall",
+      "range": 8.5,
+      "cooldown": 3.8,
+      "damage": 8.0,
+      "battle_tone": "defensive"
+    }
+  }
+}

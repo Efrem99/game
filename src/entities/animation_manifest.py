@@ -5,6 +5,19 @@ from pathlib import Path
 
 
 BASE_RUNTIME_KEYS = {"idle", "walk", "run"}
+AUTO_SOURCE_EXTS = {".bam", ".glb", ".gltf", ".fbx", ".egg"}
+AUTO_SOURCE_EXT_PRIORITY = {
+    ".bam": 0,
+    ".glb": 1,
+    ".gltf": 2,
+    ".fbx": 3,
+    ".egg": 4,
+}
+DEFAULT_MIXAMO_AUTO_SOURCE_DIRS = (
+    "assets/anims/mixamo",
+    "assets/anims/mixamo/player",
+    "assets/anims/mixamo/hero",
+)
 
 
 def normalize_anim_key(value):
@@ -17,6 +30,49 @@ def alias_animation_key(stem):
     token = normalize_anim_key(stem)
     if not token:
         return ""
+    is_bow = (
+        "bow" in token
+        or "archer" in token
+        or "archery" in token
+        or "arrow" in token
+    )
+    if is_bow and ("aim" in token or "draw" in token or "ready" in token):
+        return "bow_aim"
+    if is_bow and ("shoot" in token or "shot" in token or "release" in token or "fire" in token):
+        return "bow_shoot"
+    is_stealth = (
+        "crouch" in token
+        or "crouched" in token
+        or "stealth" in token
+        or "sneak" in token
+    )
+    if is_stealth:
+        if (
+            "walk" in token
+            or "move" in token
+            or "run" in token
+            or "strafe" in token
+            or "step" in token
+        ):
+            return "crouch_move"
+        return "crouch_idle"
+    is_spell = (
+        "cast" in token
+        or "spell" in token
+        or "magic" in token
+        or "wizard" in token
+        or "sorcery" in token
+    )
+    if is_spell and (
+        "prepare" in token or "charge" in token or "windup" in token or "ready" in token
+    ):
+        return "cast_prepare"
+    if is_spell and ("channel" in token or "chant" in token):
+        return "cast_channel"
+    if is_spell and ("release" in token or "unleash" in token):
+        return "cast_release"
+    if is_spell and ("fast" in token or "quick" in token or "instant" in token):
+        return "cast_fast"
     if "idle" in token:
         return "idle"
     if "sprint" in token or "run" in token or "jog" in token:
@@ -56,9 +112,104 @@ def _read_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 
+def _project_root_for_manifest(path=None, project_root=None):
+    if project_root is not None:
+        return Path(project_root)
+    probe = Path(path or "data/actors/player_animations.json")
+    folder = probe.parent
+    if folder.name.lower() == "actors" and folder.parent.name.lower() == "data":
+        return folder.parent.parent
+    return Path.cwd()
+
+
+def _resolve_existing_path(token, project_root):
+    value = str(token or "").strip().replace("\\", "/")
+    if not value:
+        return None
+    candidate = Path(value)
+    if candidate.is_absolute():
+        return candidate if candidate.exists() else None
+    rooted = Path(project_root) / candidate
+    if rooted.exists():
+        return rooted
+    return candidate if candidate.exists() else None
+
+
+def _collect_auto_source_dir_specs(manifest):
+    specs = []
+    seen = set()
+
+    def _push(token, *, explicit):
+        normalized = str(token or "").strip().replace("\\", "/")
+        if not normalized:
+            return
+        marker = normalized.lower()
+        if marker in seen:
+            return
+        seen.add(marker)
+        specs.append((normalized, explicit))
+
+    include_defaults = bool(manifest.get("include_default_mixamo_dirs", True))
+    if include_defaults:
+        for token in DEFAULT_MIXAMO_AUTO_SOURCE_DIRS:
+            _push(token, explicit=False)
+
+    for field_name in ("auto_source_dirs", "mixamo_source_dirs"):
+        raw = manifest.get(field_name)
+        if isinstance(raw, str):
+            _push(raw, explicit=True)
+        elif isinstance(raw, list):
+            for token in raw:
+                _push(token, explicit=True)
+    return specs
+
+
+def _scan_auto_source_dirs(dir_specs, project_root, diagnostics):
+    discovered = {}
+    used_stems = set()
+    for directory_token, explicit in dir_specs:
+        directory_path = Path(directory_token)
+        if not directory_path.is_absolute():
+            directory_path = Path(project_root) / directory_path
+        if not directory_path.exists():
+            if explicit:
+                diagnostics.append(f"Auto source dir not found: {directory_token}")
+            continue
+        if not directory_path.is_dir():
+            if explicit:
+                diagnostics.append(f"Auto source path is not a directory: {directory_token}")
+            continue
+
+        clip_paths = [
+            path
+            for path in directory_path.rglob("*")
+            if path.is_file() and path.suffix.lower() in AUTO_SOURCE_EXTS
+        ]
+        clip_paths.sort(
+            key=lambda p: (
+                p.stem.lower(),
+                AUTO_SOURCE_EXT_PRIORITY.get(p.suffix.lower(), 99),
+                p.as_posix().lower(),
+            )
+        )
+
+        for path in clip_paths:
+            key = alias_animation_key(path.stem)
+            if not key or key in BASE_RUNTIME_KEYS:
+                continue
+            marker = key.lower()
+            if marker in used_stems:
+                continue
+            used_stems.add(marker)
+            discovered[key] = path.as_posix()
+    return discovered
+
+
 def load_player_manifest_sources(
     manifest_path="data/actors/player_animations.json",
     *,
+    manifest_payload=None,
+    project_root=None,
     require_existing_files=True,
 ):
     strict_mode = False
@@ -67,14 +218,17 @@ def load_player_manifest_sources(
     used_keys = set()
 
     path = Path(manifest_path)
-    if not path.exists():
-        return mapping, strict_mode, diagnostics
-
-    try:
-        payload = _read_json(path)
-    except Exception as exc:
-        diagnostics.append(f"Failed to read animation manifest: {exc}")
-        return mapping, strict_mode, diagnostics
+    project_root = _project_root_for_manifest(path, project_root=project_root)
+    if isinstance(manifest_payload, dict):
+        payload = manifest_payload
+    else:
+        if not path.exists():
+            return mapping, strict_mode, diagnostics
+        try:
+            payload = _read_json(path)
+        except Exception as exc:
+            diagnostics.append(f"Failed to read animation manifest: {exc}")
+            return mapping, strict_mode, diagnostics
 
     manifest = payload.get("manifest", {}) if isinstance(payload, dict) else {}
     if not isinstance(manifest, dict):
@@ -111,10 +265,21 @@ def load_player_manifest_sources(
         if key in used_keys:
             diagnostics.append(f"Duplicate key in manifest.sources: '{key}'")
             continue
-        if require_existing_files and not Path(clip_path).exists():
+        if require_existing_files and _resolve_existing_path(clip_path, project_root) is None:
             diagnostics.append(f"Missing animation file for key '{key}': {clip_path}")
             continue
 
+        used_keys.add(key)
+        mapping[key] = clip_path
+
+    auto_specs = _collect_auto_source_dir_specs(manifest)
+    auto_sources = _scan_auto_source_dirs(auto_specs, project_root, diagnostics)
+    for key, clip_path in auto_sources.items():
+        if key in used_keys:
+            continue
+        if require_existing_files and _resolve_existing_path(clip_path, project_root) is None:
+            diagnostics.append(f"Missing animation file for key '{key}': {clip_path}")
+            continue
         used_keys.add(key)
         mapping[key] = clip_path
 

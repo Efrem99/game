@@ -1,0 +1,18 @@
+{
+    "id": "stag",
+    "kind": "stag",
+    "aliases": ["deer", "elk", "reindeer"],
+    "speed": 9.2,
+    "run_speed": 14.6,
+    "accel": 12.8,
+    "decel": 15.7,
+    "turn_rate": 148.0,
+    "ground_offset": 0.64,
+    "mount_offset": [0.0, 0.0, 0.98],
+    "dismount_offset": [1.3, -0.65, 0.0],
+    "camera_profile": "mounted_horse",
+    "model": "assets/models/enemies/goblin_raider.glb",
+    "model_scale": 1.26,
+    "model_offset": [0.0, 0.0, -0.26],
+    "model_hpr": [180.0, 0.0, 0.0]
+}

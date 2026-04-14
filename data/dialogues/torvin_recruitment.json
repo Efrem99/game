@@ -1,0 +1,42 @@
+{
+  "npc_id": "torvin",
+  "npc_name": "Torvin",
+  "dialogue_tree": {
+    "start": {
+      "speaker": "Torvin",
+      "text": "The dwarven gate does not open for strangers, but for a proven ally I can lend shield-work, stone sense, and a road through the dark halls.",
+      "choices": [
+        {
+          "text": "Walk with me into the caves.",
+          "condition": "can_recruit:torvin:story",
+          "action": "grant_story_companion:torvin",
+          "next_node": "joined"
+        },
+        {
+          "text": "We already stand the same watch.",
+          "condition": "has_companion:torvin",
+          "next_node": "already_joined"
+        },
+        {
+          "text": "We'll speak again.",
+          "next_node": "end"
+        }
+      ]
+    },
+    "joined": {
+      "speaker": "Torvin",
+      "text": "Then keep close. My shield takes the first ruin-stroke, and yours must answer the second.",
+      "choices": []
+    },
+    "already_joined": {
+      "speaker": "Torvin",
+      "text": "The halls know our steps now. We press on together.",
+      "choices": []
+    },
+    "end": {
+      "speaker": "Torvin",
+      "text": "The mountain keeps its patience longer than any king.",
+      "choices": []
+    }
+  }
+}

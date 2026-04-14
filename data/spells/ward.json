@@ -5,7 +5,17 @@
     "cooldown": 4.5,
     "cast_time": 0.3,
     "damage_type": "holy",
-    "anim_trigger": "cast_spell",
+    "anim_trigger": "cast_ward",
+    "runtime": {
+        "cast_family": "support",
+        "cast_mode": "both",
+        "telegraph": {
+            "radius": 3.4,
+            "duration": 0.18,
+            "anchor": "self",
+            "color": [0.7, 0.8, 1.0, 0.28]
+        }
+    },
     "sfx": {
         "cast": "spell_cast",
         "impact": "spell_holy"

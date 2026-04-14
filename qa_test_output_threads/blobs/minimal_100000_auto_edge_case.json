@@ -1,0 +1,96 @@
+{
+  "scenario_name": "minimal",
+  "step_index": 100000,
+  "step_name": "auto_edge_case",
+  "action": "edge_case",
+  "verdict": "pass",
+  "bug_type": "unknown",
+  "reason": "",
+  "started_at": 1774881032.2429988,
+  "finished_at": 1774881032.244029,
+  "duration_sec": 0.0010302066802978516,
+  "attempts": 1,
+  "pre_state": {
+    "scene_name": "town_scene",
+    "loading": false,
+    "loading_progress": 0.0,
+    "player_pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "player_rot": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "player_velocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "current_animation": "idle",
+    "current_effects": [],
+    "ui_stack": [],
+    "input_enabled": true,
+    "control_locked": false,
+    "companion_state": {},
+    "equipment_state": {},
+    "object_states": {},
+    "misc": {}
+  },
+  "post_state": {
+    "scene_name": "town_scene",
+    "loading": false,
+    "loading_progress": 0.0,
+    "player_pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "player_rot": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "player_velocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "current_animation": "idle",
+    "current_effects": [],
+    "ui_stack": [],
+    "input_enabled": true,
+    "control_locked": false,
+    "companion_state": {},
+    "equipment_state": {},
+    "object_states": {},
+    "misc": {}
+  },
+  "perf": {
+    "fps": 68.49631188209806,
+    "frame_time_ms": 16.6,
+    "draw_calls": 106,
+    "triangles": 180000,
+    "instances": 450,
+    "lod_distribution": {}
+  },
+  "screenshots": [
+    {
+      "label": "before",
+      "path": "C:\\xampp\\htdocs\\king-wizard\\qa_test_output_threads\\screenshots\\minimal\\100000_auto_edge_case\\before.txt"
+    },
+    {
+      "label": "after",
+      "path": "C:\\xampp\\htdocs\\king-wizard\\qa_test_output_threads\\screenshots\\minimal\\100000_auto_edge_case\\after.txt"
+    }
+  ],
+  "evidence": {
+    "input_failed": false,
+    "edge_case_failed": false,
+    "performance_failed": false,
+    "draw_calls": 115,
+    "fps": 65.87841867407757
+  }
+}

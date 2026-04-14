@@ -9,6 +9,7 @@ from direct.showbase.ShowBaseGlobal import globalClock
 from direct.interval.IntervalGlobal import LerpColorScaleInterval, Sequence, Wait
 from panda3d.core import TextNode, TransparencyAttrib
 
+from managers.save_paths import save_path_aliases
 from ui.design_system import (
     BUTTON_COLORS,
     THEME,
@@ -18,6 +19,7 @@ from ui.design_system import (
     place_ui_on_top,
     title_font,
 )
+from ui.ui_audio import play_ui_sfx
 
 
 CONTROL_ACTIONS = [
@@ -65,8 +67,7 @@ ACTION_KEYBOARD_OPTIONS = {
     "inventory": ["i", "tab", "b", "none"],
     "attack_light": ["mouse1", "q", "e", "none"],
     "attack_heavy": ["e", "mouse2", "r", "none"],
-    # Thrust is context-driven by movement/combat state; this bind remains optional.
-    "attack_thrust": ["none", "mouse3"],
+    "attack_thrust": ["mouse3", "none"],
     "target_lock": ["t", "middlemouse", "g", "none"],
     "skill_wheel": ["tab", "leftalt", "none"],
     "block": ["q", "mouse2", "f", "none"],
@@ -152,7 +153,7 @@ DEFAULT_GAMEPAD_BINDINGS = {
     "inventory": "gamepad-start",
     "attack_light": "none",
     "attack_heavy": "none",
-    "attack_thrust": "none",
+    "attack_thrust": "mouse3",
     "target_lock": "gamepad-back",
     "skill_wheel": "gamepad-rshoulder",
     "block": "none",
@@ -232,8 +233,9 @@ class BaseMenu(DirectObject):
             )
             place_ui_on_top(self.background, 40)
 
+        overlay_alpha = 0.10 if bool(getattr(self.app, "_video_bot_visibility_boost", False)) else 0.20
         self.darken = DirectFrame(
-            frameColor=(0, 0, 0, 0.20),
+            frameColor=(0, 0, 0, overlay_alpha),
             frameSize=(-asp, asp, -1, 1),
             parent=self.frame,
             suppressMouse=1,
@@ -312,6 +314,19 @@ class BaseMenu(DirectObject):
             return (tex_off, tex_on, tex_on, tex_off)
         return None
 
+    def _play_ui_sfx(self, key, volume=1.0, rate=1.0):
+        return play_ui_sfx(self.app, key, volume=volume, rate=rate)
+
+    def _wrap_button_command(self, command):
+        if not callable(command):
+            return command
+
+        def _wrapped(*args, **kwargs):
+            self._play_ui_sfx("ui_click", volume=0.48, rate=1.0)
+            return command(*args, **kwargs)
+
+        return _wrapped
+
     def _make_button(self, key, y_pos, command):
         b_font = body_font(self.app)
         textures = self._btn_texture_set()
@@ -331,7 +346,7 @@ class BaseMenu(DirectObject):
             frameSize=(-2.0, 2.0, -0.45, 0.45),
             relief=DGG.FLAT,
             pressEffect=1, # Re-enable press effect
-            command=command,
+            command=self._wrap_button_command(command),
             parent=self.frame,
             **kwargs,
         )
@@ -353,6 +368,7 @@ class BaseMenu(DirectObject):
 
         def _hover_on(_evt):
             btn._hovered = True
+            self._play_ui_sfx("ui_hover", volume=0.28, rate=1.02)
             self._focus_button_by_ref(btn)
 
         def _hover_off(_evt):
@@ -1353,19 +1369,33 @@ class BaseMenu(DirectObject):
             except Exception:
                 pass
         base_dir = Path("saves")
+        candidate_paths = []
+        if hasattr(self.app, "save_mgr") and hasattr(self.app.save_mgr, "candidate_paths"):
+            try:
+                candidate_paths = list(self.app.save_mgr.candidate_paths())
+            except Exception:
+                candidate_paths = []
         if hasattr(self.app, "save_mgr") and hasattr(self.app.save_mgr, "save_dir"):
             try:
                 base_dir = Path(self.app.save_mgr.save_dir)
             except Exception:
                 base_dir = Path("saves")
-        candidates = [
-            base_dir / "slot1.json",
-            base_dir / "slot2.json",
-            base_dir / "slot3.json",
-            base_dir / "latest.json",
-            base_dir / "autosave.json",
-            Path("savegame.json"),
-        ]
+        if not candidate_paths:
+            seeds = [
+                base_dir / "slot1.json",
+                base_dir / "slot2.json",
+                base_dir / "slot3.json",
+                base_dir / "latest.json",
+                base_dir / "autosave.json",
+                Path("savegame.json"),
+            ]
+            for seed in seeds:
+                candidate_paths.extend(save_path_aliases(seed))
+        candidates = []
+        for candidate in candidate_paths:
+            path = Path(candidate)
+            if path not in candidates:
+                candidates.append(path)
         return any(path.exists() for path in candidates)
 
     def _can_save_game(self):
@@ -1864,12 +1894,7 @@ class BaseMenu(DirectObject):
         self._refresh_advanced_settings_labels()
 
     def _adjust_vol(self, channel, delta):
-        audio = getattr(self.app, "audio", None)
-        if audio:
-            try:
-                audio.play_sfx("ui_click", volume=0.55)
-            except Exception:
-                pass
+        self._play_ui_sfx("ui_click", volume=0.55, rate=1.0)
         if channel == "music":
             self._music_vol = max(0.0, min(1.0, getattr(self, "_music_vol", 0.8) + delta))
             if hasattr(self, "music_val_lbl"):

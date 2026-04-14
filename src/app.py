@@ -4,7 +4,7 @@ from direct.interval.IntervalGlobal import Sequence, Wait, Func, LerpColorScaleI
 from panda3d.core import (
     WindowProperties, AmbientLight, DirectionalLight,
     Vec3, Vec4, LPoint3, LColor, Fog, AntialiasAttrib,
-    Texture, TransparencyAttrib, PNMImage, MouseButton, InputDevice,
+    Texture, SamplerState, TexturePool, TransparencyAttrib, PNMImage, MouseButton, InputDevice, ClockObject,
     loadPrcFileData
 )
 import complexpbr
@@ -13,6 +13,16 @@ import os
 from utils.logger import logger
 
 # Global Panda3D Configuration
+_PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_RUNTIME_TEST_BOOT = bool(str(os.environ.get("XBOT_TEST_PROFILE", "")).strip()) or (
+    str(os.environ.get("XBOT_VIDEO_BOT", "")).strip().lower() in {"1", "true", "yes", "on"}
+)
+_PANDA_CACHE_DIR = os.path.join(_PROJECT_ROOT, "cache", "panda3d")
+try:
+    os.makedirs(_PANDA_CACHE_DIR, exist_ok=True)
+except Exception:
+    _PANDA_CACHE_DIR = ""
+
 loadPrcFileData("", "window-type normal")
 loadPrcFileData("", "window-title King Wizard")
 if os.path.exists("assets/textures/king_wizard.ico"):
@@ -26,6 +36,13 @@ loadPrcFileData("", "show-frame-rate-meter #t")
 loadPrcFileData("", "sync-video #t")
 loadPrcFileData("", "framebuffer-multisample #t")
 loadPrcFileData("", "multisamples 4")
+if _PANDA_CACHE_DIR:
+    loadPrcFileData("", f"model-cache-dir {_PANDA_CACHE_DIR.replace('\\', '/')}")
+if _RUNTIME_TEST_BOOT:
+    # Runtime test sessions should be deterministic and avoid cache rename stalls.
+    loadPrcFileData("", "model-cache-models #f")
+    loadPrcFileData("", "model-cache-textures #f")
+    loadPrcFileData("", "model-cache-compressed-textures #f")
 # loadPrcFileData("", "threading-model /Cull") # Removed for stability
 
 try:
@@ -41,6 +58,7 @@ from world.sharuan_world import SharuanWorld
 from world.influence_manager import InfluenceManager
 from world.sim_tier_manager import SimTierManager
 from entities.boss_manager import BossManager
+from entities.companion_unit import CompanionUnit
 from entities.player import Player
 from managers.data_manager import DataManager
 from managers.audio_director import AudioDirector
@@ -61,6 +79,8 @@ from managers.npc_interaction_manager import NPCInteractionManager
 from managers.story_interaction_manager import StoryInteractionManager
 from managers.skill_tree_manager import SkillTreeManager
 from managers.stealth_manager import StealthManager
+from render.magic_vfx import MagicVFXSystem
+from render.fx_policy import scale_particle_budget_for_fps
 from render.model_visuals import ensure_model_visual_defaults, audit_node_visual_health
 from ui.menu_main import MainMenu
 from ui.menu_pause import PauseMenu
@@ -71,6 +91,11 @@ from ui.hud_overlay import HUDOverlay
 from managers.preload_manager import PreloadManager
 from managers.asset_bundle_manager import AssetBundleManager
 from managers.adaptive_performance_manager import AdaptivePerformanceManager
+from utils.video_bot_plan import (
+    build_video_bot_events,
+    resolve_action_binding,
+    resolve_video_bot_plan_name,
+)
 
 class XBotApp(ShowBase):
     GameState = GameState # Shortcut
@@ -84,6 +109,60 @@ class XBotApp(ShowBase):
         self._test_profile = str(os.environ.get("XBOT_TEST_PROFILE", "")).strip().lower()
         self._test_location_raw = str(os.environ.get("XBOT_TEST_LOCATION", "")).strip()
         self._test_scenario_raw = str(os.environ.get("XBOT_TEST_SCENARIO", "")).strip()
+        self._cursed_blend = 0.0
+        self._auto_start_requested = str(os.environ.get("XBOT_AUTO_START", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        self._video_bot_enabled = str(os.environ.get("XBOT_VIDEO_BOT", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        self._video_bot_capture_input = self._video_bot_enabled and str(
+            os.environ.get("XBOT_VIDEO_BOT_CAPTURE_INPUT", "1")
+        ).strip().lower() not in {"0", "false", "no", "off"}
+        self._video_bot_visibility_boost = self._video_bot_enabled and str(
+            os.environ.get("XBOT_VIDEO_VISIBILITY_BOOST", "1")
+        ).strip().lower() not in {"0", "false", "no", "off"}
+        self._video_bot_loop_plan = self._video_bot_enabled and str(
+            os.environ.get("XBOT_VIDEO_BOT_LOOP_PLAN", "1")
+        ).strip().lower() not in {"0", "false", "no", "off"}
+        try:
+            self._video_bot_loop_gap_sec = float(
+                os.environ.get("XBOT_VIDEO_BOT_LOOP_GAP_SEC", "0.45") or 0.45
+            )
+        except Exception:
+            self._video_bot_loop_gap_sec = 0.45
+        self._video_bot_loop_gap_sec = max(0.0, min(4.0, self._video_bot_loop_gap_sec))
+        self._video_bot_force_aggro_mobs = str(
+            os.environ.get("XBOT_FORCE_AGGRO_MOBS", "0")
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        self._video_bot_plan_raw = str(os.environ.get("XBOT_VIDEO_BOT_PLAN", "")).strip()
+        self._video_bot_plan_name = "ground"
+        self._video_bot_plan = []
+        self._video_bot_elapsed = 0.0
+        self._video_bot_event_idx = 0
+        self._video_bot_hold_actions = {}
+        self._video_bot_forced_flags = {}
+        self._video_bot_bindings = {}
+        self._video_bot_warned_actions = set()
+        self._video_bot_done = False
+        self._video_bot_cursor_pos = (0.0, 0.0)
+        self._video_bot_cursor_target = (0.0, 0.0)
+        self._video_bot_cursor_visible = False
+        self._video_bot_visibility_refresh_at = 0.0
+        self._video_bot_cursor_visible_until = 0.0
+        self._video_bot_cursor_click_until = 0.0
+        self._video_bot_started = False
+        self._video_bot_start_delay_sec = 1.1
+        self._video_bot_start_ready_at = 0.0
+        self._video_bot_last_real_time = 0.0
+        self._video_bot_cycle_count = 0
+        self._cutscene_triggers_enabled = True
         self._gamepad_device = None
         self._gp_deadzone = 0.18
         self._gp_axes = {
@@ -102,6 +181,7 @@ class XBotApp(ShowBase):
             return
 
         logger.info(f"Graphics pipe successfully opened. Window handle: {self.win}")
+        self._configure_fps_band(min_fps=30.0, max_fps=60.0)
 
         # Standardize Window Visibility
         self._setup_window(initial=True)
@@ -115,6 +195,7 @@ class XBotApp(ShowBase):
         self._cam_yaw = 0.0
         self._cam_pitch = -20.0
         self._cam_dist = 22.0
+        self._cam_zoom_offset = 0.0
         self._cam_angles_cache = (self._cam_yaw, self._cam_pitch)
         self._cam_yaw_rad = math.radians(self._cam_yaw)
         self._cam_pitch_rad = math.radians(self._cam_pitch)
@@ -155,7 +236,8 @@ class XBotApp(ShowBase):
 
         # Avoid "Could not find appropriate DisplayRegion to filter" error
         if self._advanced_rendering:
-            self._safe_screenspace_init()
+            # self._safe_screenspace_init()  # Moved to main loop/finalize for reliability
+            pass # Screenspace init is now delayed to _update task
         else:
             self._screenspace_ready = False
             self._remove_screenspace_nodes()
@@ -196,7 +278,7 @@ class XBotApp(ShowBase):
         # Configure post-processing on the screen quad
         if self._advanced_rendering and hasattr(self, 'screen_quad'):
             logger.debug("Configuring complexpbr post-processing inputs.")
-            self.screen_quad.set_shader_input("bloom_intensity", 1.2)
+            self.screen_quad.set_shader_input("bloom_intensity", 0.62)
             for name, val in fallbacks.items():
                 self.screen_quad.set_shader_input(name, val, priority=1000)
 
@@ -298,6 +380,9 @@ class XBotApp(ShowBase):
         self.hud = HUDOverlay(self)
         self.hud.hide()
 
+        from managers.dialogue_manager import DialogueManager
+        self.dialogue_mgr = DialogueManager(self)
+
         # -- Start Preloading (Deferred till user starts the game) --
         # We save memory during the intro/menu by delaying asset loading.
 
@@ -306,6 +391,8 @@ class XBotApp(ShowBase):
         self._last_particle_count = 0
         self._particle_upload_interval = 1.0 / 30.0
         self._particle_upload_accum = 0.0
+        self._enemy_fire_particle_budget = 320
+        self._enemy_fire_particle_budget_live = 320
         self._runtime_load_level = 0
         self._runtime_update_intervals = {}
         self._runtime_update_accum = {}
@@ -344,7 +431,6 @@ class XBotApp(ShowBase):
         self.taskMgr.add(self._cursor_task, "ui_cursor_task")
         self.taskMgr.add(self._autosave_task, "autosave_task")
         self.accept("f11", self._request_fullscreen_toggle)
-        self.accept("f11-up", self._request_fullscreen_toggle)
         self.accept("alt-enter", self._request_fullscreen_toggle)
         self.accept("f10", self._request_fullscreen_toggle)
         self._dev_location_idx = 0
@@ -365,10 +451,41 @@ class XBotApp(ShowBase):
         self.accept("wheel_up", self._zoom_camera, [-2.0])
         self.accept("wheel_down", self._zoom_camera, [2.0])
         self._setup_gamepad_input()
+        self._setup_video_bot()
 
     def _zoom_camera(self, delta):
+        if self._video_bot_input_locked():
+            return
         if self.state_mgr.is_playing():
+            self._cam_zoom_offset = getattr(self, "_cam_zoom_offset", 0.0) + delta
             self._cam_dist = max(5.0, min(50.0, self._cam_dist + delta))
+
+    def _configure_fps_band(self, min_fps=30.0, max_fps=60.0):
+        try:
+            min_token = float(min_fps or 30.0)
+        except Exception:
+            min_token = 30.0
+        try:
+            max_token = float(max_fps or 60.0)
+        except Exception:
+            max_token = 60.0
+        min_token = max(20.0, min(60.0, min_token))
+        max_token = max(min_token, min(240.0, max_token))
+
+        self._fps_target_min = min_token
+        self._fps_target_max = max_token
+        self._fps_sample_accum = 0.0
+        self._fps_last_avg = max_token
+
+        clock = getattr(self, "clock", None)
+        if not clock:
+            return
+        try:
+            clock.setMode(ClockObject.MLimited)
+            clock.setFrameRate(float(self._fps_target_max))
+            clock.setMaxDt(1.0 / max(1.0, float(self._fps_target_min)))
+        except Exception as exc:
+            logger.debug(f"[FPSBand] Failed to configure FPS band: {exc}")
 
     def _clear_gamepad_axes(self):
         self._gp_axes["move_x"] = 0.0
@@ -514,7 +631,7 @@ class XBotApp(ShowBase):
         sun = lighting.get("sun", {}) if isinstance(lighting.get("sun"), dict) else {}
         ambient = lighting.get("ambient", {}) if isinstance(lighting.get("ambient"), dict) else {}
 
-        q_mult = {"low": 0.82, "medium": 0.92, "high": 1.0, "ultra": 1.08}
+        q_mult = {"low": 0.90, "medium": 0.97, "high": 1.0, "ultra": 1.06}
         light_mult = q_mult.get(str(quality_token), 1.0)
 
         sun_color = sun.get("color", [1.0, 0.95, 0.9])
@@ -527,6 +644,13 @@ class XBotApp(ShowBase):
             amb_intensity = float(ambient.get("intensity", 0.5) or 0.5) * (0.9 + (0.1 * light_mult))
         except Exception:
             amb_intensity = 0.5
+        if not bool(getattr(self, "_video_bot_visibility_boost", False)):
+            # Keep world readability stable even when users previously forced "Low".
+            sun_intensity = max(1.06, sun_intensity)
+            amb_intensity = max(0.44, amb_intensity)
+        if bool(getattr(self, "_video_bot_visibility_boost", False)):
+            sun_intensity = max(1.20, sun_intensity)
+            amb_intensity = max(0.58, amb_intensity)
 
         if hasattr(self, "_dlight") and self._dlight:
             try:
@@ -568,6 +692,24 @@ class XBotApp(ShowBase):
             self.render.set_shader_input("shadow_boost", shadow_boost, priority=1000)
         except Exception:
             pass
+        if bool(getattr(self, "_video_bot_visibility_boost", False)):
+            try:
+                self.render.clearFog()
+            except Exception:
+                pass
+            try:
+                self.render.set_shader_input("shadow_boost", max(0.26, float(shadow_boost)), priority=1001)
+            except Exception:
+                pass
+            try:
+                self.render.setColorScale(1.0, 1.0, 1.0, 1.0)
+            except Exception:
+                pass
+        else:
+            try:
+                self.render.setColorScale(1.0, 1.0, 1.0, 1.0)
+            except Exception:
+                pass
 
     def set_runtime_load_profile(self, profile, level=0):
         cfg = profile if isinstance(profile, dict) else {}
@@ -580,6 +722,8 @@ class XBotApp(ShowBase):
             "npc_interaction_update_interval": "npc_interaction",
             "story_interaction_update_interval": "story_interaction",
             "cutscene_trigger_update_interval": "cutscene_triggers",
+            "npc_logic_update_interval": "npc_logic",
+            "enemy_update_interval": "enemy_logic",
         }
         intervals = (
             self._runtime_update_intervals
@@ -612,6 +756,15 @@ class XBotApp(ShowBase):
                 )
             except Exception:
                 self._particle_upload_interval = 1.0 / 30.0
+        if "enemy_fire_particle_budget" in cfg:
+            try:
+                self._enemy_fire_particle_budget = max(
+                    32,
+                    min(2048, int(round(float(cfg.get("enemy_fire_particle_budget", 320) or 320)))),
+                )
+            except Exception:
+                self._enemy_fire_particle_budget = 320
+            self._enemy_fire_particle_budget_live = self._enemy_fire_particle_budget
 
         stm = getattr(self, "sim_tier_mgr", None)
         if stm and hasattr(stm, "set_runtime_profile"):
@@ -662,6 +815,79 @@ class XBotApp(ShowBase):
         accum_map[key] = 0.0
         return accum
 
+    def _iter_loaded_textures(self):
+        seen = set()
+        collections = []
+        for fetcher in ("findAllTextures", "find_all_textures"):
+            fn = getattr(TexturePool, fetcher, None)
+            if callable(fn):
+                try:
+                    collections.append(fn())
+                except Exception:
+                    continue
+
+        for collection in collections:
+            if collection is None:
+                continue
+            try:
+                texture_rows = list(collection)
+            except Exception:
+                continue
+            for tex in texture_rows:
+                if tex is None:
+                    continue
+                marker = id(tex)
+                if marker in seen:
+                    continue
+                seen.add(marker)
+                yield tex
+
+    def _apply_texture_sampler_defaults(self, quality_token):
+        token = str(quality_token or "high").strip().lower()
+        aniso_target = {"low": 2, "medium": 4, "high": 8, "ultra": 12}.get(token, 8)
+        min_filter = getattr(SamplerState, "FT_linear_mipmap_linear", None)
+        if min_filter is None:
+            min_filter = getattr(Texture, "FTLinearMipmapLinear", None)
+        mag_filter = getattr(SamplerState, "FT_linear", None)
+        if mag_filter is None:
+            mag_filter = getattr(Texture, "FTLinear", None)
+
+        tuned = 0
+        for tex in self._iter_loaded_textures():
+            try:
+                if hasattr(tex, "isEmpty") and tex.isEmpty():
+                    continue
+            except Exception:
+                pass
+
+            touched = False
+            if min_filter is not None:
+                setter = getattr(tex, "setMinfilter", None) or getattr(tex, "set_minfilter", None)
+                if callable(setter):
+                    try:
+                        setter(min_filter)
+                        touched = True
+                    except Exception:
+                        pass
+            if mag_filter is not None:
+                setter = getattr(tex, "setMagfilter", None) or getattr(tex, "set_magfilter", None)
+                if callable(setter):
+                    try:
+                        setter(mag_filter)
+                        touched = True
+                    except Exception:
+                        pass
+            aniso_setter = getattr(tex, "setAnisotropicDegree", None) or getattr(tex, "set_anisotropic_degree", None)
+            if callable(aniso_setter):
+                try:
+                    aniso_setter(int(aniso_target))
+                    touched = True
+                except Exception:
+                    pass
+            if touched:
+                tuned += 1
+        return tuned
+
     def apply_graphics_quality(self, level, persist=True):
         token = str(level or "high").strip().lower()
         if token in {"med", "middle"}:
@@ -682,9 +908,17 @@ class XBotApp(ShowBase):
             self._screenspace_ready = False
             self._remove_screenspace_nodes()
 
-        bloom_intensity = 1.2
+        bloom_intensity = 0.50
+        bloom_threshold = 0.66
+        exposure = 1.16
         cfg = getattr(self, "data_mgr", None)
         if cfg and isinstance(getattr(cfg, "graphics_settings", {}), dict):
+            pbr_cfg = cfg.graphics_settings.get("pbr", {})
+            if isinstance(pbr_cfg, dict):
+                try:
+                    exposure = float(pbr_cfg.get("exposure", exposure) or exposure)
+                except Exception:
+                    exposure = 1.16
             pp = cfg.graphics_settings.get("post_processing", {})
             if isinstance(pp, dict):
                 bloom = pp.get("bloom", {})
@@ -692,18 +926,47 @@ class XBotApp(ShowBase):
                     try:
                         bloom_intensity = float(bloom.get("intensity", bloom_intensity) or bloom_intensity)
                     except Exception:
-                        bloom_intensity = 1.2
-        bloom_scale = {"low": 0.72, "medium": 0.9, "high": 1.0, "ultra": 1.08}.get(token, 1.0)
+                        bloom_intensity = 0.50
+                    try:
+                        bloom_threshold = float(bloom.get("threshold", bloom_threshold) or bloom_threshold)
+                    except Exception:
+                        bloom_threshold = 0.66
+        bloom_scale = {"low": 0.86, "medium": 0.95, "high": 1.0, "ultra": 1.05}.get(token, 1.0)
         bloom_intensity *= bloom_scale
+        bloom_intensity = max(0.14, min(0.74, float(bloom_intensity)))
+        exposure *= {"low": 0.95, "medium": 0.99, "high": 1.0, "ultra": 1.03}.get(token, 1.0)
+        exposure = max(0.92, min(1.50, float(exposure)))
+        if bool(getattr(self, "_video_bot_visibility_boost", False)):
+            # Keep capture readable without aggressive glow halos.
+            bloom_intensity = min(0.58, float(bloom_intensity))
+            exposure = min(1.18, float(exposure))
 
         if getattr(self, "_advanced_rendering", True) and hasattr(self, "screen_quad"):
             try:
                 self.screen_quad.set_shader_input("bloom_intensity", bloom_intensity)
             except Exception:
                 pass
+            try:
+                self.screen_quad.set_shader_input("bloom_threshold", max(0.40, min(1.35, float(bloom_threshold))))
+            except Exception:
+                pass
+            try:
+                self.screen_quad.set_shader_input("exposure", exposure)
+            except Exception:
+                pass
+        try:
+            self.render.set_shader_input("exposure", exposure, priority=1000)
+        except Exception:
+            pass
 
         self._apply_lighting_from_settings(token)
         self._gfx_quality = token.title()
+        try:
+            tuned_count = self._apply_texture_sampler_defaults(token)
+            if tuned_count > 0:
+                logger.debug(f"[Visuals] Updated texture sampling defaults for {tuned_count} textures.")
+        except Exception as exc:
+            logger.debug(f"[Visuals] Texture sampling update skipped: {exc}")
 
         perf_mgr = getattr(self, "adaptive_perf_mgr", None)
         if perf_mgr and hasattr(perf_mgr, "on_quality_changed"):
@@ -716,7 +979,7 @@ class XBotApp(ShowBase):
             cfg.graphics_settings["quality"] = self._gfx_quality
             cfg.save_settings("graphics_settings.json", cfg.graphics_settings)
 
-    def _setup_window(self, initial=False):
+    def _setup_window(self, initial=True):
         props = WindowProperties()
         props.setTitle("King Wizard")
         if initial:
@@ -797,16 +1060,42 @@ class XBotApp(ShowBase):
     def _cursor_task(self, task):
         if not hasattr(self, "_cursor_image") or not self.win:
             return Task.cont
-        if not self.mouseWatcherNode.hasMouse():
+        input_locked = bool(self._video_bot_input_locked())
+        force_virtual = bool(input_locked and getattr(self, "_video_bot_enabled", False))
+        use_virtual = bool(getattr(self, "_video_bot_cursor_visible", False) or force_virtual)
+        state = getattr(getattr(self, "state_mgr", None), "current_state", None)
+        ui_states = {
+            getattr(self.GameState, "MAIN_MENU", None),
+            getattr(self.GameState, "PAUSED", None),
+            getattr(self.GameState, "INVENTORY", None),
+            getattr(self.GameState, "DIALOG", None),
+        }
+        show_cursor = bool(state in ui_states)
+        if bool(getattr(self, "_video_bot_enabled", False)) and not show_cursor:
+            self._cursor_image.hide()
             return Task.cont
-        x = self.mouseWatcherNode.getMouseX()
-        y = self.mouseWatcherNode.getMouseY()
+        self._cursor_image.show()
+        if use_virtual:
+            x, y = getattr(self, "_video_bot_cursor_pos", (0.0, 0.0))
+        else:
+            if not self.mouseWatcherNode.hasMouse():
+                self._cursor_image.hide()
+                return Task.cont
+            x = self.mouseWatcherNode.getMouseX()
+            y = self.mouseWatcherNode.getMouseY()
         sx = self.win.getXSize()
         sy = self.win.getYSize()
         px = (x + 1.0) * 0.5 * sx
         py = (1.0 - y) * 0.5 * sy
         hx, hy = getattr(self, "_cursor_hotspot_px", (0.0, 0.0))
         self._cursor_image.setPos(px + hx, 0, -(py - hy))
+        base_scale = float(getattr(self, "_cursor_scale_px", 24.0) or 24.0)
+        if float(getattr(self, "_video_bot_elapsed", 0.0) or 0.0) <= float(
+            getattr(self, "_video_bot_cursor_click_until", -1.0) or -1.0
+        ):
+            self._cursor_image.setScale(base_scale * 1.24)
+        else:
+            self._cursor_image.setScale(base_scale)
         return Task.cont
 
     def _on_window_event(self, window):
@@ -842,13 +1131,17 @@ class XBotApp(ShowBase):
                 pass
 
     def _request_fullscreen_toggle(self):
+        if self._video_bot_input_locked():
+            return
         now = globalClock.getFrameTime()
         if now - self._last_fs_toggle_time < 0.25:
             return
         self._last_fs_toggle_time = now
         self.toggle_fullscreen()
 
-    def _on_escape_pressed(self):
+    def _on_escape_pressed(self, from_video_bot=False):
+        if self._video_bot_input_locked() and not bool(from_video_bot):
+            return
         state = self.state_mgr.current_state
 
         if state == self.GameState.DIALOG:
@@ -914,7 +1207,25 @@ class XBotApp(ShowBase):
     def _on_intro_done(self):
         self.setBackgroundColor(0.45, 0.62, 0.85)
 
-        # Transition straight to Main Menu without loading the heavy 3D world yet
+        # Runtime test launchers can request deterministic auto-start after intro.
+        has_test_bootstrap = bool(self._test_profile or self._test_location_raw or self._test_scenario_raw)
+        if bool(getattr(self, "_auto_start_requested", False)) and has_test_bootstrap:
+            logger.info(
+                "[TestLauncher] Auto-starting runtime test "
+                f"profile='{self._test_profile or '-'}' "
+                f"location='{self._test_location_raw or '-'}' "
+                f"scenario='{self._test_scenario_raw or '-'}'."
+            )
+            self.hud.set_autosave(False)
+            self.render.clearColorScale()
+            self.aspect2d.clearColorScale()
+            self.state_mgr.set_state(self.GameState.MAIN_MENU)
+            self.aspect2d.hide()
+            self.main_menu.hide()
+            self.start_play(load_save=False)
+            return
+
+        # Transition straight to Main Menu without loading the heavy 3D world yet.
         self.hud.set_autosave(False)
         self.render.clearColorScale()
         self.aspect2d.clearColorScale()
@@ -1044,21 +1355,93 @@ class XBotApp(ShowBase):
         if not raw:
             return None
 
+        world = getattr(self, "world", None)
+
+        def _zone_center(zone_id):
+            layout = getattr(world, "layout", None) if world else None
+            zones = layout.get("zones", []) if isinstance(layout, dict) else []
+            target = str(zone_id or "").strip().lower()
+            if not target or not isinstance(zones, list):
+                return None
+            for row in zones:
+                if not isinstance(row, dict):
+                    continue
+                row_id = str(row.get("id", "") or "").strip().lower()
+                center = row.get("center")
+                if row_id != target or not (isinstance(center, list) and len(center) >= 2):
+                    continue
+                try:
+                    x = float(center[0])
+                    y = float(center[1])
+                    z = float(center[2]) if len(center) >= 3 else 0.0
+                    return Vec3(x, y, z)
+                except Exception:
+                    continue
+            return None
+
         presets = {
             "town": Vec3(0.0, 0.0, 0.0),
-            "castle": Vec3(0.0, 65.0, 0.0),
-            "docks": Vec3(0.0, -60.0, 0.0),
+            "castle": Vec3(0.0, 78.0, 0.0),
+            "castle_interior": Vec3(0.0, 79.0, 0.0),
+            "prince_chamber": Vec3(6.0, 74.0, 0.0),
+            "world_map_gallery": Vec3(-4.0, 72.0, 0.0),
+            "royal_laundry": Vec3(-9.0, 70.0, 0.0),
+            "throne_hall": Vec3(0.0, 88.0, 0.0),
+            "docks": Vec3(18.0, -62.0, 0.0),
+            "port": Vec3(18.0, -62.0, 0.0),
             "dragon_arena": Vec3(34.0, -6.0, 0.0),
-            "boats": Vec3(0.0, -77.0, 0.0),
+            "boats": Vec3(23.0, -74.0, 0.0),
             "training": Vec3(18.0, 24.0, 0.0),
             "training_grounds": Vec3(18.0, 24.0, 0.0),
-            "parkour": Vec3(30.0, 28.0, 0.0),
-            "flight": Vec3(18.0, 24.0, 0.0),
+            "parkour": Vec3(42.0, 33.0, 0.0),
+            "stealth_climb": Vec3(72.0, 24.0, 0.0),
+            "stealth": Vec3(72.0, 24.0, 0.0),
+            "flight": Vec3(-5.0, 23.0, 0.0),
+            "kremor_forest": Vec3(76.0, 12.0, 0.0),
+            "dwarven_caves": Vec3(96.0, -14.0, 0.0),
+            "dwarven_caves_gate": Vec3(92.0, -6.0, 0.0),
+            "dwarven_caves_halls": Vec3(96.0, -14.0, 0.0),
+            "dwarven_caves_throne": Vec3(102.0, -24.0, 0.0),
+            "ultimate_sandbox": Vec3(0.0, 0.0, 5.0),
         }
+        zone_overrides = {
+            "castle": "inner_castle",
+            "castle_interior": "castle_interior",
+            "prince_chamber": "prince_chamber",
+            "world_map_gallery": "world_map_gallery",
+            "royal_laundry": "royal_laundry",
+            "throne_hall": "throne_hall",
+            "docks": "port_town",
+            "port": "port_town",
+            "training": "training_grounds",
+            "training_grounds": "training_grounds",
+            "parkour": "parkour_grounds",
+            "stealth_climb": "stealth_climb_grounds",
+            "stealth": "stealth_climb_grounds",
+            "flight": "flight_grounds",
+            "kremor_forest": "kremor_forest_crash",
+            "dwarven_caves": "dwarven_caves_halls",
+            "dwarven_caves_gate": "dwarven_caves_gate",
+            "dwarven_caves_halls": "dwarven_caves_halls",
+            "dwarven_caves_throne": "dwarven_caves_throne",
+        }
+        for key, zone_id in zone_overrides.items():
+            center = _zone_center(zone_id)
+            if center is not None:
+                presets[key] = Vec3(center)
+
+        from_preset = False
         if raw in presets:
             pos = Vec3(presets[raw])
+            from_preset = True
         else:
-            parts = [p.strip() for p in raw.split(",")]
+            # Try direct zone resolution from layout
+            center = _zone_center(raw)
+            if center is not None:
+                pos = Vec3(center)
+                from_preset = True
+            else:
+                parts = [p.strip() for p in raw.split(",")]
             if len(parts) not in {2, 3}:
                 return None
             try:
@@ -1074,7 +1457,86 @@ class XBotApp(ShowBase):
                 pos.z = float(self.world._th(pos.x, pos.y)) + 2.2
             except Exception:
                 pass
+        if from_preset and world and hasattr(world, "sample_water_height"):
+            try:
+                # Keep authored preset teleports safely above water level to avoid
+                # camera-underwater captures in automated footage.
+                water_floor = float(world.sample_water_height(pos.x, pos.y)) + 0.75
+                if pos.z < water_floor:
+                    pos.z = water_floor
+            except Exception:
+                pass
         return pos
+
+    def _resolve_test_world_location_name(self, token):
+        raw = str(token or "").strip().lower()
+        if not raw:
+            return ""
+
+        world = getattr(self, "world", None)
+        layout = getattr(world, "layout", None) if world else None
+        zones = layout.get("zones", []) if isinstance(layout, dict) else []
+
+        zone_alias = {
+            "castle": "inner_castle",
+            "castle_interior": "castle_interior",
+            "prince_chamber": "prince_chamber",
+            "world_map_gallery": "world_map_gallery",
+            "royal_laundry": "royal_laundry",
+            "throne_hall": "throne_hall",
+            "town": "town_center",
+            "docks": "port_town",
+            "port": "port_town",
+            "dragon_arena": "dragon_arena",
+            "boats": "boats_route",
+            "training": "training_grounds",
+            "training_grounds": "training_grounds",
+            "parkour": "parkour_grounds",
+            "stealth_climb": "stealth_climb_grounds",
+            "stealth": "stealth_climb_grounds",
+            "flight": "flight_grounds",
+            "kremor_forest": "kremor_forest_crash",
+            "dwarven_caves": "dwarven_caves_halls",
+            "dwarven_caves_gate": "dwarven_caves_gate",
+            "dwarven_caves_halls": "dwarven_caves_halls",
+            "dwarven_caves_throne": "dwarven_caves_throne",
+        }
+        target_zone = zone_alias.get(raw, raw)
+        if isinstance(zones, list):
+            for row in zones:
+                if not isinstance(row, dict):
+                    continue
+                row_id = str(row.get("id", "") or "").strip().lower()
+                if row_id != target_zone:
+                    continue
+                name = str(row.get("name", "") or "").strip()
+                if name:
+                    return name
+
+        fallback = {
+            "castle": "Castle Courtyard",
+            "castle_interior": "Castle Interior",
+            "prince_chamber": "Prince Chamber",
+            "world_map_gallery": "World Map Gallery",
+            "royal_laundry": "Royal Laundry",
+            "throne_hall": "Throne Hall",
+            "town": "Town Center",
+            "docks": "Southern Docks",
+            "port": "Southern Docks",
+            "dragon_arena": "Dragon Arena",
+            "training": "Training Grounds",
+            "training_grounds": "Training Grounds",
+            "parkour": "Forest Parkour Grounds",
+            "stealth_climb": "Stealth Climb Grounds",
+            "flight": "Coastal Flight Grounds",
+            "kremor_forest": "Kremor Forest Crash Site",
+            "dwarven_caves": "Dwarven Forge Halls",
+            "dwarven_caves_gate": "Dwarven Caves Gate",
+            "dwarven_caves_halls": "Dwarven Forge Halls",
+            "dwarven_caves_throne": "Dwarven Grand Throne",
+            "ultimate_sandbox": "Ultimate Sandbox",
+        }
+        return str(fallback.get(raw, "") or "")
 
     def _resolve_test_scenario(self, token):
         raw = str(token or "").strip().lower()
@@ -1709,6 +2171,12 @@ class XBotApp(ShowBase):
     def _norm_test_mode(self):
         return str(getattr(self, "_test_profile", "") or "").strip().lower()
 
+    def _video_bot_input_locked(self):
+        return bool(
+            getattr(self, "_video_bot_enabled", False)
+            and getattr(self, "_video_bot_capture_input", False)
+        )
+
     def _apply_test_profile_visuals(self, profile):
         sky = getattr(self, "sky_mgr", None)
         if not sky:
@@ -1719,18 +2187,33 @@ class XBotApp(ShowBase):
             "journal": ("noon", "clear"),
             "mounts": ("afternoon", "clear"),
             "skills": ("dusk", "overcast"),
-            "movement": ("morning", "clear"),
-            "parkour": ("afternoon", "partly_cloudy"),
-            "flight": ("dawn", "clear"),
-            "swim": ("afternoon", "partly_cloudy"),
+            # Keep runtime video-test profiles bright for review visibility.
+            "movement": ("noon", "clear"),
+            "parkour": ("noon", "clear"),
+            "stealth_climb": ("afternoon", "overcast"),
+            "flight": ("noon", "clear"),
+            "swim": ("noon", "clear"),
             "world_art": ("noon", "clear"),
         }
         time_key, weather_key = presets.get(profile, ("noon", "clear"))
         try:
-            sky.set_time_preset(time_key)
-            sky.set_weather_preset(weather_key)
+            instant = bool(getattr(self, "_video_bot_visibility_boost", False))
+            sky.set_time_preset(time_key, instant=instant)
+            sky.set_weather_preset(weather_key, instant=instant)
+        except TypeError:
+            try:
+                sky.set_time_preset(time_key)
+                sky.set_weather_preset(weather_key)
+            except Exception as exc:
+                logger.debug(f"[TestProfile] Sky preset failed ({profile}): {exc}")
         except Exception as exc:
             logger.debug(f"[TestProfile] Sky preset failed ({profile}): {exc}")
+            return
+        if instant and hasattr(sky, "_apply_now"):
+            try:
+                sky._apply_now(force=True)
+            except Exception:
+                pass
 
     def _apply_test_profile(self):
         profile = str(self._test_profile or "").strip().lower()
@@ -1749,16 +2232,32 @@ class XBotApp(ShowBase):
             "skills": "0,0,0",
             "movement": "training",
             "parkour": "parkour",
+            "stealth_climb": "stealth_climb",
             "flight": "flight",
         }.get(profile, "")
+        scenario_location = ""
         if isinstance(scenario, dict):
             scenario_location = str(scenario.get("location", "") or "").strip()
             if scenario_location:
                 default_location = scenario_location
 
-        desired = self._resolve_test_location(self._test_location_raw or default_location)
+        desired_token = self._test_location_raw or default_location
+        if (
+            scenario_location
+            and bool(getattr(self, "_video_bot_enabled", False))
+            and not str(getattr(self, "_test_location_raw", "") or "").strip()
+        ):
+            # Video scenarios should be deterministic to the scenario catalog
+            # even when launchers provide a generic fallback location.
+            desired_token = scenario_location
+
+        desired = self._resolve_test_location(desired_token)
         if desired is not None:
             self._teleport_player_to(desired)
+
+        resolved_world_location = self._resolve_test_world_location_name(desired_token)
+        if self.world and resolved_world_location:
+            self.world.active_location = resolved_world_location
 
         self._apply_test_profile_visuals(profile)
 
@@ -1778,6 +2277,31 @@ class XBotApp(ShowBase):
                 self.dragon_boss.root.setPos(p.x + 8.0, p.y + 18.0, p.z + 2.0)
             if self.world:
                 self.world.active_location = "Sharuan Castle"
+        elif profile == "ultimate_sandbox":
+            # Spawn a squad of wolves for combat testing
+            if self.world:
+                self.world.active_location = "ultimate_sandbox"
+            
+            p = self.player.actor.getPos(self.render) if self.player and self.player.actor else Vec3(150, 150, 5)
+            
+            # 1. Standard Enemies
+            if self.npc_mgr:
+                self.npc_mgr.spawn_from_data({
+                    "sandbox_wolf_1": {"name": "Test Wolf 1", "role": "enemy", "pos": [165.0, 165.0, 5.0], "appearance": {"model": "assets/models/enemies/wolf.glb", "scale": 1.2}},
+                    "sandbox_wolf_2": {"name": "Test Wolf 2", "role": "enemy", "pos": [135.0, 165.0, 5.0], "appearance": {"model": "assets/models/enemies/wolf.glb", "scale": 1.2}},
+                    "sandbox_sentinel": {"name": "Test Sentinel", "role": "guard", "pos": [150.0, 135.0, 5.0], "appearance": {"species": "dracolite", "armor_type": "plate", "scale": 1.1}}
+                })
+            
+            # 2. Bosses
+            # Spawn Golem at marker location
+            if self.boss_manager:
+                golem = self.boss_manager.get_primary("golem")
+                if golem and hasattr(golem, "root"):
+                    golem.root.setPos(110.0, 190.0, 5.5)
+            
+            # Spawn Dragon
+            if hasattr(self, "dragon_boss") and self.dragon_boss and hasattr(self.dragon_boss, "root"):
+                self.dragon_boss.root.setPos(190.0, 190.0, 6.0)
         elif profile == "music":
             if self.world:
                 self.world.active_location = "Southern Docks"
@@ -1788,13 +2312,16 @@ class XBotApp(ShowBase):
             self.inventory_ui._switch_tab("journal")
             self.state_mgr.set_state(self.GameState.INVENTORY)
         elif profile == "movement":
-            if self.world:
+            if self.world and not resolved_world_location:
                 self.world.active_location = "Training Grounds"
             if self.movement_tutorial:
                 self._start_tutorial_flow(reset=True, mode="demo", source="test_profile")
         elif profile == "parkour":
             if self.world:
                 self.world.active_location = "Forest Parkour Grounds"
+        elif profile == "stealth_climb":
+            if self.world:
+                self.world.active_location = "Stealth Climb Grounds"
         elif profile == "flight":
             if self.world:
                 self.world.active_location = "Coastal Flight Grounds"
@@ -1832,13 +2359,875 @@ class XBotApp(ShowBase):
 
         logger.info(
             f"[TestProfile] Applied profile='{profile or 'custom'}' "
-            f"location='{self._test_location_raw or default_location or '-'}' "
+            f"location='{desired_token or '-'}' "
             f"scenario='{scenario_id or '-'}'"
         )
+
+    def _setup_video_bot(self):
+        self._video_bot_plan_name = resolve_video_bot_plan_name(self._video_bot_plan_raw)
+        raw_plan_token = (
+            str(getattr(self, "_video_bot_plan_raw", "") or "")
+            .strip()
+            .lower()
+            .replace("-", "_")
+            .replace(" ", "_")
+        )
+        self._video_bot_elapsed = 0.0
+        self._video_bot_event_idx = 0
+        self._video_bot_hold_actions = {}
+        self._video_bot_forced_flags = {}
+        self._video_bot_warned_actions = set()
+        self._video_bot_done = False
+        self._video_bot_bindings = {}
+        self._video_bot_cursor_pos = (0.0, 0.0)
+        self._video_bot_cursor_target = (0.0, 0.0)
+        self._video_bot_cursor_visible = False
+        self._video_bot_visibility_refresh_at = 0.0
+        self._video_bot_cursor_visible_until = 0.0
+        self._video_bot_cursor_click_until = 0.0
+        self._video_bot_started = False
+        self._video_bot_start_ready_at = 0.0
+        self._video_bot_last_real_time = 0.0
+        self._video_bot_cycle_count = 0
+        player = getattr(self, "player", None)
+        if player and isinstance(getattr(player, "_keys", None), dict):
+            for key in list(player._keys.keys()):
+                player._keys[key] = False
+        if player and isinstance(getattr(player, "_consumed", None), dict):
+            for key in list(player._consumed.keys()):
+                player._consumed[key] = False
+        if not self._video_bot_enabled:
+            self._video_bot_plan = []
+            return
+        if self._video_bot_plan_name == "ground" and raw_plan_token not in {
+            "",
+            "ground",
+            "movement",
+            "mechanics",
+            "base",
+            "default",
+        }:
+            logger.warning(
+                f"[VideoBot] Unknown plan token '{self._video_bot_plan_raw}', falling back to 'ground'."
+            )
+        try:
+            self._video_bot_plan = build_video_bot_events(self._video_bot_plan_name)
+        except Exception as exc:
+            self._video_bot_plan = []
+            logger.warning(f"[VideoBot] Failed to build plan '{self._video_bot_plan_name}': {exc}")
+            return
+        logger.info(
+            f"[VideoBot] Enabled plan='{self._video_bot_plan_name}' events={len(self._video_bot_plan)}"
+        )
+
+    def _video_bot_refresh_bindings(self):
+        bindings = {}
+        data_mgr = getattr(self, "data_mgr", None)
+        if data_mgr and isinstance(getattr(data_mgr, "controls", {}), dict):
+            source = data_mgr.controls.get("bindings", {})
+            if isinstance(source, dict):
+                for action, token in source.items():
+                    key = str(action or "").strip().lower()
+                    value = str(token or "").strip().lower()
+                    if key:
+                        bindings[key] = value
+        self._video_bot_bindings = bindings
+
+    def _video_bot_resolve_key(self, action):
+        return resolve_action_binding(action, getattr(self, "_video_bot_bindings", {}))
+
+    def _video_bot_set_action(self, action, pressed):
+        player = getattr(self, "player", None)
+        if not player:
+            return False
+        action_key = str(action or "").strip().lower()
+        key = self._video_bot_resolve_key(action_key)
+        if not key:
+            if action_key and action_key not in self._video_bot_warned_actions:
+                logger.debug(f"[VideoBot] Missing binding for action '{action_key}', skipping.")
+                self._video_bot_warned_actions.add(action_key)
+            return False
+        try:
+            if bool(pressed):
+                player._key_down(key, synthetic=True)
+            else:
+                player._key_up(key, synthetic=True)
+            return True
+        except Exception:
+            return False
+
+    def _video_bot_apply_flag(self, flag, value):
+        token = str(flag or "").strip().lower()
+        state = bool(value)
+        if token in {"is_flying", "flying"}:
+            if getattr(self, "player", None):
+                self.player._is_flying = state
+                if not state:
+                    self._video_bot_set_action("flight_up", False)
+                    self._video_bot_set_action("flight_down", False)
+        elif token in {"in_water", "water"}:
+            if getattr(self, "player", None):
+                try:
+                    self.player._py_in_water = state
+                except Exception:
+                    pass
+            if HAS_CORE and getattr(self, "char_state", None) and hasattr(self.char_state, "in_water"):
+                try:
+                    self.char_state.in_water = state
+                except Exception:
+                    pass
+
+    def _video_bot_teleport_training_pool(self):
+        if not getattr(self, "player", None) or not getattr(self.player, "actor", None):
+            return
+        pool_x = 4.0
+        pool_y = 36.0
+        pool_z = 0.6
+        world = getattr(self, "world", None)
+        if world and hasattr(world, "_th"):
+            try:
+                pool_z = float(world._th(pool_x, pool_y)) - 0.95
+            except Exception:
+                pass
+        self.player.actor.setPos(pool_x, pool_y, pool_z)
+        try:
+            self.player._py_in_water = True
+        except Exception:
+            pass
+        if HAS_CORE and getattr(self, "char_state", None):
+            try:
+                self.char_state.position = gc.Vec3(pool_x, pool_y, pool_z)
+                self.char_state.velocity = gc.Vec3(0.0, 0.0, 0.0)
+                if hasattr(self.char_state, "in_water"):
+                    self.char_state.in_water = True
+            except Exception:
+                pass
+        self.camera.setPos(pool_x, pool_y - 18.0, pool_z + 10.0)
+        self.camera.lookAt(self.player.actor)
+        if world:
+            world.active_location = "Training Grounds"
+
+    def _video_bot_default_cursor_for_ui(self, token, event_row):
+        if token == "inventory_tab":
+            tab = str(event_row.get("tab", "") or "").strip().lower()
+            return {
+                "inventory": (-0.58, 0.46),
+                "map": (-0.20, 0.46),
+                "skills": (0.20, 0.46),
+                "journal": (0.58, 0.46),
+            }.get(tab, (0.0, 0.46))
+        return {
+            "open_inventory": (0.0, 0.25),
+            "close_inventory": (0.0, -0.66),
+            "open_pause": (0.0, 0.10),
+            "close_pause": (0.0, 0.12),
+            "resume": (0.0, 0.12),
+            "pause_open_settings": (0.0, -0.30),
+            "pause_toggle_quality": (0.18, 0.08),
+            "pause_toggle_vsync": (0.18, -0.02),
+            "pause_close_settings": (0.0, -0.56),
+            "pause_open_load": (0.0, -0.16),
+            "pause_close_load": (0.0, -0.56),
+            "pause_nav_next": (0.0, -0.02),
+            "pause_nav_prev": (0.0, -0.16),
+            "pause_nav_activate": (0.0, 0.12),
+        }.get(token)
+
+    def _video_bot_set_virtual_cursor(self, cursor_row, fallback_xy=None):
+        xy = None
+        click = False
+        if isinstance(cursor_row, dict):
+            try:
+                cx = float(cursor_row.get("x", 0.0) or 0.0)
+                cy = float(cursor_row.get("y", 0.0) or 0.0)
+                xy = (cx, cy)
+            except Exception:
+                xy = None
+            click = bool(cursor_row.get("click", False))
+        elif isinstance(fallback_xy, (list, tuple)) and len(fallback_xy) >= 2:
+            try:
+                xy = (float(fallback_xy[0]), float(fallback_xy[1]))
+            except Exception:
+                xy = None
+            click = True
+        if xy is None:
+            return
+        tx = max(-0.98, min(0.98, float(xy[0])))
+        ty = max(-0.98, min(0.98, float(xy[1])))
+        if not bool(getattr(self, "_video_bot_cursor_visible", False)):
+            self._video_bot_cursor_pos = (tx, ty)
+        self._video_bot_cursor_target = (tx, ty)
+        self._video_bot_cursor_visible = True
+        now = float(getattr(self, "_video_bot_elapsed", 0.0) or 0.0)
+        self._video_bot_cursor_visible_until = now + (0.90 if click else 0.55)
+        if click:
+            self._video_bot_cursor_click_until = now + 0.26
+
+    def _video_bot_update_virtual_cursor(self, dt):
+        if not bool(getattr(self, "_video_bot_cursor_visible", False)):
+            return
+        state = getattr(getattr(self, "state_mgr", None), "current_state", None)
+        if state == getattr(self.GameState, "PLAYING", None):
+            self._video_bot_cursor_visible = False
+            return
+        cx, cy = getattr(self, "_video_bot_cursor_pos", (0.0, 0.0))
+        tx, ty = getattr(self, "_video_bot_cursor_target", (0.0, 0.0))
+        gain = max(0.0, min(1.0, float(dt or 0.0) * 10.0))
+        nx = cx + (tx - cx) * gain
+        ny = cy + (ty - cy) * gain
+        self._video_bot_cursor_pos = (nx, ny)
+
+    def _video_bot_enforce_visibility(self, force=False):
+        if not bool(getattr(self, "_video_bot_visibility_boost", False)):
+            return
+        now = float(globalClock.getRealTime() or globalClock.getFrameTime() or 0.0)
+        next_refresh = float(getattr(self, "_video_bot_visibility_refresh_at", 0.0) or 0.0)
+        if (not bool(force)) and now < next_refresh:
+            return
+        self._video_bot_visibility_refresh_at = now + 0.90
+        try:
+            self.render.clearFog()
+        except Exception:
+            pass
+        try:
+            self.render.setColorScale(1.0, 1.0, 1.0, 1.0)
+        except Exception:
+            pass
+        sky = getattr(self, "sky_mgr", None)
+        if not sky:
+            return
+        try:
+            sky.min_visibility = max(0.72, float(getattr(sky, "min_visibility", 0.36) or 0.36))
+            sky.min_ambient_light = max(0.42, float(getattr(sky, "min_ambient_light", 0.22) or 0.22))
+            sky.min_sun_light = max(0.34, float(getattr(sky, "min_sun_light", 0.14) or 0.14))
+        except Exception:
+            pass
+        try:
+            if hasattr(sky, "_apply_now"):
+                sky._apply_now(force=True)
+        except Exception:
+            pass
+
+    def _video_bot_apply_environment_event(self, event_row):
+        if not isinstance(event_row, dict):
+            return
+        token = str(event_row.get("type", "") or "").strip().lower()
+        if token == "set_weather":
+            preset = str(event_row.get("preset", "") or "").strip().lower()
+            sky = getattr(self, "sky_mgr", None)
+            if sky and preset and hasattr(sky, "set_weather_preset"):
+                try:
+                    sky.set_weather_preset(preset, instant=True)
+                except TypeError:
+                    try:
+                        sky.set_weather_preset(preset)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            return
+        if token == "set_time":
+            preset = str(event_row.get("preset", "") or "").strip().lower()
+            sky = getattr(self, "sky_mgr", None)
+            if sky and preset and hasattr(sky, "set_time_preset"):
+                try:
+                    sky.set_time_preset(preset, instant=True)
+                except TypeError:
+                    try:
+                        sky.set_time_preset(preset)
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+            return
+        if token == "camera_impact":
+            director = getattr(self, "camera_director", None)
+            if director and hasattr(director, "emit_impact"):
+                kind = str(event_row.get("kind", "heavy") or "heavy").strip().lower()
+                intensity = float(event_row.get("intensity", 1.0) or 1.0)
+                direction = float(event_row.get("direction_deg", 0.0) or 0.0)
+                try:
+                    director.emit_impact(kind=kind, intensity=intensity, direction_deg=direction)
+                except Exception:
+                    pass
+
+    def _video_bot_apply_equip_event(self, event_row):
+        if not isinstance(event_row, dict):
+            return False
+        player = getattr(self, "player", None)
+        if not player:
+            return False
+        item_id = str(event_row.get("item_id", "") or "").strip()
+        if item_id and hasattr(player, "equip_item"):
+            try:
+                ok, _reason = player.equip_item(item_id)
+                return bool(ok)
+            except Exception:
+                return False
+        slot = str(event_row.get("slot", "") or "").strip()
+        if slot and hasattr(player, "unequip_slot"):
+            try:
+                return bool(player.unequip_slot(slot))
+            except Exception:
+                return False
+        return False
+
+    def _video_bot_apply_quest_action(self, action, event_row):
+        del event_row
+        token = str(action or "").strip().lower()
+        if not token:
+            return False
+        if token in {"bootstrap_all", "start_all", "start_quests"}:
+            try:
+                self._activate_journal_test_data()
+                return True
+            except Exception:
+                return False
+        if token in {"start_tutorial", "tutorial_start"}:
+            try:
+                return bool(self._ensure_tutorial_quest_started())
+            except Exception:
+                return False
+        if token in {"complete_tutorial", "tutorial_complete"}:
+            try:
+                return bool(self._complete_tutorial_quest())
+            except Exception:
+                return False
+        return False
+
+    def _video_bot_apply_portal_jump(self, event_row):
+        if not isinstance(event_row, dict):
+            return False
+        target = str(event_row.get("target", "") or "").strip().lower()
+        if not target:
+            return False
+        kind = str(event_row.get("kind", "arcane") or "arcane").strip().lower()
+        try:
+            self._emit_cutscene_event("portal_jump", {"target": target, "kind": kind})
+        except Exception:
+            pass
+
+        director = getattr(self, "camera_director", None)
+        if director and hasattr(director, "emit_impact"):
+            try:
+                director.emit_impact(kind="heavy", intensity=0.88, direction_deg=0.0)
+            except Exception:
+                pass
+
+        if target == "training_pool":
+            self._video_bot_teleport_training_pool()
+            return True
+        pos = self._resolve_test_location(target)
+        if pos is None:
+            return False
+        self._teleport_player_to(pos)
+        return True
+
+    def _video_bot_apply_damage_player(self, event_row):
+        if not isinstance(event_row, dict):
+            return False
+        player = getattr(self, "player", None)
+        cs = getattr(self, "char_state", None)
+        if cs is None and player is not None:
+            cs = getattr(player, "cs", None)
+        if cs is None or (not hasattr(cs, "health")):
+            return False
+        try:
+            current_hp = float(getattr(cs, "health", 100.0) or 100.0)
+        except Exception:
+            current_hp = 100.0
+        try:
+            max_hp = float(getattr(cs, "maxHealth", current_hp) or current_hp)
+        except Exception:
+            max_hp = max(1.0, current_hp)
+        max_hp = max(1.0, max_hp)
+
+        try:
+            amount = float(event_row.get("amount", 0.0) or 0.0)
+        except Exception:
+            amount = 0.0
+        try:
+            ratio = float(event_row.get("ratio", 0.0) or 0.0)
+        except Exception:
+            ratio = 0.0
+        if amount <= 0.0 and ratio > 0.0:
+            amount = max_hp * max(0.01, min(0.95, ratio))
+        if amount <= 0.0:
+            amount = max_hp * 0.14
+
+        new_hp = max(1.0, min(max_hp, current_hp - amount))
+        try:
+            setattr(cs, "health", float(new_hp))
+        except Exception:
+            return False
+
+        if player and hasattr(player, "_last_hp_observed"):
+            try:
+                player._last_hp_observed = float(current_hp)
+            except Exception:
+                pass
+
+        director = getattr(self, "camera_director", None)
+        if director and hasattr(director, "emit_impact"):
+            try:
+                director.emit_impact(kind="heavy", intensity=1.08, direction_deg=-25.0)
+            except Exception:
+                pass
+        return True
+
+    def _video_bot_force_enemy_aggro(self, event_row=None):
+        payload = event_row if isinstance(event_row, dict) else {}
+        try:
+            duration = float(payload.get("duration", 8.0) or 8.0)
+        except Exception:
+            duration = 8.0
+        duration = max(1.2, min(24.0, duration))
+        teleport_to_enemy = bool(payload.get("teleport_to_enemy", True))
+        try:
+            teleport_max_distance = float(payload.get("teleport_max_distance", 36.0) or 36.0)
+        except Exception:
+            teleport_max_distance = 36.0
+        teleport_max_distance = max(0.0, min(260.0, teleport_max_distance))
+        now = float(globalClock.getFrameTime() or 0.0)
+
+        player = getattr(self, "player", None)
+        player_np = getattr(player, "actor", None) if player else None
+        player_pos = self._node_world_pos(player_np)
+        nearest_enemy_pos = None
+        nearest_dist = float("inf")
+        aggro_count = 0
+
+        roster = getattr(self, "boss_manager", None)
+        for unit in getattr(roster, "units", []) if roster else []:
+            if hasattr(unit, "is_alive") and not bool(getattr(unit, "is_alive", True)):
+                continue
+            if hasattr(unit, "engaged_until"):
+                try:
+                    unit.engaged_until = max(float(getattr(unit, "engaged_until", 0.0) or 0.0), now + duration)
+                except Exception:
+                    pass
+            if hasattr(unit, "_is_engaged"):
+                try:
+                    unit._is_engaged = True
+                except Exception:
+                    pass
+            aggro_count += 1
+            pos = self._node_world_pos(getattr(unit, "root", None))
+            if pos is None:
+                continue
+            if player_pos is None:
+                nearest_enemy_pos = pos
+                continue
+            try:
+                dist = (pos - player_pos).length()
+            except Exception:
+                dist = float("inf")
+            if dist < nearest_dist:
+                nearest_dist = dist
+                nearest_enemy_pos = pos
+
+        dragon = getattr(self, "dragon_boss", None)
+        if dragon and bool(getattr(dragon, "is_alive", True)):
+            if hasattr(dragon, "_is_engaged"):
+                try:
+                    dragon._is_engaged = True
+                except Exception:
+                    pass
+            aggro_count += 1
+            dpos = self._node_world_pos(getattr(dragon, "root", None))
+            if dpos is not None:
+                if player_pos is None:
+                    nearest_enemy_pos = dpos
+                else:
+                    try:
+                        dist = (dpos - player_pos).length()
+                    except Exception:
+                        dist = float("inf")
+                    if dist < nearest_dist:
+                        nearest_dist = dist
+                        nearest_enemy_pos = dpos
+
+        can_teleport = True
+        if player_pos is not None and math.isfinite(nearest_dist):
+            can_teleport = nearest_dist <= teleport_max_distance
+
+        if teleport_to_enemy and can_teleport and nearest_enemy_pos is not None and player_np:
+            try:
+                target = Vec3(
+                    float(nearest_enemy_pos.x) - 2.6,
+                    float(nearest_enemy_pos.y) - 2.2,
+                    max(0.2, float(nearest_enemy_pos.z)),
+                )
+                self._teleport_player_to(target)
+            except Exception:
+                pass
+        elif teleport_to_enemy and nearest_enemy_pos is not None and not can_teleport:
+            logger.debug(
+                f"[VideoBot] Aggro teleport skipped (distance={nearest_dist:.1f} > {teleport_max_distance:.1f})."
+            )
+        return aggro_count > 0
+
+    def _video_bot_apply_ui_action(self, action, event_row):
+        token = str(action or "").strip().lower()
+        if not token:
+            return False
+        default_cursor = self._video_bot_default_cursor_for_ui(token, event_row if isinstance(event_row, dict) else {})
+        cursor_row = event_row.get("cursor", {}) if isinstance(event_row, dict) else {}
+        self._video_bot_set_virtual_cursor(cursor_row, fallback_xy=default_cursor)
+
+        state = getattr(getattr(self, "state_mgr", None), "current_state", None)
+        if token == "open_pause":
+            if state == self.GameState.PLAYING:
+                self._on_escape_pressed(from_video_bot=True)
+                return True
+            return False
+        if token in {"close_pause", "resume"}:
+            if state == self.GameState.PAUSED:
+                self._on_escape_pressed(from_video_bot=True)
+                return True
+            return False
+        if token == "open_inventory":
+            if state == self.GameState.PLAYING and getattr(self, "inventory_ui", None):
+                self.state_mgr.set_state(self.GameState.INVENTORY)
+                self.inventory_ui.show()
+                return True
+            return False
+        if token == "close_inventory":
+            if state == self.GameState.INVENTORY and getattr(self, "inventory_ui", None):
+                self.inventory_ui.hide()
+                self.state_mgr.set_state(self.GameState.PLAYING)
+                return True
+            return False
+        if token == "inventory_tab":
+            tab = str(event_row.get("tab", "") or "").strip().lower()
+            if tab not in {"inventory", "map", "skills", "journal"}:
+                return False
+            if getattr(self, "inventory_ui", None):
+                if state != self.GameState.INVENTORY:
+                    self.state_mgr.set_state(self.GameState.INVENTORY)
+                    self.inventory_ui.show()
+                self.inventory_ui._switch_tab(tab)
+                return True
+            return False
+        if token == "pause_open_settings":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_settings"):
+                pause_menu._on_settings()
+                return True
+            return False
+        if token == "pause_close_settings":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_close_settings"):
+                pause_menu._on_close_settings()
+                return True
+            return False
+        if token == "pause_open_load":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_load_game"):
+                pause_menu._on_load_game()
+                return True
+            return False
+        if token == "pause_close_load":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_close_load_panel"):
+                pause_menu._on_close_load_panel()
+                return True
+            return False
+        if token == "pause_toggle_quality":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_toggle_quality"):
+                pause_menu._on_toggle_quality()
+                return True
+            return False
+        if token == "pause_toggle_vsync":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_toggle_vsync"):
+                pause_menu._on_toggle_vsync()
+                return True
+            return False
+        if token == "pause_nav_next":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_nav_next"):
+                pause_menu._on_nav_next()
+                return True
+            return False
+        if token == "pause_nav_prev":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_nav_prev"):
+                pause_menu._on_nav_prev()
+                return True
+            return False
+        if token == "pause_nav_activate":
+            pause_menu = getattr(self, "pause_menu", None)
+            if state == self.GameState.PAUSED and pause_menu and hasattr(pause_menu, "_on_nav_activate"):
+                pause_menu._on_nav_activate()
+                return True
+            return False
+        return False
+
+    def _video_bot_release_all_actions(self):
+        if not isinstance(getattr(self, "_video_bot_hold_actions", None), dict):
+            self._video_bot_hold_actions = {}
+            return
+        for action in list(self._video_bot_hold_actions.keys()):
+            self._video_bot_set_action(action, False)
+        self._video_bot_hold_actions.clear()
+
+    def _video_bot_run_event(self, event_row, now_sec):
+        if not isinstance(event_row, dict):
+            return
+        kind = str(event_row.get("type", "") or "").strip().lower()
+        if kind in {"tap", "hold"}:
+            action = str(event_row.get("action", "") or "").strip().lower()
+            if not action:
+                return
+            duration = 0.18 if kind == "tap" else 0.0
+            try:
+                custom_duration = float(event_row.get("duration", duration) or duration)
+                duration = max(0.09, custom_duration)
+            except Exception:
+                duration = 0.18 if kind == "tap" else 0.32
+            if self._video_bot_set_action(action, True):
+                self._video_bot_hold_actions[action] = max(
+                    float(self._video_bot_hold_actions.get(action, 0.0) or 0.0),
+                    float(now_sec) + float(duration),
+                )
+            return
+
+        if kind == "set_flag":
+            flag = str(event_row.get("flag", "") or "").strip().lower()
+            if not flag:
+                return
+            value = bool(event_row.get("value", True))
+            self._video_bot_apply_flag(flag, value)
+            duration = float(event_row.get("duration", 0.0) or 0.0)
+            if duration > 0.0:
+                self._video_bot_forced_flags[flag] = {
+                    "value": value,
+                    "until": float(now_sec) + float(duration),
+                }
+            elif flag in self._video_bot_forced_flags:
+                del self._video_bot_forced_flags[flag]
+            return
+
+        if kind == "teleport":
+            target = str(event_row.get("target", "") or "").strip().lower()
+            moved = False
+            if target == "training_pool":
+                self._video_bot_teleport_training_pool()
+                moved = True
+            elif target:
+                pos = self._resolve_test_location(target)
+                if pos is not None:
+                    moved = bool(self._teleport_player_to(pos))
+            if moved and target.startswith("dwarven_caves"):
+                # Keep cave debug shots readable and reduce camera-wall clipping.
+                player = getattr(self, "player", None)
+                actor = getattr(player, "actor", None) if player else None
+                if actor:
+                    p = actor.getPos(self.render)
+                    self.camera.setPos(p.x, p.y - 11.0, p.z + 6.3)
+                    self.camera.lookAt(actor)
+            return
+
+        if kind == "portal_jump":
+            self._video_bot_apply_portal_jump(event_row)
+            return
+
+        if kind == "equip_item":
+            self._video_bot_apply_equip_event(event_row)
+            return
+
+        if kind == "quest_action":
+            self._video_bot_apply_quest_action(event_row.get("action", ""), event_row)
+            return
+
+        if kind == "damage_player":
+            self._video_bot_apply_damage_player(event_row)
+            return
+
+        if kind == "force_aggro":
+            self._video_bot_force_enemy_aggro(event_row)
+            return
+
+        if kind == "camera_profile":
+            director = getattr(self, "camera_director", None)
+            if director and hasattr(director, "set_profile"):
+                profile = str(event_row.get("profile", "exploration") or "exploration").strip().lower()
+                try:
+                    hold_seconds = float(event_row.get("hold_seconds", 2.0) or 2.0)
+                except Exception:
+                    hold_seconds = 2.0
+                priority = event_row.get("priority", None)
+                try:
+                    director.set_profile(
+                        profile_name=profile,
+                        hold_seconds=max(0.0, hold_seconds),
+                        priority=priority,
+                        owner="video_bot",
+                    )
+                except Exception:
+                    pass
+            return
+
+        if kind == "camera_shot":
+            try:
+                self.play_camera_shot(
+                    name=str(event_row.get("name", "shot") or "shot"),
+                    duration=float(event_row.get("duration", 1.15) or 1.15),
+                    profile=str(event_row.get("profile", "exploration") or "exploration"),
+                    side=float(event_row.get("side", 0.0) or 0.0),
+                    yaw_bias_deg=float(event_row.get("yaw_bias_deg", 0.0) or 0.0),
+                    priority=event_row.get("priority", None),
+                    owner="video_bot",
+                )
+            except Exception:
+                pass
+            return
+
+        if kind in {"set_weather", "set_time", "camera_impact"}:
+            self._video_bot_apply_environment_event(event_row)
+            return
+
+        if kind == "transition_next":
+            self._dev_transition_next()
+            return
+
+        if kind == "ui_action":
+            self._video_bot_apply_ui_action(event_row.get("action", ""), event_row)
+
+    def _video_bot_can_drive_gameplay(self):
+        if not getattr(self, "player", None):
+            return False
+        state_mgr = getattr(self, "state_mgr", None)
+        if not state_mgr:
+            return False
+        state = getattr(state_mgr, "current_state", None)
+        if state != getattr(self.GameState, "PLAYING", None):
+            return False
+        loading_screen = getattr(self, "loading_screen", None)
+        if loading_screen and hasattr(loading_screen, "frame"):
+            try:
+                if not loading_screen.frame.isHidden():
+                    return False
+            except Exception:
+                pass
+        return True
+
+    def _video_bot_update(self, dt):
+        if not bool(getattr(self, "_video_bot_enabled", False)):
+            return
+        if bool(getattr(self, "_video_bot_done", False)):
+            return
+        if not isinstance(getattr(self, "_video_bot_plan", None), list):
+            return
+        self._video_bot_enforce_visibility(force=False)
+
+        real_now = float(globalClock.getRealTime() or globalClock.getFrameTime() or 0.0)
+        last_real = float(getattr(self, "_video_bot_last_real_time", 0.0) or 0.0)
+        if last_real <= 1e-6:
+            real_dt = 0.0
+        else:
+            real_dt = max(0.0, real_now - last_real)
+        self._video_bot_last_real_time = real_now
+
+        if not self._video_bot_can_drive_gameplay():
+            if bool(getattr(self, "_video_bot_started", False)) and real_dt > 0.0:
+                # Pause timeline while gameplay control is unavailable (loading, cutscene, menus).
+                self._video_bot_start_ready_at = float(
+                    getattr(self, "_video_bot_start_ready_at", real_now) or real_now
+                ) + real_dt
+            self._video_bot_update_virtual_cursor(dt)
+            return
+
+        if not bool(getattr(self, "_video_bot_started", False)):
+            self._video_bot_started = True
+            self._video_bot_elapsed = 0.0
+            self._video_bot_event_idx = 0
+            self._video_bot_hold_actions = {}
+            self._video_bot_forced_flags = {}
+            self._video_bot_start_ready_at = real_now + max(
+                0.0,
+                float(getattr(self, "_video_bot_start_delay_sec", 1.1) or 1.1),
+            )
+            logger.info(
+                f"[VideoBot] Gameplay ready, plan '{self._video_bot_plan_name}' starts in "
+                f"{max(0.0, float(getattr(self, '_video_bot_start_delay_sec', 1.1) or 1.1)):.2f}s."
+            )
+
+        if real_now + 1e-6 < float(getattr(self, "_video_bot_start_ready_at", 0.0) or 0.0):
+            self._video_bot_update_virtual_cursor(dt)
+            return
+
+        now = max(
+            0.0,
+            real_now - float(getattr(self, "_video_bot_start_ready_at", real_now) or real_now),
+        )
+        self._video_bot_elapsed = now
+        self._video_bot_update_virtual_cursor(dt)
+
+        for action, until in list(self._video_bot_hold_actions.items()):
+            if now >= float(until or 0.0):
+                self._video_bot_set_action(action, False)
+                del self._video_bot_hold_actions[action]
+
+        for flag, payload in list(self._video_bot_forced_flags.items()):
+            if not isinstance(payload, dict):
+                del self._video_bot_forced_flags[flag]
+                continue
+            until = float(payload.get("until", 0.0) or 0.0)
+            if now <= until:
+                self._video_bot_apply_flag(flag, bool(payload.get("value", True)))
+            else:
+                if str(flag).strip().lower() in {"in_water", "water"}:
+                    self._video_bot_apply_flag(flag, False)
+                del self._video_bot_forced_flags[flag]
+
+        while self._video_bot_event_idx < len(self._video_bot_plan):
+            row = self._video_bot_plan[self._video_bot_event_idx]
+            try:
+                at = float(row.get("at", 0.0) or 0.0)
+            except Exception:
+                at = 0.0
+            if now + 1e-6 < at:
+                break
+            self._video_bot_run_event(row, now)
+            self._video_bot_event_idx += 1
+
+        if (
+            self._video_bot_event_idx >= len(self._video_bot_plan)
+            and not self._video_bot_hold_actions
+            and not self._video_bot_forced_flags
+        ):
+            self._video_bot_cycle_count = int(getattr(self, "_video_bot_cycle_count", 0) or 0) + 1
+            logger.info(
+                f"[VideoBot] Completed plan '{self._video_bot_plan_name}' "
+                f"cycle={self._video_bot_cycle_count}."
+            )
+            if bool(getattr(self, "_video_bot_loop_plan", False)) and self._video_bot_plan:
+                self._video_bot_event_idx = 0
+                self._video_bot_elapsed = 0.0
+                self._video_bot_hold_actions = {}
+                self._video_bot_forced_flags = {}
+                self._video_bot_cursor_visible = False
+                self._video_bot_cursor_visible_until = 0.0
+                self._video_bot_cursor_click_until = 0.0
+                self._video_bot_start_ready_at = real_now + max(
+                    0.0,
+                    float(getattr(self, "_video_bot_loop_gap_sec", 0.45) or 0.45),
+                )
+                return
+            self._video_bot_done = True
+            self._video_bot_cursor_visible = False
 
     def _setup_main_game_tutorial(self):
         tutorial = getattr(self, "movement_tutorial", None)
         if not tutorial:
+            return
+
+        if bool(getattr(self, "_video_bot_enabled", False)):
+            tutorial.disable()
+            self._sync_tutorial_completion_flags()
             return
 
         if bool(getattr(self, "_tutorial_flow_blocked_by_opening", False)):
@@ -1878,12 +3267,16 @@ class XBotApp(ShowBase):
             self._sync_tutorial_completion_flags()
 
     def _restart_main_tutorial_hotkey(self):
+        if self._video_bot_input_locked():
+            return
         if not self.state_mgr.is_playing() or not self.player or not self.movement_tutorial:
             return
         self._start_tutorial_flow(reset=True, mode="main", source="hotkey_f8")
         logger.info("[Tutorial] Restarted main training flow (F8).")
 
     def _restart_full_tutorial_hotkey(self):
+        if self._video_bot_input_locked():
+            return
         if not self.state_mgr.is_playing() or not self.player or not self.movement_tutorial:
             return
         self._start_tutorial_flow(reset=True, mode="demo", source="hotkey_shift_f8")
@@ -1987,6 +3380,8 @@ class XBotApp(ShowBase):
         self._opening_banner_active = False
 
     def _save_slot_hotkey(self, slot_index):
+        if self._video_bot_input_locked():
+            return
         if not self.state_mgr.is_playing() or not self.player:
             return
         try:
@@ -2001,6 +3396,8 @@ class XBotApp(ShowBase):
             logger.warning(f"[SaveManager] Slot save failed ({slot_index}): {exc}")
 
     def _load_slot_hotkey(self, slot_index):
+        if self._video_bot_input_locked():
+            return
         if not self.world:
             return
         try:
@@ -2087,10 +3484,16 @@ class XBotApp(ShowBase):
     def _finalize_initialization(self):
         logger.info("Finalizing initialization...")
         if not getattr(self, "sky_mgr", None):
-            fog = Fog("scene_fog")
-            fog.setColor(0.45, 0.62, 0.85)
-            fog.setExpDensity(0.008)
-            self.render.setFog(fog)
+            if bool(getattr(self, "_video_bot_visibility_boost", False)):
+                try:
+                    self.render.clearFog()
+                except Exception:
+                    pass
+            else:
+                fog = Fog("scene_fog")
+                fog.setColor(0.45, 0.62, 0.85)
+                fog.setExpDensity(0.008)
+                self.render.setFog(fog)
 
         if not hasattr(self, 'player') or self.player is None:
             self.player = Player(
@@ -2103,17 +3506,48 @@ class XBotApp(ShowBase):
             # Spawn slightly away from (0,0,0) so we don't start inside the pillar
             if "sharuan" in str(self.world.__class__).lower():
                 self.player.actor.setPos(15.0, -20.0, 5.0)
+        self._video_bot_refresh_bindings()
 
         self.enemy_proxies = []
-        self._spawn_npcs()
-        if self.boss_manager is None:
-            try:
-                self.boss_manager = BossManager(self)
-            except Exception as exc:
-                logger.warning(f"[EnemyRoster] Failed to initialize enemy roster: {exc}")
-                self.boss_manager = None
-        if self.dragon_boss is None and self.boss_manager and hasattr(self.boss_manager, "get_primary"):
-            self.dragon_boss = self.boss_manager.get_primary("golem")
+        force_enemy_runtime = bool(getattr(self, "_video_bot_force_aggro_mobs", False))
+        lightweight_test_runtime = (not HAS_CORE) and (
+            (bool(getattr(self, "_video_bot_enabled", False)) or bool(self._norm_test_mode()))
+            and (not force_enemy_runtime)
+        )
+        if lightweight_test_runtime:
+            logger.info(
+                "[Perf] Python-only runtime test: skipping NPC/enemy spawns and cinematic triggers for stability."
+            )
+            self.boss_manager = None
+            self.dragon_boss = None
+            self._cutscene_triggers_enabled = False
+            tutorial = getattr(self, "movement_tutorial", None)
+            if tutorial and hasattr(tutorial, "disable"):
+                try:
+                    tutorial.disable()
+                except Exception:
+                    pass
+            director = getattr(self, "camera_director", None)
+            if director and hasattr(director, "_cutscene"):
+                try:
+                    director._cutscene = None
+                except Exception:
+                    pass
+        else:
+            if (not HAS_CORE) and force_enemy_runtime:
+                logger.info(
+                    "[Perf] Aggro override active: keeping NPC/enemy spawns enabled in Python-only runtime test."
+                )
+            self._cutscene_triggers_enabled = True
+            self._spawn_npcs()
+            if self.boss_manager is None:
+                try:
+                    self.boss_manager = BossManager(self)
+                except Exception as exc:
+                    logger.warning(f"[EnemyRoster] Failed to initialize enemy roster: {exc}")
+                    self.boss_manager = None
+            if self.dragon_boss is None and self.boss_manager and hasattr(self.boss_manager, "get_primary"):
+                self.dragon_boss = self.boss_manager.get_primary("golem")
 
         # Camera — follow player from behind at a readable distance
         self.disableMouse()
@@ -2125,7 +3559,14 @@ class XBotApp(ShowBase):
             self.camera.setPos(0, -18, 12)
             self.camera.lookAt(0, 0, 0)
 
+        try:
+            self._apply_texture_sampler_defaults(str(getattr(self, "_gfx_quality", "high")).strip().lower())
+        except Exception as exc:
+            logger.debug(f"[Visuals] Post-world texture clarity pass skipped: {exc}")
+
         # Ready!
+        if bool(getattr(self, "_video_bot_visibility_boost", False)):
+            self._video_bot_enforce_visibility(force=True)
         logger.info("Transitioning to Gameplay...")
         self._bootstrap_quests()
         self.loading_screen.hide()
@@ -2133,6 +3574,10 @@ class XBotApp(ShowBase):
         self.main_menu.set_loading(False)
         self.pause_menu.hide()
         self.vehicle_mgr.spawn_default_vehicles()
+        
+        # --- NEW: Reset clock to kill the 30-sec load spike ---
+        globalClock.setFrameCount(0)
+        globalClock.reset()
 
         # Start game state immediately
         self.state_mgr.set_state(self.GameState.PLAYING)
@@ -2152,6 +3597,8 @@ class XBotApp(ShowBase):
             should_run_opening = True
 
         self._apply_test_profile()
+        if bool(getattr(self, "_video_bot_visibility_boost", False)):
+            self._video_bot_enforce_visibility(force=True)
         opening_started = False
         if should_run_opening and not self._norm_test_mode():
             opening_started = bool(self._start_opening_memory_sequence())
@@ -2279,6 +3726,9 @@ class XBotApp(ShowBase):
             self.phys = self.combat = self.parkour = self.magic = None
             self.particles = self.water_sim = None
             self.char_state = self.parkour_state = None
+
+        self.enableParticles()
+        self.magic_vfx = MagicVFXSystem(self)
 
     def _handle_tutorial_runtime_events(self):
         tutorial = getattr(self, "movement_tutorial", None)
@@ -2418,6 +3868,28 @@ class XBotApp(ShowBase):
             out.update(meta)
         return out
 
+    def _enemy_target_meta(self, unit):
+        if not unit:
+            return {}
+        hp_raw = getattr(unit, "hp", 0.0)
+        max_hp_raw = getattr(unit, "max_hp", 1.0)
+        try:
+            hp = max(0.0, float(hp_raw or 0.0))
+        except Exception:
+            hp = 0.0
+        try:
+            max_hp = max(1.0, float(max_hp_raw or 1.0))
+        except Exception:
+            max_hp = 1.0
+        hp = min(max_hp, hp)
+        hp_ratio = hp / max_hp
+        return {
+            "is_boss": bool(getattr(unit, "is_boss", False)),
+            "hp": hp,
+            "max_hp": max_hp,
+            "hp_ratio": max(0.0, min(1.0, float(hp_ratio))),
+        }
+
     def _lookup_locked_target(self, cam_pos, cam_fwd):
         kind = str(getattr(self, "_lock_target_kind", "") or "").strip().lower()
         token = str(getattr(self, "_lock_target_id", "") or "").strip()
@@ -2443,6 +3915,7 @@ class XBotApp(ShowBase):
                     cam_fwd,
                     max_dist=78.0,
                     min_dot=0.50,
+                    meta=self._enemy_target_meta(unit),
                 )
             return None
 
@@ -2549,6 +4022,7 @@ class XBotApp(ShowBase):
                 cam_fwd,
                 max_dist=58.0,
                 min_dot=0.96,
+                meta=self._enemy_target_meta(unit),
             )
             if cand:
                 cand["score"] += 0.11
@@ -2709,10 +4183,15 @@ class XBotApp(ShowBase):
         active_location = str(getattr(world, "active_location", "") or "").strip()
         if active_location and active_location != self._last_codex_location:
             self._last_codex_location = active_location
+            
+            # Sync with HUD display
+            location_display_name = self._resolve_test_world_location_name(active_location)
+            self.hud.set_location_name(location_display_name or active_location)
+            
             self._codex_mark(
                 "locations",
                 active_location,
-                active_location,
+                location_display_name or active_location,
                 "Visited",
             )
 
@@ -2819,56 +4298,88 @@ class XBotApp(ShowBase):
         self._cam_pitch += max(-pitch_rate * dt, min(pitch_rate * dt, pitch_delta))
         self._cam_pitch = max(-80.0, min(80.0, self._cam_pitch))
 
+    def _update_magic_vfx_runtime(self, dt):
+        magic_vfx = getattr(self, "magic_vfx", None)
+        if not magic_vfx:
+            return
+        try:
+            magic_vfx.update(float(dt))
+        except Exception:
+            pass
+
+    def _sync_party_runtime(self):
+        """Sync runtime CompanionUnit instances with active companion/pet slots from companion_mgr."""
+        mgr = getattr(self, "companion_mgr", None)
+        if not mgr or not hasattr(mgr, "get_active_companion_id") or not hasattr(mgr, "get_active_pet_id"):
+            return
+        if not hasattr(self, "_active_party") or self._active_party is None:
+            self._active_party = {}
+        comp_id = str(getattr(mgr, "get_active_companion_id", lambda: "")() or "").strip().lower()
+        pet_id = str(getattr(mgr, "get_active_pet_id", lambda: "")() or "").strip().lower()
+        wanted = {i for i in (comp_id, pet_id) if i}
+        for token in list(self._active_party.keys()):
+            if token not in wanted:
+                unit = self._active_party.pop(token, None)
+                if unit and hasattr(unit, "despawn"):
+                    try:
+                        unit.despawn()
+                    except Exception:
+                        pass
+        player = getattr(self, "player", None)
+        actor = getattr(player, "actor", None) if player else None
+        if not actor:
+            return
+        try:
+            ppos = actor.getPos(self.render) if hasattr(self, "render") else actor.getPos()
+        except Exception:
+            ppos = Vec3(0, 0, 0)
+        if hasattr(ppos, "x"):
+            spawn_pos = Vec3(float(ppos.x), float(ppos.y), float(ppos.z))
+        else:
+            spawn_pos = Vec3(0, 0, 0)
+        for member_id in wanted:
+            if member_id in self._active_party:
+                continue
+            if not hasattr(mgr, "get_runtime_member_data"):
+                continue
+            data = mgr.get_runtime_member_data(member_id)
+            if not isinstance(data, dict) or not data.get("id"):
+                continue
+            try:
+                unit = CompanionUnit(self, member_id, data)
+                unit.spawn(spawn_pos)
+                self._active_party[member_id] = unit
+            except Exception as exc:
+                logger.debug(f"[Companion] Failed to spawn {member_id}: {exc}")
+
     def _update(self, task):
-        dt_real = globalClock.getDt()
+        dt_raw = globalClock.getDt()
+        dt_real = dt_raw
         dt_real = min(dt_real, 0.05) # Cap delta time
-        bus = getattr(self, "event_bus", None)
-        if bus and hasattr(bus, "flush"):
-            try:
-                bus.flush(max_events=32)
-            except Exception as exc:
-                logger.debug(f"[EventBus] flush failed: {exc}")
         time_fx = getattr(self, "time_fx", None)
-        if time_fx:
-            try:
-                time_fx.update(dt_real)
-            except Exception as exc:
-                logger.debug(f"[TimeFx] Update failed: {exc}")
         dt_world = time_fx.scaled_dt("world", dt_real) if time_fx else dt_real
         dt_player = time_fx.scaled_dt("player", dt_real) if time_fx else dt_real
-        dt_enemies = time_fx.scaled_dt("enemies", dt_real) if time_fx else dt_real
-        dt_particles = time_fx.scaled_dt("particles", dt_real) if time_fx else dt_real
         is_playing = bool(self.state_mgr.is_playing())
-        perf_mgr = getattr(self, "adaptive_perf_mgr", None)
-        if perf_mgr:
-            try:
-                perf_mgr.update(dt_real, is_playing=is_playing)
-            except Exception as exc:
-                logger.debug(f"[AdaptivePerformance] Update failed: {exc}")
+        observed_fps = float(self.clock.getAverageFrameRate()) if self.clock else 0.0
+        if observed_fps <= 0.0 and dt_raw > 0.0:
+            observed_fps = 1.0 / max(1e-5, dt_raw)
 
-        world_state = (
-            dict(self._world_state_cache)
-            if isinstance(getattr(self, "_world_state_cache", None), dict)
-            else {}
-        )
-        if getattr(self, "sky_mgr", None):
-            dt_sky = self._runtime_take_dt("sky", dt_world)
-            if dt_sky > 0.0:
-                try:
-                    self.sky_mgr.update(dt_sky)
-                    if hasattr(self.sky_mgr, "get_world_state"):
-                        world_state = self.sky_mgr.get_world_state() or {}
-                except Exception as exc:
-                    logger.debug(f"[SkyManager] Update failed: {exc}")
-        self._world_state_cache = world_state
-        if getattr(self, "audio", None):
-            self.audio.update(dt_world)
-        if is_playing:
-            self.hud.show()
-        else:
-            self.hud.hide()
+        dt_enemies = dt_world
+        dt_particles = dt_world
+        world_state = dict(self._world_state_cache) if isinstance(self._world_state_cache, dict) else {}
+
+        self._update_time_systems_v2(dt_real)
+        self._update_world_systems_v2(dt_world)
+        self._update_camera_tracking_v2()
+        self._update_adaptive_performance_v2(dt_raw, is_playing, observed_fps)
+        self._update_ui_state_v2(is_playing)
+
+        if bool(getattr(self, "_video_bot_enabled", False)):
+            self._video_bot_update(dt_player)
 
         if not is_playing or not self.player:
+            if bool(getattr(self, "_video_bot_enabled", False)) and not self.player:
+                self._video_bot_release_all_actions()
             self._clear_aim_target_highlight()
             return Task.cont
 
@@ -2925,11 +4436,17 @@ class XBotApp(ShowBase):
         self._stealth_state_cache = stealth_state if isinstance(stealth_state, dict) else {}
 
         if getattr(self, "npc_mgr", None):
-            try:
-                self.npc_mgr.update(dt_world, world_state=world_state, stealth_state=stealth_state)
-            except Exception as exc:
-                logger.warning(f"[NPCManager] Update failed: {exc}")
-                self.npc_mgr = None
+            dt_npc_logic = self._runtime_take_dt("npc_logic", dt_world)
+            if dt_npc_logic > 0.0:
+                try:
+                    self.npc_mgr.update(
+                        dt_npc_logic,
+                        world_state=world_state,
+                        stealth_state=stealth_state,
+                    )
+                except Exception as exc:
+                    logger.warning(f"[NPCManager] Update failed: {exc}")
+                    self.npc_mgr = None
         if getattr(self, "npc_activity_director", None):
             dt_npc_activity = self._runtime_take_dt("npc_activity", dt_world)
             if dt_npc_activity > 0.0:
@@ -2952,20 +4469,28 @@ class XBotApp(ShowBase):
                 except Exception as exc:
                     logger.debug(f"[StoryInteraction] Update failed: {exc}")
         if self.boss_manager and self.player:
-            try:
-                self.boss_manager.update(dt_enemies, self.player.actor.getPos(self.render))
-                self._boss_update_fail_count = 0
-            except Exception as exc:
-                self._boss_update_fail_count += 1
-                now = globalClock.getFrameTime()
-                if (now - self._boss_update_last_log_time) >= 2.0:
-                    self._boss_update_last_log_time = now
-                    logger.warning(
-                        f"[EnemyRoster] Update failed ({self._boss_update_fail_count}x): {exc}"
-                    )
+            dt_enemy_logic = self._runtime_take_dt("enemy_logic", dt_enemies)
+            if dt_enemy_logic > 0.0:
+                try:
+                    self.boss_manager.update(dt_enemy_logic, self.player.actor.getPos(self.render))
+                    self._boss_update_fail_count = 0
+                except Exception as exc:
+                    self._boss_update_fail_count += 1
+                    now = globalClock.getFrameTime()
+                    if (now - self._boss_update_last_log_time) >= 2.0:
+                        self._boss_update_last_log_time = now
+                        logger.warning(
+                            f"[EnemyRoster] Update failed ({self._boss_update_fail_count}x): {exc}"
+                        )
         self.quest_mgr.update(player_pos)
         self.world.update(player_pos)
-        if getattr(self, "cutscene_triggers", None):
+        self._update_magic_vfx_runtime(dt_world)
+        # Sync environmental state with terrain/prop shaders
+        weather = getattr(self, "weather_mgr", None)
+        if weather and self.render:
+            self.render.set_shader_input("cursed_blend", float(weather.cursed_blend))
+            
+        if bool(getattr(self, "_cutscene_triggers_enabled", True)) and getattr(self, "cutscene_triggers", None):
             dt_cutscene = self._runtime_take_dt("cutscene_triggers", dt_world)
             if dt_cutscene > 0.0:
                 try:
@@ -3083,11 +4608,13 @@ class XBotApp(ShowBase):
         if self.player and self.player.actor:
             profile_cfg = None
             director = getattr(self, "camera_director", None)
+            input_locked = bool(self._video_bot_input_locked())
             gp_axes = self._gp_axes if isinstance(getattr(self, "_gp_axes", None), dict) else {}
-            gp_look_x = float(gp_axes.get("look_x", 0.0) or 0.0)
-            gp_look_y = float(gp_axes.get("look_y", 0.0) or 0.0)
+            gp_look_x = 0.0 if input_locked else float(gp_axes.get("look_x", 0.0) or 0.0)
+            gp_look_y = 0.0 if input_locked else float(gp_axes.get("look_y", 0.0) or 0.0)
             manual_look = bool(
                 self.state_mgr.is_playing()
+                and not input_locked
                 and self.mouseWatcherNode
                 and self.mouseWatcherNode.isButtonDown(MouseButton.three())
             )
@@ -3172,9 +4699,13 @@ class XBotApp(ShowBase):
                         pitch_rad=pr,
                         profile_cfg=profile_cfg,
                     )
-                    self.camera.setPos(cam_pos)
-                    self.camera.lookAt(target)
-                    return
+                    # Protect against NaN transforms from CameraDirector
+                    if not any(math.isnan(float(c)) or math.isinf(float(c)) for c in [cam_pos.x, cam_pos.y, cam_pos.z, target.x, target.y, target.z]):
+                        self.camera.setPos(cam_pos)
+                        self.camera.lookAt(target)
+                        return
+                    else:
+                        logger.warning(f"[Camera] Corrupt transform from director: pos={cam_pos} target={target}. Falling back.")
                 except Exception as exc:
                     logger.debug(f"[CameraDirector] Resolve transform failed: {exc}")
 
@@ -3184,9 +4715,13 @@ class XBotApp(ShowBase):
 
             if cz < base_z + 0.5:
                 cz = base_z + 0.5 # Basic terrain anti-clipping for camera
-
-            self.camera.setPos(cx, cy, cz)
-            self.camera.lookAt(LPoint3(center.x, center.y, base_z + 1.8))
+            
+            # Final safety check for manual/fallback camera
+            if not any(math.isnan(float(c)) or math.isinf(float(c)) for c in [cx, cy, cz]):
+                self.camera.setPos(cx, cy, cz)
+                self.camera.lookAt(LPoint3(center.x, center.y, base_z + 1.8))
+            else:
+                logger.error(f"[Camera] FATAL: Fallback camera position is NaN! center={center} dist={self._cam_dist}")
 
     def _heartbeat(self, task):
         if task.frame < 10:
@@ -3200,9 +4735,9 @@ class XBotApp(ShowBase):
                 cam = self.camera.getPos()
                 plyr = self.player.actor.getPos() if self.player else "None"
                 load_level = int(getattr(self, "_runtime_load_level", 0))
-                perf_fps = 0.0
-                adaptive_mode = str(getattr(self, "_adaptive_mode", "balanced") or "balanced")
                 perf_mgr = getattr(self, "adaptive_perf_mgr", None)
+                perf_fps = perf_mgr.average_fps if perf_mgr else 0.0
+                adaptive_mode = str(getattr(self, "_adaptive_mode", "balanced") or "balanced")
                 if perf_mgr and hasattr(perf_mgr, "debug_snapshot"):
                     try:
                         snap = perf_mgr.debug_snapshot() or {}
@@ -3226,3 +4761,74 @@ class XBotApp(ShowBase):
             self._last_particle_count = int(self.particles.aliveCount())
         except Exception:
             self._last_particle_count = 0
+
+    def _update_time_systems_v2(self, dt_real):
+        bus = getattr(self, "event_bus", None)
+        if bus and hasattr(bus, "flush"):
+            try:
+                bus.flush(max_events=32)
+            except Exception as exc:
+                logger.debug(f"[EventBus] flush failed: {exc}")
+        time_fx = getattr(self, "time_fx", None)
+        if time_fx:
+            try:
+                time_fx.update(dt_real)
+            except Exception as exc:
+                logger.debug(f"[TimeFx] Update failed: {exc}")
+
+    def _update_world_systems_v2(self, dt_world):
+        world_state = dict(self._world_state_cache) if isinstance(self._world_state_cache, dict) else {}
+        if getattr(self, "sky_mgr", None):
+            dt_sky = self._runtime_take_dt("sky", dt_world)
+            if dt_sky > 0.0:
+                try:
+                    self.sky_mgr.update(dt_sky)
+                    if hasattr(self.sky_mgr, "get_world_state"):
+                        world_state = self.sky_mgr.get_world_state() or {}
+                except Exception:
+                    pass
+        self._world_state_cache = world_state
+        if getattr(self, "audio", None):
+            self.audio.update(dt_world)
+
+    def _update_camera_tracking_v2(self):
+        if self.player and self.player.actor:
+            try:
+                ppos = self.player.actor.getPos()
+                if all(math.isfinite(float(c)) for c in ppos):
+                    self.camera.lookAt(self.player.actor)
+            except Exception:
+                pass
+        if globalClock.getFrameCount() == 12 and not getattr(self, "_screenspace_ready", False):
+            self._safe_screenspace_init()
+
+    def _update_adaptive_performance_v2(self, dt_raw, is_playing, observed_fps):
+        perf_mgr = getattr(self, "adaptive_perf_mgr", None)
+        if perf_mgr:
+            try:
+                perf_mgr.update(dt_raw, is_playing=is_playing, observed_fps=observed_fps)
+            except Exception:
+                pass
+        self._fps_sample_accum = float(getattr(self, "_fps_sample_accum", 0.0) or 0.0) + max(0.0, float(dt_raw or 0.0))
+        if self._fps_sample_accum >= 0.35:
+            self._fps_sample_accum = 0.0
+            try:
+                avg_fps = float(self.clock.getAverageFrameRate())
+            except Exception:
+                avg_fps = 0.0
+            if avg_fps <= 0.0:
+                avg_fps = observed_fps if observed_fps > 0.0 else (1.0 / max(1e-5, dt_raw))
+            self._fps_last_avg = avg_fps
+            base_budget = int(getattr(self, "_enemy_fire_particle_budget", 320) or 320)
+            self._enemy_fire_particle_budget_live = scale_particle_budget_for_fps(
+                base_budget,
+                avg_fps,
+                min_fps=float(getattr(self, "_fps_target_min", 30.0) or 30.0),
+                max_fps=float(getattr(self, "_fps_target_max", 60.0) or 60.0),
+            )
+
+    def _update_ui_state_v2(self, is_playing):
+        if is_playing:
+            self.hud.show()
+        else:
+            self.hud.hide()

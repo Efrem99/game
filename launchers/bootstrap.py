@@ -1,4 +1,4 @@
-﻿"""Shared startup helpers for XBot RPG launchers."""
+"""Shared startup helpers for XBot RPG launchers."""
 
 import ctypes
 import os
@@ -77,6 +77,29 @@ def _prepare_runtime(root):
             pass
 
 
+def _stdin_is_interactive():
+    stream = getattr(sys, "stdin", None)
+    if stream is None:
+        return False
+    probe = getattr(stream, "isatty", None)
+    if not callable(probe):
+        return False
+    try:
+        return bool(probe())
+    except Exception:
+        return False
+
+
+def _pause_before_close(prompt):
+    if not _stdin_is_interactive():
+        return False
+    try:
+        input(str(prompt))
+        return True
+    except Exception:
+        return False
+
+
 def run_app(startup_tag, error_handler=None, pause_on_error=False):
     if not _acquire_single_instance():
         # Temporarily ignoring the mutex lock so we can recover from crashes
@@ -90,6 +113,7 @@ def run_app(startup_tag, error_handler=None, pause_on_error=False):
         logger = None
         try:
             from utils.logger import logger as app_logger
+            from utils.startup_breadcrumbs import write_startup_breadcrumb
 
             logger = app_logger
             logger.info(startup_tag)
@@ -105,7 +129,7 @@ def run_app(startup_tag, error_handler=None, pause_on_error=False):
                     if strict_preflight and not bool(preflight.get("ok", False)):
                         logger.error("[Preflight] Strict mode enabled; aborting startup due to preflight errors.")
                         if pause_on_error:
-                            input("Preflight failed. Press Enter to close...")
+                            _pause_before_close("Preflight failed. Press Enter to close...")
                         return 1
                 except Exception as exc:
                     logger.warning(f"[Preflight] Startup preflight failed unexpectedly: {exc}")
@@ -117,14 +141,16 @@ def run_app(startup_tag, error_handler=None, pause_on_error=False):
                 print(message)
                 traceback.print_exc()
             if pause_on_error:
-                input("Press Enter to close...")
+                _pause_before_close("Press Enter to close...")
             return 1
 
         try:
             from app import XBotApp
 
             logger.info("Initializing XBotApp...")
+            write_startup_breadcrumb(root, "before_xbotapp_ctor", {"startup_tag": startup_tag})
             app = XBotApp()
+            write_startup_breadcrumb(root, "after_xbotapp_ctor")
             logger.info("Starting Main Loop (app.run)...")
             app.run()
             return 0
@@ -144,7 +170,7 @@ def run_app(startup_tag, error_handler=None, pause_on_error=False):
                 print(details)
 
             if pause_on_error:
-                input("Press Enter to close...")
+                _pause_before_close("Press Enter to close...")
             return 1
     finally:
         _release_single_instance()

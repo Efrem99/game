@@ -1,8 +1,8 @@
-﻿import json
 from pathlib import Path
 
 from panda3d.core import Filename, Multifile, VirtualFileSystem
 
+from managers.runtime_data_access import load_data_file
 from utils.logger import logger
 
 
@@ -27,13 +27,7 @@ class AssetBundleManager:
         if isinstance(dm_cfg, dict) and dm_cfg:
             cfg = dm_cfg
         else:
-            path = Path(getattr(self.app, "project_root", ".")) / "data" / "asset_multifiles.json"
-            if path.exists():
-                try:
-                    cfg = json.loads(path.read_text(encoding="utf-8-sig"))
-                except Exception as exc:
-                    logger.warning(f"[AssetBundle] Failed to read config: {exc}")
-                    cfg = {}
+            cfg = load_data_file(self.app, "asset_multifiles.json", default={})
 
         if not isinstance(cfg, dict):
             cfg = {}

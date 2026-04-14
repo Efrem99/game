@@ -143,6 +143,15 @@
                 0
             ],
             "radius": 28
+        },
+        {
+            "name": "Stealth Climb Grounds",
+            "pos": [
+                72,
+                24,
+                3
+            ],
+            "radius": 18
         }
     ],
     "vehicles": [
@@ -163,6 +172,24 @@
                 58
             ],
             "heading": 168
+        },
+        {
+            "id": "wolf_rider_1",
+            "kind": "dire_wolf",
+            "pos": [
+                19,
+                54
+            ],
+            "heading": 176
+        },
+        {
+            "id": "stag_rider_1",
+            "kind": "stag",
+            "pos": [
+                4,
+                57
+            ],
+            "heading": 150
         },
         {
             "id": "carriage_market_1",

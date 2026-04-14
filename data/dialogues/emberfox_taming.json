@@ -1,0 +1,42 @@
+{
+  "npc_id": "emberfox",
+  "npc_name": "Emberfox",
+  "dialogue_tree": {
+    "start": {
+      "speaker": "Emberfox",
+      "text": "A fox of warm ash and ember-sparks circles the roadside stones, waiting to see whether you offer calm or command.",
+      "choices": [
+        {
+          "text": "Offer a steady hand and let it choose you.",
+          "condition": "can_recruit:emberfox:tame",
+          "action": "tame_pet:emberfox",
+          "next_node": "bonded"
+        },
+        {
+          "text": "Rest by the roadside fire together.",
+          "condition": "has_pet:emberfox",
+          "next_node": "already_bonded"
+        },
+        {
+          "text": "Leave it in peace.",
+          "next_node": "end"
+        }
+      ]
+    },
+    "bonded": {
+      "speaker": "Emberfox",
+      "text": "The creature brushes your palm with a flame-warm muzzle and pads into step beside you.",
+      "choices": []
+    },
+    "already_bonded": {
+      "speaker": "Emberfox",
+      "text": "The emberfox flicks its tail, ready to scout and shield the road with you again.",
+      "choices": []
+    },
+    "end": {
+      "speaker": "Emberfox",
+      "text": "The fox watches from the brush as the road carries you onward.",
+      "choices": []
+    }
+  }
+}

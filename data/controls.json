@@ -3,8 +3,8 @@
         "walk_speed": 5.0,
         "run_speed": 9.0,
         "jump_force": 9.5,
-        "flight_speed": 15.0,
-        "flight_shift_mult": 2.0
+        "flight_speed": 12.5,
+        "flight_shift_mult": 1.45
     },
     "animation": {
         "blend_time": 0.18
@@ -21,6 +21,18 @@
             "run_speed": 13.5,
             "accel": 12.0,
             "decel": 15.0
+        },
+        "wolf": {
+            "speed": 9.6,
+            "run_speed": 15.3,
+            "accel": 13.4,
+            "decel": 16.2
+        },
+        "stag": {
+            "speed": 9.2,
+            "run_speed": 14.6,
+            "accel": 12.8,
+            "decel": 15.7
         },
         "carriage": {
             "speed": 6.2,
@@ -47,11 +59,11 @@
         "flight_toggle": "v",
         "flight_up": "space",
         "flight_down": "lcontrol",
-        "interact": "f",
+        "interact": "e",
         "inventory": "i",
         "attack_light": "mouse1",
-        "attack_heavy": "e",
-        "attack_thrust": "none",
+        "attack_heavy": "f",
+        "attack_thrust": "mouse3",
         "aim": "mouse3",
         "target_lock": "t",
         "skill_wheel": "tab",

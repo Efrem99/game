@@ -41,6 +41,8 @@ temp/
 # Runtime generated
 logs/
 saves/
+output/non-web-mechanics-review/
+src/output/non-web-mechanics-review/
 
 # Blender autosaves / temp
 *.blend1

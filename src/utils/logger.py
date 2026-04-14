@@ -58,7 +58,13 @@ def setup_logger():
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-    logger.info(f"Logger initialized. Outputting to console and {log_file}")
+    try:
+        # Resolve path to absolute and ensure it's a string, then decode any potential bytes
+        safe_path = str(log_file)
+        logger.info(f"Logger initialized. Outputting to: {safe_path}")
+    except Exception:
+        logger.info("Logger initialized. (Path contains non-ASCII characters and could not be printed)")
+    
     return logger
 
 # Global logger instance

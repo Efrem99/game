@@ -4,3 +4,4 @@ panda3d-complexpbr
 numpy
 bind11
 numpy
+msgpack

@@ -9,6 +9,8 @@
             "dialog_player": 93,
             "dialog_wide": 90,
             "boss_intro": 82,
+            "location_reveal": 76,
+            "portal_arrival": 78,
             "location": 70,
             "spell_hit": 64,
             "shot": 50
@@ -17,6 +19,11 @@
             "dialog": 90,
             "cinematic": 84,
             "boss": 80,
+            "shoulder_right": 79,
+            "shoulder_left": 79,
+            "bow_aim": 79,
+            "magic_cast": 78,
+            "stealth": 78,
             "aim": 72,
             "combat": 60,
             "exploration": 40
@@ -44,6 +51,51 @@
             "side": 1.45,
             "smooth": 13.5
         },
+        "bow_aim": {
+            "dist": 8.9,
+            "pitch": -7.0,
+            "target_z": 1.72,
+            "side": 1.72,
+            "smooth": 15.0,
+            "look_side": -0.92,
+            "look_ahead": 2.85
+        },
+        "magic_cast": {
+            "dist": 11.2,
+            "pitch": -9.6,
+            "target_z": 1.86,
+            "side": -1.35,
+            "smooth": 12.8,
+            "look_side": 0.58,
+            "look_ahead": 1.85
+        },
+        "shoulder_right": {
+            "dist": 10.8,
+            "pitch": -8.0,
+            "target_z": 1.74,
+            "side": 1.85,
+            "smooth": 14.0,
+            "look_side": -0.82,
+            "look_ahead": 2.2
+        },
+        "shoulder_left": {
+            "dist": 10.8,
+            "pitch": -8.0,
+            "target_z": 1.74,
+            "side": -1.85,
+            "smooth": 14.0,
+            "look_side": 0.82,
+            "look_ahead": 2.2
+        },
+        "stealth": {
+            "dist": 12.8,
+            "pitch": -9.0,
+            "target_z": 1.62,
+            "side": -1.25,
+            "smooth": 11.5,
+            "look_side": 0.42,
+            "look_ahead": 1.35
+        },
         "boss": {
             "dist": 29.0,
             "pitch": -12.0,
@@ -66,11 +118,14 @@
             "smooth": 7.2
         },
         "flight": {
-            "dist": 30.0,
-            "pitch": -26.0,
-            "target_z": 2.6,
+            "dist": 21.5,
+            "pitch": -18.0,
+            "target_z": 2.2,
             "side": 0.0,
-            "smooth": 5.3
+            "smooth": 12.5,
+            "look_ahead": 3.4,
+            "min_dist": 14.5,
+            "max_dist": 24.5
         },
         "mounted": {
             "dist": 24.0,
@@ -120,6 +175,106 @@
             "profile": "boss",
             "side": 5.2,
             "yaw_bias_deg": 18.0
+        },
+        "location_reveal": {
+            "duration": 1.05,
+            "profile": "cinematic",
+            "side": 3.8,
+            "yaw_bias_deg": 12.0
         }
-    }
+    },
+    "sequences": {
+        "location_reveal": [
+            {
+                "name": "location_wide",
+                "duration": 1.05,
+                "profile": "cinematic",
+                "side": 3.8,
+                "yaw_bias_deg": 12.0
+            },
+            {
+                "name": "location_settle",
+                "duration": 0.8,
+                "profile": "exploration",
+                "side": 1.35,
+                "yaw_bias_deg": -4.0
+            }
+        ],
+        "portal_arrival": [
+            {
+                "name": "portal_wide",
+                "duration": 0.95,
+                "profile": "cinematic",
+                "side": 4.4,
+                "yaw_bias_deg": 16.0
+            },
+            {
+                "name": "portal_settle",
+                "duration": 0.78,
+                "profile": "shoulder_right",
+                "side": 1.65,
+                "yaw_bias_deg": -8.0
+            }
+        ]
+    },
+    "locations": {
+        "training grounds": {
+            "profile": "shoulder_right",
+            "priority": 79,
+            "enter_shot": "location_reveal",
+            "owner": "location:training_grounds"
+        },
+        "stealth climb grounds": {
+            "profile": "stealth",
+            "priority": 78,
+            "enter_shot": "location_reveal",
+            "owner": "location:stealth_climb_grounds"
+        },
+        "southern docks": {
+            "profile": "shoulder_left",
+            "priority": 78,
+            "enter_shot": "location_reveal",
+            "owner": "location:southern_docks"
+        }
+    },
+    "zones": [
+        {
+            "id": "krimora_forest_path_anchor",
+            "location": "krimora forest",
+            "center": [48.0, -16.0, 8.5],
+            "radius": 14.0,
+            "profile": "shoulder_right",
+            "priority": 80,
+            "owner": "zone:krimora_forest_path_anchor"
+        },
+        {
+            "id": "krimora_forest_cage_tension",
+            "location": "krimora forest",
+            "center": [48.0, -33.5, 10.2],
+            "radius": 10.0,
+            "profile": "stealth",
+            "priority": 82,
+            "enter_sequence": "portal_arrival",
+            "owner": "zone:krimora_forest_cage_tension"
+        },
+        {
+            "id": "southern_docks_pier",
+            "location": "southern docks",
+            "center": [16.0, -66.0, 7.8],
+            "radius": 12.0,
+            "profile": "shoulder_left",
+            "priority": 80,
+            "owner": "zone:southern_docks_pier"
+        },
+        {
+            "id": "training_pool_surface",
+            "location": "training grounds",
+            "center": [6.0, 46.0, 1.0],
+            "radius": 9.0,
+            "profile": "stealth",
+            "priority": 82,
+            "enter_sequence": "portal_arrival",
+            "owner": "zone:training_pool_surface"
+        }
+    ]
 }

@@ -1,9 +1,9 @@
 # Player Animation Coverage
 
-Generated: 2026-03-09 22:44:54
+Generated: 2026-03-26 21:20:22
 
-- Total states: 28
-- OK: 28
+- Total states: 31
+- OK: 31
 - Fallback: 0
 - Missing: 0
 
@@ -11,10 +11,13 @@ Generated: 2026-03-09 22:44:54
 |---|---|---|---|
 | attacking | OK | attack_light_right | player_animations |
 | blocking | OK | blocking | player_animations |
-| casting | OK | cast_right | player_animations |
+| cast_channel | OK | cast_channel | player_animations |
+| cast_prepare | OK | cast_prepare | player_animations |
+| cast_release | OK | cast_release | player_animations |
+| casting | OK | cast_fast | player_animations |
 | climbing | OK | climbing | player_animations |
-| crouch_idle | OK | idle | player_animations |
-| crouch_move | OK | walk | player_animations |
+| crouch_idle | OK | crouch_idle | player_animations |
+| crouch_move | OK | crouch_move | player_animations |
 | dead | OK | dead | player_animations |
 | dismounting | OK | dismounting | player_animations |
 | dodging | OK | dodging | player_animations |
@@ -30,7 +33,7 @@ Generated: 2026-03-09 22:44:54
 | mounted_ship_move | OK | mounted_ship_move | player_animations |
 | mounting | OK | mounting | player_animations |
 | recovering | OK | recovering | player_animations |
-| running | OK | run | player_animations |
+| running | OK | run_blade | player_animations |
 | sliding | OK | sliding | player_animations |
 | staggered | OK | staggered | player_animations |
 | swim | OK | swim | player_animations |

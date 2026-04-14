@@ -1,7 +1,10 @@
-import json
 from datetime import datetime, timezone
 from pathlib import Path
+import threading
+import queue
 
+from managers.save_backend import create_save_backend
+from managers.save_paths import build_save_paths, save_path_aliases
 from utils.logger import logger
 from utils.runtime_paths import runtime_dir
 
@@ -12,31 +15,68 @@ class SaveManager:
     SLOT_COUNT = 3
     SAVE_VERSION = 3
 
-    def __init__(self, app, save_dir=None):
+    def __init__(self, app, save_dir=None, backend_config=None, backend=None):
         self.app = app
         if save_dir:
             self.save_dir = Path(save_dir)
         else:
             self.save_dir = runtime_dir("saves")
         self.save_dir.mkdir(parents=True, exist_ok=True)
-        self.autosave_path = self.save_dir / "autosave.json"
-        self.latest_path = self.save_dir / "latest.json"
-        self.slot_paths = {
-            idx: self.save_dir / f"slot{idx}.json"
-            for idx in range(1, self.SLOT_COUNT + 1)
-        }
+        self.backend = backend if backend is not None else create_save_backend(self.save_dir, backend_config=backend_config)
+        self.backend_name = str(getattr(self.backend, "name", "json") or "json")
+        path_layout = build_save_paths(self.save_dir, self.SLOT_COUNT, self.backend_name)
+        self.autosave_path = path_layout["autosave"]
+        self.latest_path = path_layout["latest"]
+        self.slot_paths = path_layout["slots"]
         # Backward-compatible alias used by older code paths.
         self.slot1_path = self.slot_paths[1]
+        
+        # Async Saving System
+        self._save_queue = queue.Queue()
+        self._save_thread = threading.Thread(target=self._save_worker, name="SaveManagerWorker", daemon=True)
+        self._save_thread.start()
+
+    def shutdown(self):
+        """Flushes pending saves synchronously during application exit."""
+        if hasattr(self, "_save_queue"):
+            self._save_queue.put(None)
+            self._save_queue.join()
+            if self._save_thread.is_alive():
+                self._save_thread.join(timeout=3.0)
+
+    def _save_worker(self):
+        """Background thread worker that serializes and writes payloads to disk without blocking render loop."""
+        while True:
+            item = self._save_queue.get()
+            if item is None:
+                self._save_queue.task_done()
+                break
+                
+            paths, payload = item
+            for path in paths:
+                try:
+                    self.backend.write_path(path, payload)
+                except Exception as exc:
+                    logger.error(f"[SaveManager] Worker failed to write {path}: {exc}")
+            self._save_queue.task_done()
+
+    def candidate_paths(self):
+        candidates = []
+        for path in [self.autosave_path, self.latest_path] + list(self.slot_paths.values()):
+            for alias in save_path_aliases(path):
+                if alias not in candidates:
+                    candidates.append(alias)
+        return candidates
 
     def has_save(self, slot_index=None):
         if slot_index is not None:
             try:
-                return self.slot_path(slot_index).exists()
+                return any(self._path_exists(path) for path in save_path_aliases(self.slot_path(slot_index)))
             except Exception:
                 return False
 
-        paths = [self.autosave_path, self.latest_path] + list(self.slot_paths.values())
-        return any(path.exists() for path in paths)
+        paths = self.candidate_paths()
+        return any(self._path_exists(path) for path in paths)
 
     def slot_path(self, slot_index):
         idx = self._normalize_slot_index(slot_index)
@@ -50,16 +90,16 @@ class SaveManager:
         meta = {
             "slot": self._normalize_slot_index(slot_index),
             "path": str(path),
-            "exists": path.exists(),
+            "exists": any(self._path_exists(candidate) for candidate in save_path_aliases(path)),
             "saved_at_utc": None,
             "xp": 0,
             "gold": 0,
             "location": None,
         }
-        if not path.exists():
+        if not meta["exists"]:
             return meta
 
-        payload = self._read_json(path)
+        payload = self._read_payload(path)
         if not isinstance(payload, dict):
             return meta
 
@@ -76,73 +116,73 @@ class SaveManager:
         meta["location"] = summary.get("location")
         return meta
 
+
     def get_latest_existing_path(self):
-        candidates = [
-            path
-            for path in [self.latest_path, self.autosave_path] + list(self.slot_paths.values())
-            if path.exists()
-        ]
-        if not candidates:
-            return None
-        candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-        return candidates[0]
+        candidates = self.candidate_paths()
+        return self.backend.latest_path(candidates)
 
     def save_autosave(self):
         payload = self._build_payload(save_kind="autosave")
-        self._write_json(self.autosave_path, payload)
-        self._write_json(self.latest_path, payload)
+        self._save_queue.put(([self.autosave_path, self.latest_path], payload))
         return self.autosave_path
 
     def save_slot(self, slot_index):
         path = self.slot_path(slot_index)
         payload = self._build_payload(save_kind="slot", slot_index=slot_index)
-        self._write_json(path, payload)
-        self._write_json(self.latest_path, payload)
+        self._save_queue.put(([path, self.latest_path], payload))
         return path
 
     def load_latest(self):
         path = self.get_latest_existing_path()
         if not path:
             return False
-        payload = self._read_json(path)
+        payload = self._read_payload(path)
         if not isinstance(payload, dict):
             return False
         payload, migrated = self._migrate_payload(payload)
         if migrated:
-            self._write_json(path, payload)
+            paths_to_write = [path]
             if path != self.latest_path:
-                self._write_json(self.latest_path, payload)
+                paths_to_write.append(self.latest_path)
+            self._save_queue.put((paths_to_write, payload))
         self._apply_payload(payload)
         logger.info(f"[SaveManager] Loaded save: {path}")
         return True
 
     def load_slot(self, slot_index):
         path = self.slot_path(slot_index)
-        if not path.exists():
+        if not self._path_exists(path):
             return False
-        payload = self._read_json(path)
+        payload = self._read_payload(path)
         if not isinstance(payload, dict):
             return False
         payload, migrated = self._migrate_payload(payload)
         if migrated:
-            self._write_json(path, payload)
-            self._write_json(self.latest_path, payload)
+            self._save_queue.put(([path, self.latest_path], payload))
         self._apply_payload(payload)
         logger.info(f"[SaveManager] Loaded slot {self._normalize_slot_index(slot_index)}: {path}")
         return True
 
-    def _write_json(self, path, payload):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-
-    def _read_json(self, path):
+    def _path_exists(self, path):
         try:
-            return json.loads(path.read_text(encoding="utf-8-sig"))
+            return bool(self.backend.path_exists(path))
         except Exception as exc:
-            logger.warning(f"[SaveManager] Failed to read {path}: {exc}")
+            logger.warning(f"[SaveManager] Failed to inspect save path {path}: {exc}")
+            return Path(path).exists()
+
+    def _write_payload(self, path, payload):
+        # Legacy synchronous fallback. New code routes via self._save_queue directly.
+        try:
+            self.backend.write_path(path, payload)
+        except Exception as exc:
+            logger.warning(f"[SaveManager] Failed to write save payload {path}: {exc}")
+            raise
+
+    def _read_payload(self, path):
+        try:
+            return self.backend.read_path(path)
+        except Exception as exc:
+            logger.warning(f"[SaveManager] Failed to read save payload {path}: {exc}")
             return None
 
     def _build_payload(self, save_kind="manual", slot_index=None):
@@ -193,6 +233,13 @@ class SaveManager:
                 tutorial_state = tutorial_mgr.export_state() or {}
             except Exception:
                 tutorial_state = {}
+        skills_state = {}
+        skill_mgr = getattr(self.app, "skill_tree_mgr", None)
+        if skill_mgr and hasattr(skill_mgr, "export_state"):
+            try:
+                skills_state = skill_mgr.export_state() or {}
+            except Exception:
+                skills_state = {}
         slot_idx = None
         if slot_index is not None:
             try:
@@ -239,6 +286,7 @@ class SaveManager:
                 "completed_quests": sorted(list(getattr(self.app.quest_mgr, "completed_quests", set()))),
                 "language": language,
                 "tutorial": tutorial_state,
+                "skills": skills_state,
             },
             "world": {
                 "active_location": active_location,
@@ -353,6 +401,16 @@ class SaveManager:
                 ui.setdefault("map_state", {})["range"] = 180.0
                 changed = True
 
+            skills_state = progression.get("skills")
+            if not isinstance(skills_state, dict):
+                profile = progression.get("profile", {})
+                if isinstance(profile, dict) and isinstance(profile.get("skills"), dict):
+                    skills_state = dict(profile.get("skills", {}))
+                else:
+                    skills_state = {}
+                progression["skills"] = skills_state
+                changed = True
+
             if version != self.SAVE_VERSION:
                 meta["version"] = self.SAVE_VERSION
                 changed = True
@@ -452,6 +510,18 @@ class SaveManager:
                 tutorial_mgr.import_state(tutorial_state)
             except Exception as exc:
                 logger.warning(f"[SaveManager] Tutorial state import failed: {exc}")
+
+        skills_state = progression.get("skills")
+        if not isinstance(skills_state, dict) and isinstance(profile, dict):
+            profile_skills = profile.get("skills")
+            if isinstance(profile_skills, dict):
+                skills_state = dict(profile_skills)
+        skill_mgr = getattr(self.app, "skill_tree_mgr", None)
+        if isinstance(skills_state, dict) and skill_mgr and hasattr(skill_mgr, "import_state"):
+            try:
+                skill_mgr.import_state(skills_state)
+            except Exception as exc:
+                logger.warning(f"[SaveManager] Skill tree state import failed: {exc}")
 
         player = payload.get("player", {})
         position = player.get("position")

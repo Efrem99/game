@@ -1,118 +1,158 @@
-# Animation Assets Summary
+# Animation Asset Guide
 
-## 📦 Available Animations
+This is the canonical high-level animation status document for the repo.
 
-### ✅ In `assets/anims/` (13 GLB files - READY)
+Use it together with:
 
-#### Combat (6)
-1. **attack_longsword_1.glb** - Primary sword attack
-2. **attack_longsword_2.glb** - Secondary sword attack
-3. **attack_slashes.glb** - Combo slashes
-4. **attack_thrust.glb** - Thrust attack
-5. **block_idle.glb** - Blocking stance
-6. **parry.glb** - Parry deflection
+- `data/states/STATE_ARCHITECTURE_FULL.md` for the runtime state model
+- `data/states/ANIMATION_COVERAGE.md` for the current resolved state-to-clip report
+- `assets/anims/README.md` for runtime source folders and naming rules
+- `docs/BAM_AND_ANIMATION_PIPELINE.md` for conversion and packaging workflow
 
-#### Movement/Parkour (2)
-7. **landing_run.glb** - Landing from jump while running
-8. **midair.glb** - In-air/falling pose
+## Runtime Source Of Truth
 
-#### Magic (2)
-9. **sword_and_shield_casting.glb** - Casting with weapon
-10. **sword_and_shield_casting_2.glb** - Alt casting
+- State definitions and transition rules: `data/states/player_states.json`
+- State-to-clip overrides: `data/actors/player_animations.json`
+- Runtime resolution and coverage report generation: `src/entities/player.py`
+- Folder-level animation source rules: `assets/anims/README.md`
 
-#### Draw/Sheath (2)
-11. **sheath_sword_1.glb** - Sheathing sword animation
-12. **sheath_sword_2.glb** - Alt sheath
+## Current Runtime Status
 
-#### Death (1)
-13. **death.glb** - Death animation
+Latest coverage snapshot from `data/states/ANIMATION_COVERAGE.md`:
 
----
+- Generated: `2026-03-24 15:07:02`
+- Total states: `31`
+- OK: `31`
+- Fallback: `0`
+- Missing: `0`
 
-## 🎮 Now Used in State Machine
+That means the runtime state machine currently resolves every required player
+state to a clip, even though some assets still come from different source sets.
 
-Updated `player_states.json` to use these real animations:
-- `falling` → `midair.glb`
-- `landing` → `landing_run.glb`
-- `attacking` → `attack_longsword_1.glb`
-- `blocking` → `block_idle.glb`
-- `casting` → `sword_and_shield_casting.glb`
-- `dead` → `death.glb`
+## Asset Audit Snapshot
 
----
+The old root-level inventory reports were merged into this file:
 
-## 📋 Still Using Xbot (Fallbacks)
-- `idle` → Idle_Loop (Xbot)
-- `walking` → Walk_Loop (Xbot)
-- `running` → Sprint_Loop (Xbot)
-- `jumping` → Jump_Start (Xbot)
-- `dodging` → Dodge_Backward (Xbot alias)
-- `vaulting` → Vault_Over (needs custom)
-- `climbing` → Ledge_Climb (needs custom)
-- `wallrun` → Wall_Run (needs custom)
+- `animation-inventory.md`
+- `game-animation-inventory.md`
+- `campfire-local-inventory.md`
 
----
+Latest full-game snapshot that was worth keeping:
 
-## 💡 Paragon Animations (Available!)
+- Scope: `183` scanned game assets
+- OK: `20`
+- Unknown: `110`
+- Warning: `53`
 
-**Location:** ✅ FOUND! `assets/models/paragonanimationsretargetedtomanny/ParagonAnimationsRetargetedToManny/`  
-**Count:** 5,385 FBX files  
-**Catalog:** `animations_catalog.py` ready  
-**Characters:** 32 Paragon heroes
+What those numbers mean:
 
-### Top Characters (by animation count)
-1. **TwinBlastManny** - 255 anims (dual pistols)
-2. **CountessManny** - 234 anims (assassin)
-3. **WraithManny** - 229 anims (sniper)
-4. **RevenantManny** - 211 anims (gunslinger)
-5. **gideonManny** - 201 anims (mage)
-6. **MurdockManny** - 197 anims (ranger)
-7. **FengMaoManny** - 196 anims (swordsman) ⚔️
-8. **AuroraManny** - 191 anims (ice warrior)
-9. **KallariManny** - 187 anims (ninja)
-10. **steelmanny** - 186 anims (tank)
+- `OK`: asset container exposed usable animation clips
+- `Unknown`: mostly binary FBX files that need DCC or converter inspection
+- `Warning`: static assets or GLBs with no animation clips
 
-### Best for King Wizard
-- **FengMaoManny** (196) - Sword combat animations
-- **gideonManny** (201) - Magic/casting animations
-- **minionsManny** (87) - Basic enemy animations
-- **KallariManny** (187) - Stealth/dodge animations
+The old campfire/local inventory was a narrow prop-only subset and did not add a
+separate long-term source of truth, so it is folded into the summary here rather
+than maintained as a standalone report.
 
-### How to Use
-```python
-from animations_catalog import ParagonAnimationCatalog
-from config import PARAGON_ANIMS_DIR
+## Gameplay-Ready Animation Assets
 
-catalog = ParagonAnimationCatalog(PARAGON_ANIMS_DIR)
+These assets are the curated set currently called out as directly useful for the
+player runtime and combat feel.
 
-# Find specific animation
-vault_anim = catalog.find_animation("vault", "FengMaoManny")
-sword_attack = catalog.find_animation("attack", "FengMaoManny")
+### In `assets/anims/`
 
-# Get all animations for character
-feng_anims = catalog.get_character_animations("FengMaoManny")
-```
+Combat:
 
----
+- `attack_longsword_1.glb`
+- `attack_longsword_2.glb`
+- `attack_slashes.glb`
+- `attack_thrust.glb`
+- `block_idle.glb`
+- `parry.glb`
 
-## 🔧 Missing Animations to Create/Find
+Movement and parkour:
 
-### Parkour (3)
-- Vault over obstacle
-- Ledge climb up
-- Wall run
+- `landing_run.glb`
+- `midair.glb`
 
-### Combat Variants (Optional)
-- More attack combos (can use attack_slashes)
-- Dodge roll variants
-- Block reactions
+Magic:
 
-### Magic (Optional)
-- More spell variants (have 2 casts already)
+- `sword_and_shield_casting.glb`
+- `sword_and_shield_casting_2.glb`
 
----
+Draw and sheath:
 
-## ✅ Status
-**Current:** 13 GLB animations integrated  
-**Next:** Test in-game and verify transitions  
-**Future:** Add Paragon collection if needed
+- `sheath_sword_1.glb`
+- `sheath_sword_2.glb`
+
+Death:
+
+- `death.glb`
+
+## Current Runtime Mapping Notes
+
+States already backed by the curated set:
+
+- `falling` -> `midair.glb`
+- `landing` -> `landing_run.glb`
+- `attacking` -> `attack_longsword_1.glb`
+- `blocking` -> `block_idle.glb`
+- `casting` -> `sword_and_shield_casting.glb`
+- `dead` -> `death.glb`
+
+States still commonly resolved through XBot or Mixamo-compatible fallback paths:
+
+- `idle`
+- `walking`
+- `running`
+- `jumping`
+- `dodging`
+- `vaulting`
+- `climbing`
+- `wallrun`
+
+## External Libraries And Acquisition Paths
+
+### Mixamo / manifest-driven runtime folders
+
+See `assets/anims/README.md` for:
+
+- strict runtime source behavior
+- auto source directories
+- mount naming conventions
+- Mixamo fetch helpers
+
+### Paragon archive
+
+Known external library:
+
+- Location: `assets/models/paragonanimationsretargetedtomanny/ParagonAnimationsRetargetedToManny/`
+- Approximate count: `5,385` FBX files
+
+Best candidate families called out previously:
+
+- `FengMaoManny` for sword combat
+- `gideonManny` for casting and mage motion
+- `KallariManny` for dodge and stealth motion
+- `minionsManny` for simple enemy coverage
+
+## Remaining Gaps
+
+Highest-value animation gaps to close next:
+
+- vault-over obstacle clips
+- ledge-climb up clips
+- wall-run specific clips
+- richer dodge variants
+- more spell cast variants
+
+## Maintenance Rule
+
+Keep this file as the concise animation status guide.
+
+Do not create new root-level inventory Markdown files for one-off audits.
+If a new audit is needed, either:
+
+- update this summary if it changes the canonical understanding, or
+- store the raw output under a clearly scoped review/artifact location
+

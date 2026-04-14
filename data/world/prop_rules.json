@@ -1,0 +1,449 @@
+{
+    "zones": [
+        {
+            "zone_id": "old_forest",
+            "biome": "dense_forest",
+            "comment": "Kremor Forest — dense ancient woodland",
+            "props": [
+                {
+                    "type": "tree_oak",
+                    "model": "models/props/tree_oak.glb",
+                    "density": 0.35,
+                    "min_spacing": 6.0,
+                    "y_align": true,
+                    "scale_min": 1.2,
+                    "scale_max": 2.4,
+                    "seed": 1001
+                },
+                {
+                    "type": "tree_pine",
+                    "model": "models/props/tree_pine.glb",
+                    "density": 0.25,
+                    "min_spacing": 5.0,
+                    "y_align": true,
+                    "scale_min": 1.4,
+                    "scale_max": 2.8,
+                    "seed": 1002
+                },
+                {
+                    "type": "tree_old",
+                    "model": "models/props/tree_old_gnarled.glb",
+                    "density": 0.08,
+                    "min_spacing": 12.0,
+                    "y_align": true,
+                    "scale_min": 1.8,
+                    "scale_max": 3.2,
+                    "seed": 1003
+                },
+                {
+                    "type": "mushroom_cluster",
+                    "model": "models/props/mushroom_cluster.glb",
+                    "density": 0.12,
+                    "min_spacing": 3.5,
+                    "y_align": true,
+                    "scale_min": 0.5,
+                    "scale_max": 1.2,
+                    "seed": 1004
+                },
+                {
+                    "type": "fallen_log",
+                    "model": "models/props/fallen_log.glb",
+                    "density": 0.06,
+                    "min_spacing": 8.0,
+                    "y_align": true,
+                    "scale_min": 1.0,
+                    "scale_max": 2.0,
+                    "seed": 1005
+                },
+                {
+                    "type": "ivy_stone",
+                    "model": "models/props/ivy_stone.glb",
+                    "density": 0.08,
+                    "min_spacing": 5.0,
+                    "y_align": true,
+                    "scale_min": 0.8,
+                    "scale_max": 1.6,
+                    "seed": 1006
+                },
+                {
+                    "type": "bush_dense",
+                    "model": "models/props/bush_dense.glb",
+                    "density": 0.2,
+                    "min_spacing": 3.0,
+                    "y_align": true,
+                    "scale_min": 0.6,
+                    "scale_max": 1.3,
+                    "seed": 1007
+                },
+                {
+                    "type": "fern_cluster",
+                    "model": "models/props/fern_cluster.glb",
+                    "density": 0.28,
+                    "min_spacing": 2.5,
+                    "y_align": true,
+                    "scale_min": 0.7,
+                    "scale_max": 1.4,
+                    "seed": 1008
+                },
+                {
+                    "type": "ruin_stone_small",
+                    "model": "models/props/ruin_stone.glb",
+                    "density": 0.04,
+                    "min_spacing": 14.0,
+                    "y_align": true,
+                    "scale_min": 0.9,
+                    "scale_max": 1.8,
+                    "seed": 1009
+                }
+            ],
+            "clearings": [
+                {
+                    "center": [
+                        -28.0,
+                        6.0
+                    ],
+                    "radius": 8.0,
+                    "fog_density": 0.012
+                },
+                {
+                    "center": [
+                        -18.0,
+                        22.0
+                    ],
+                    "radius": 6.0,
+                    "fog_density": 0.010
+                },
+                {
+                    "center": [
+                        -36.0,
+                        16.0
+                    ],
+                    "radius": 7.0,
+                    "fog_density": 0.014
+                }
+            ],
+            "ambient_fog": {
+                "density": 0.018,
+                "color": [
+                    0.15,
+                    0.22,
+                    0.16
+                ]
+            },
+            "spawn_points": [
+                {
+                    "id": "kremor_entry",
+                    "pos": [
+                        -22.0,
+                        4.0,
+                        2.0
+                    ]
+                },
+                {
+                    "id": "kremor_center",
+                    "pos": [
+                        -28.0,
+                        10.0,
+                        2.5
+                    ]
+                },
+                {
+                    "id": "kremor_ruins",
+                    "pos": [
+                        -36.0,
+                        18.0,
+                        3.0
+                    ]
+                }
+            ]
+        },
+        {
+            "zone_id": "training_grounds",
+            "biome": "open_field",
+            "comment": "Training grounds outside castle walls",
+            "props": [
+                {
+                    "type": "training_dummy",
+                    "model": "models/props/training_dummy.glb",
+                    "density": 0.05,
+                    "min_spacing": 8.0,
+                    "y_align": true,
+                    "scale_min": 0.9,
+                    "scale_max": 1.1,
+                    "seed": 2001
+                },
+                {
+                    "type": "hay_bale",
+                    "model": "models/props/hay_bale.glb",
+                    "density": 0.06,
+                    "min_spacing": 6.0,
+                    "y_align": true,
+                    "scale_min": 0.8,
+                    "scale_max": 1.2,
+                    "seed": 2002
+                },
+                {
+                    "type": "weapon_rack_outdoor",
+                    "model": "models/props/weapon_rack.glb",
+                    "density": 0.03,
+                    "min_spacing": 12.0,
+                    "y_align": true,
+                    "scale_min": 1.0,
+                    "scale_max": 1.0,
+                    "seed": 2003
+                },
+                {
+                    "type": "fence_post",
+                    "model": "models/props/fence_post.glb",
+                    "density": 0.08,
+                    "min_spacing": 4.0,
+                    "y_align": true,
+                    "scale_min": 0.9,
+                    "scale_max": 1.1,
+                    "seed": 2004
+                },
+                {
+                    "type": "stone_block",
+                    "model": "models/props/stone_block.glb",
+                    "density": 0.04,
+                    "min_spacing": 6.0,
+                    "y_align": true,
+                    "scale_min": 0.7,
+                    "scale_max": 1.4,
+                    "seed": 2005
+                }
+            ]
+        },
+        {
+            "zone_id": "port_town",
+            "biome": "port",
+            "comment": "Port market district",
+            "props": [
+                {
+                    "type": "crate_stack",
+                    "model": "models/props/crate_stack.glb",
+                    "density": 0.08,
+                    "min_spacing": 4.0,
+                    "y_align": true,
+                    "scale_min": 0.8,
+                    "scale_max": 1.4,
+                    "seed": 3001
+                },
+                {
+                    "type": "barrel_stack",
+                    "model": "models/props/barrel_stack.glb",
+                    "density": 0.10,
+                    "min_spacing": 3.5,
+                    "y_align": true,
+                    "scale_min": 0.8,
+                    "scale_max": 1.2,
+                    "seed": 3002
+                },
+                {
+                    "type": "rope_coil",
+                    "model": "models/props/rope_coil.glb",
+                    "density": 0.05,
+                    "min_spacing": 5.0,
+                    "y_align": true,
+                    "scale_min": 0.8,
+                    "scale_max": 1.0,
+                    "seed": 3003
+                },
+                {
+                    "type": "fishing_net",
+                    "model": "models/props/fishing_net.glb",
+                    "density": 0.04,
+                    "min_spacing": 6.0,
+                    "y_align": true,
+                    "scale_min": 0.9,
+                    "scale_max": 1.3,
+                    "seed": 3004
+                },
+                {
+                    "type": "market_cart",
+                    "model": "models/props/market_cart.glb",
+                    "density": 0.04,
+                    "min_spacing": 8.0,
+                    "y_align": true,
+                    "scale_min": 1.0,
+                    "scale_max": 1.2,
+                    "seed": 3005
+                },
+                {
+                    "type": "seagull_spawn",
+                    "model": "models/props/seagull.glb",
+                    "density": 0.03,
+                    "min_spacing": 10.0,
+                    "y_align": false,
+                    "scale_min": 0.8,
+                    "scale_max": 1.0,
+                    "seed": 3006
+                }
+            ]
+        },
+        {
+            "zone_id": "castle_hill",
+            "biome": "highland",
+            "comment": "Castle approach hill — sparse rocks and grass",
+            "props": [
+                {
+                    "type": "boulder_small",
+                    "model": "models/props/boulder_small.glb",
+                    "density": 0.06,
+                    "min_spacing": 7.0,
+                    "y_align": true,
+                    "scale_min": 0.8,
+                    "scale_max": 1.8,
+                    "seed": 4001
+                },
+                {
+                    "type": "grass_patch",
+                    "model": "models/props/grass_patch.glb",
+                    "density": 0.30,
+                    "min_spacing": 2.0,
+                    "y_align": true,
+                    "scale_min": 0.7,
+                    "scale_max": 1.3,
+                    "seed": 4002
+                },
+                {
+                    "type": "torch_road",
+                    "model": "models/props/torch_stand.glb",
+                    "density": 0.02,
+                    "min_spacing": 14.0,
+                    "y_align": true,
+                    "scale_min": 1.0,
+                    "scale_max": 1.0,
+                    "seed": 4003
+                }
+            ]
+        },
+        {
+            "zone_id": "dwarven_caves_gate",
+            "biome": "rocky_highland",
+            "comment": "Area outside the dwarven gate entrance",
+            "props": [
+                {
+                    "type": "boulder_large",
+                    "model": "models/props/boulder_large.glb",
+                    "density": 0.08,
+                    "min_spacing": 8.0,
+                    "y_align": true,
+                    "scale_min": 1.0,
+                    "scale_max": 2.5,
+                    "seed": 5001
+                },
+                {
+                    "type": "ore_vein_surface",
+                    "model": "models/props/ore_vein.glb",
+                    "density": 0.06,
+                    "min_spacing": 6.0,
+                    "y_align": true,
+                    "scale_min": 0.6,
+                    "scale_max": 1.4,
+                    "seed": 5002
+                },
+                {
+                    "type": "mine_debris",
+                    "model": "models/props/mine_cart.glb",
+                    "density": 0.03,
+                    "min_spacing": 12.0,
+                    "y_align": true,
+                    "scale_min": 0.9,
+                    "scale_max": 1.1,
+                    "seed": 5003
+                },
+                {
+                    "type": "pickaxe_lean",
+                    "model": "models/props/pickaxe_lean.glb",
+                    "density": 0.04,
+                    "min_spacing": 8.0,
+                    "y_align": true,
+                    "scale_min": 0.9,
+                    "scale_max": 1.0,
+                    "seed": 5004
+                }
+            ]
+        },
+        {
+            "zone_id": "river_road",
+            "biome": "riverside",
+            "comment": "Along the Alder River road",
+            "props": [
+                {
+                    "type": "reed_cluster",
+                    "model": "models/props/reed_cluster.glb",
+                    "density": 0.18,
+                    "min_spacing": 3.0,
+                    "y_align": true,
+                    "scale_min": 0.8,
+                    "scale_max": 1.6,
+                    "seed": 6001
+                },
+                {
+                    "type": "willow_tree",
+                    "model": "models/props/tree_willow.glb",
+                    "density": 0.06,
+                    "min_spacing": 10.0,
+                    "y_align": true,
+                    "scale_min": 1.2,
+                    "scale_max": 2.0,
+                    "seed": 6002
+                },
+                {
+                    "type": "riverstone",
+                    "model": "models/props/boulder_small.glb",
+                    "density": 0.10,
+                    "min_spacing": 4.0,
+                    "y_align": true,
+                    "scale_min": 0.4,
+                    "scale_max": 1.0,
+                    "seed": 6003
+                },
+                {
+                    "type": "log_raft",
+                    "model": "models/props/fallen_log.glb",
+                    "density": 0.03,
+                    "min_spacing": 12.0,
+                    "y_align": true,
+                    "scale_min": 1.0,
+                    "scale_max": 1.8,
+                    "seed": 6004
+                }
+            ]
+        },
+        {
+            "zone_id": "kremor_forest_crash",
+            "biome": "cursed_forest",
+            "comment": "Kremor - cursed, black, dry forest",
+            "props": [
+                {
+                    "type": "tree_dead",
+                    "model": "models/props/tree_old_gnarled.glb",
+                    "density": 0.45,
+                    "min_spacing": 4.0,
+                    "y_align": true,
+                    "scale_min": 1.5,
+                    "scale_max": 2.8,
+                    "seed": 7001,
+                    "tint": [0.1, 0.05, 0.05]
+                },
+                {
+                    "type": "obsidian_shard",
+                    "model": "models/props/stone_block.glb",
+                    "density": 0.15,
+                    "min_spacing": 3.0,
+                    "y_align": true,
+                    "scale_min": 0.4,
+                    "scale_max": 1.2,
+                    "seed": 7002,
+                    "tint": [0.05, 0.04, 0.08]
+                }
+            ],
+            "ambient_fog": {
+                "density": 0.035,
+                "color": [0.6, 0.1, 0.1]
+            }
+        }
+    ]
+}

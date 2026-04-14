@@ -12,15 +12,10 @@ SimTier semantics:
 
 from __future__ import annotations
 
+import zlib
+
+from utils.core_runtime import gc, HAS_CORE
 from utils.logger import logger
-
-try:
-    import game_core as gc
-
-    HAS_CORE = True
-except ImportError:
-    gc = None
-    HAS_CORE = False
 
 
 class SimTierManager:
@@ -64,10 +59,10 @@ class SimTierManager:
 
     def register(self, entity_id: int, entity_proxy) -> None:
         """Register an entity so it receives tier changes."""
-        self._entity_registry[entity_id] = entity_proxy
+        self._entity_registry[self._normalize_entity_id(entity_id)] = entity_proxy
 
     def unregister(self, entity_id: int) -> None:
-        self._entity_registry.pop(entity_id, None)
+        self._entity_registry.pop(self._normalize_entity_id(entity_id), None)
 
     def set_runtime_profile(self, tick_rate_hz=None, budget_scale=None) -> dict:
         """Adjust runtime cadence/budgets without mutating static defaults."""
@@ -190,6 +185,17 @@ class SimTierManager:
             self._set_simplified(proxy)
         else:
             self._set_frozen(proxy)
+
+    @staticmethod
+    def _normalize_entity_id(entity_id) -> int:
+        if isinstance(entity_id, bool):
+            return int(entity_id)
+        if isinstance(entity_id, int):
+            return entity_id
+        text = str(entity_id or "").strip()
+        if not text:
+            return 0
+        return int(zlib.crc32(text.encode("utf-8")) & 0x7FFFFFFF)
 
     def _set_full(self, proxy):
         if hasattr(proxy, "actor"):

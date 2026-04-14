@@ -33,22 +33,49 @@
             "path": "data/audio/Kremor_ambient_3.wav",
             "volume": 0.44
         },
+        "kremor": {
+            "path": "data/audio/Kremor_ambient.wav",
+            "volume": 0.38
+        },
         "castle_courtyard": {
             "path": "data/audio/Kremor_ambient_2.wav",
             "volume": 0.3
+        },
+        "castle_interior": {
+            "path": "data/audio/Kremor_ambient_2.wav",
+            "volume": 0.22
+        },
+        "caves": {
+            "path": "data/audio/Kremor_ambient_2.wav",
+            "volume": 0.2
         },
         "training": {
             "path": "data/audio/Kremor_ambient.wav",
             "volume": 0.26
         }
     },
-    "location_music": {},
+    "location_music": {
+        "kremor_forest_crash": "data/audio/bgm_Kremor.wav",
+        "kremor_forest_cage": "data/audio/bgm_Kremor.wav"
+    },
     "location_ambient": {
         "sharuan_castle": "town",
+        "castle_courtyard": "castle_courtyard",
+        "castle_interior": "castle_interior",
+        "prince_chamber": "castle_interior",
+        "world_map_gallery": "castle_interior",
+        "royal_laundry": "castle_interior",
+        "throne_hall": "castle_interior",
+        "kremor_forest_crash": "kremor",
+        "kremor_forest_cage": "kremor",
+        "dwarven_caves_gate": "caves",
+        "dwarven_forge_halls": "caves",
+        "dwarven_grand_throne": "caves",
         "town_hall": "town",
         "southern_docks": "docks"
     },
     "biome_ambient": {
+        "caves": "caves",
         "plains": "plains",
         "mountain": "wind",
         "sea": "water"
@@ -62,6 +89,8 @@
         "town": "town",
         "coast": "sea_breeze",
         "forest": "forest",
+        "interior": "castle_interior",
+        "caves": "caves",
         "castle": "castle_courtyard",
         "tutorial": "training",
         "parkour": "training",
@@ -102,6 +131,8 @@
             "docks": 68,
             "coast": 70,
             "forest": 66,
+            "interior": 67,
+            "caves": 67,
             "castle": 64,
             "training": 63,
             "parkour": 65,
@@ -209,9 +240,49 @@
             "path": "data/audio/sfx/pickup.wav",
             "volume": 0.35
         },
+        "ui_open": {
+            "path": "data/audio/sfx/pickup.wav",
+            "volume": 0.52
+        },
+        "ui_close": {
+            "path": "data/audio/sfx/pickup.wav",
+            "volume": 0.42
+        },
+        "ui_tab": {
+            "path": "data/audio/sfx/pickup.wav",
+            "volume": 0.38
+        },
         "item_pickup": {
             "path": "data/audio/sfx/pickup.wav",
             "volume": 0.8
+        },
+        "parkour_vault": {
+            "path": "data/audio/sfx/step.wav",
+            "volume": 0.56
+        },
+        "parkour_climb": {
+            "path": "data/audio/sfx/step.wav",
+            "volume": 0.48
+        },
+        "parkour_wallrun": {
+            "path": "data/audio/sfx/step.wav",
+            "volume": 0.58
+        },
+        "flight_takeoff": {
+            "path": "data/audio/sfx/cast.wav",
+            "volume": 0.54
+        },
+        "flight_land": {
+            "path": "data/audio/sfx/hit.wav",
+            "volume": 0.52
+        },
+        "swim_enter": {
+            "path": "data/audio/sfx/step.wav",
+            "volume": 0.50
+        },
+        "swim_exit": {
+            "path": "data/audio/sfx/step.wav",
+            "volume": 0.46
         },
         "npc_work_hammer": {
             "path": "data/audio/sfx/npc/work_hammer.wav",

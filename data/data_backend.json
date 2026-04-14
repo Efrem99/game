@@ -1,0 +1,5 @@
+{
+    "backend": "sqlite_msgpack",
+    "sqlite_path": "cache/data_store.sqlite3",
+    "auto_build": true
+}

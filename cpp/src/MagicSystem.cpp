@@ -151,7 +151,7 @@ SpellEffect MagicSystem::castFireball(CharacterState& cs, const Vec3& dir) {
     p.radius  = 0.4f;
     p.lifetime= 4.f;
     _projectiles.push_back(p);
-    return { SpellType::Fireball, p.pos, 0.3f, 0.f, "fireball_launch", "fireball_sfx" };
+    return { SpellType::Fireball, p.pos, {}, {}, 1.0f, 0.3f, 0.f, "fireball_launch", "fireball_sfx" };
 }
 
 SpellEffect MagicSystem::castLightning(CharacterState& cs, const Vec3& dir,

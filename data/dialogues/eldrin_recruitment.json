@@ -1,0 +1,42 @@
+{
+  "npc_id": "eldrin_elf",
+  "npc_name": "Eldrin",
+  "dialogue_tree": {
+    "start": {
+      "speaker": "Eldrin",
+      "text": "The Old Forest is closing its fingers around Krimora scouts. I can guide your road and cover it with arcane arrows, but I do not walk for free.",
+      "choices": [
+        {
+          "text": "Join me. I can pay 150 gold.",
+          "condition": "can_recruit:eldrin_elf:hire",
+          "action": "hire_companion:eldrin_elf",
+          "next_node": "hired"
+        },
+        {
+          "text": "You are already with me, Eldrin.",
+          "condition": "has_companion:eldrin_elf",
+          "next_node": "already_hired"
+        },
+        {
+          "text": "I need more time to gather coin.",
+          "next_node": "end"
+        }
+      ]
+    },
+    "hired": {
+      "speaker": "Eldrin",
+      "text": "Then we move as one. I will range ahead, thin the line, and drag you out before the forest closes.",
+      "choices": []
+    },
+    "already_hired": {
+      "speaker": "Eldrin",
+      "text": "I am already on your line. Point at the threat and I will feather it with arcane fire.",
+      "choices": []
+    },
+    "end": {
+      "speaker": "Eldrin",
+      "text": "Come back when your purse is heavier than your doubts.",
+      "choices": []
+    }
+  }
+}

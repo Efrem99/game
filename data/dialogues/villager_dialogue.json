@@ -1,0 +1,59 @@
+{
+    "npc_id": "villager_generic",
+    "npc_name": "Village Resident",
+    "portrait": "assets/portraits/elder.png",
+    "dialogue_tree": {
+        "start": {
+            "speaker": "Village Resident",
+            "text": "Life around Sharuan is never truly quiet. Keep your eyes open and your steps steady, traveler.",
+            "animation": "greet",
+            "camera": "npc",
+            "next_node": "player_reply_start",
+            "choices": []
+        },
+        "player_reply_start": {
+            "speaker": "Traveler",
+            "text": "What should I watch for first?",
+            "camera": "player",
+            "next_node": "about_sharuan",
+            "choices": []
+        },
+        "about_sharuan": {
+            "speaker": "Village Resident",
+            "text": "Sharuan shifts with the weather and the road. On a calm day you will find honest work, and on a hard day you will find people helping each other survive.",
+            "animation": "idle",
+            "camera": "npc",
+            "next_node": "player_reply_trouble",
+            "choices": []
+        },
+        "player_reply_trouble": {
+            "speaker": "Traveler",
+            "text": "And on the hard days?",
+            "camera": "player",
+            "next_node": "trouble",
+            "choices": []
+        },
+        "trouble": {
+            "speaker": "Village Resident",
+            "text": "Roads, ruins, beasts, bad weather. The usual. If you keep your gear ready and listen before you leap, you will do better than most.",
+            "animation": "idle",
+            "camera": "npc",
+            "next_node": "player_reply_farewell",
+            "choices": []
+        },
+        "player_reply_farewell": {
+            "speaker": "Traveler",
+            "text": "Understood. I will keep my guard up.",
+            "camera": "player",
+            "next_node": "farewell",
+            "choices": []
+        },
+        "farewell": {
+            "speaker": "Village Resident",
+            "text": "Safe travels.",
+            "camera": "npc",
+            "animation": "idle",
+            "choices": []
+        }
+    }
+}

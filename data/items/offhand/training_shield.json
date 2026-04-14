@@ -1,0 +1,19 @@
+{
+    "id": "training_shield",
+    "name": "Training Shield",
+    "type": "shield",
+    "slot": "offhand",
+    "attach_point": "left_hand",
+    "equip_visual": {
+        "style": "ward",
+        "color": [
+            0.74,
+            0.78,
+            0.84,
+            1.0
+        ],
+        "scale": 1.06
+    },
+    "armor": 3,
+    "description": "Practice shield used for blocks and parries during drills."
+}

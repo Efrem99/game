@@ -6,6 +6,59 @@
     "auto_weather": true,
     "weather_hold_min": 90,
     "weather_hold_max": 190,
+    "min_visibility": 0.56,
+    "min_ambient_light": 0.36,
+    "min_sun_light": 0.28,
+    "cloud_puff": {
+        "enabled": true,
+        "layers": [
+            {
+                "height": 52.0,
+                "count": 22,
+                "min_scale": 8.0,
+                "max_scale": 22.0,
+                "speed": 0.18,
+                "base_alpha": 0.52,
+                "parallax_factor": 0.82,
+                "scatter_radius": 180.0,
+                "color": [
+                    0.96,
+                    0.96,
+                    1.0
+                ]
+            },
+            {
+                "height": 68.0,
+                "count": 16,
+                "min_scale": 14.0,
+                "max_scale": 36.0,
+                "speed": -0.11,
+                "base_alpha": 0.38,
+                "parallax_factor": 0.62,
+                "scatter_radius": 220.0,
+                "color": [
+                    0.92,
+                    0.94,
+                    1.0
+                ]
+            },
+            {
+                "height": 90.0,
+                "count": 10,
+                "min_scale": 28.0,
+                "max_scale": 60.0,
+                "speed": 0.07,
+                "base_alpha": 0.22,
+                "parallax_factor": 0.38,
+                "scatter_radius": 280.0,
+                "color": [
+                    0.88,
+                    0.90,
+                    0.96
+                ]
+            }
+        ]
+    },
     "time_presets": {
         "midnight": {
             "description": "Deep night, stars visible",
@@ -39,29 +92,29 @@
     "weather_presets": {
         "clear": {
             "description": "Clear sky, few clouds",
-            "cloud_coverage": 0.2,
+            "cloud_coverage": 0.15,
             "visibility": 1.0
         },
         "partly_cloudy": {
             "description": "Some clouds, good visibility",
-            "cloud_coverage": 0.5,
+            "cloud_coverage": 0.50,
             "visibility": 0.9
         },
         "overcast": {
             "description": "Cloudy sky, reduced light",
-            "cloud_coverage": 0.9,
-            "visibility": 0.7
+            "cloud_coverage": 0.90,
+            "visibility": 0.78
         },
         "rainy": {
             "description": "Rain, poor visibility",
             "cloud_coverage": 1.0,
-            "visibility": 0.5,
+            "visibility": 0.62,
             "rain": true
         },
         "stormy": {
             "description": "Thunderstorm, very poor visibility",
             "cloud_coverage": 1.0,
-            "visibility": 0.3,
+            "visibility": 0.52,
             "rain": true,
             "lightning": true
         }

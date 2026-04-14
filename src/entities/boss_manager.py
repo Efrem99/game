@@ -1,34 +1,28 @@
 """Procedural enemy roster manager: golems (boss), elementals, shadows, goblins."""
 
 import hashlib
-import json
 import math
+import os
 import random
 from pathlib import Path
 
+from utils.core_runtime import gc, HAS_CORE
 from direct.actor.Actor import Actor
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import CardMaker, LColor, TransparencyAttrib, Vec3
 
-from render.fx_policy import FIRE_SPRITE_TEXTURE_CANDIDATES, load_optional_texture
+from render.fx_policy import (
+    FIRE_SPRITE_TEXTURE_CANDIDATES,
+    enforce_particle_budget,
+    load_optional_texture,
+    make_soft_disc_texture,
+)
+from managers.runtime_data_access import load_data_file
 from render.model_visuals import ensure_model_visual_defaults
 from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
-
-try:
-    import game_core as gc
-
-    HAS_CORE = True
-except ImportError:
-    gc = None
-    HAS_CORE = False
-
-
-def _safe_read_json(path):
-    try:
-        return json.loads(Path(path).read_text(encoding="utf-8-sig"))
-    except Exception:
-        return {}
+from utils.scene_sentinel import SceneSentinel
+from utils.transform_guard import safe_set_pos, safe_set_hpr, safe_set_scale
 
 
 def _clamp(v, lo, hi):
@@ -39,6 +33,48 @@ def should_apply_enemy_visual_defaults(node_role):
     """FX cards (telegraph rings) should bypass model fallback patching."""
     role = str(node_role or "").strip().lower()
     return role not in {"telegraph", "ring", "fx"}
+
+
+def _safe_read_json(app, path, default=None):
+    fallback = {} if default is None else default
+    return load_data_file(app, path, default=fallback)
+
+
+def _parse_debug_enemy_roster_filters():
+    raw = str(os.environ.get("XBOT_DEBUG_ENEMY_ROSTER_IDS", "") or "").strip()
+    if not raw:
+        return set()
+    return {
+        token
+        for token in (
+            str(part or "").strip().lower()
+            for part in raw.replace(";", ",").split(",")
+        )
+        if token
+    }
+
+
+def _finite_float(value, fallback=0.0):
+    try:
+        numeric = float(value)
+    except Exception:
+        return float(fallback)
+    return numeric if math.isfinite(numeric) else float(fallback)
+
+
+def _finite_vec3_tuple(value):
+    if value is None:
+        return None
+    try:
+        coords = (float(value.x), float(value.y), float(value.z))
+    except Exception:
+        try:
+            coords = (float(value[0]), float(value[1]), float(value[2]))
+        except Exception:
+            return None
+    if all(math.isfinite(component) for component in coords):
+        return coords
+    return None
 
 
 class EnemyUnit:
@@ -78,7 +114,16 @@ class EnemyUnit:
         self.fire_emit_acc = 0.0
         self.fire_tick_acc = 0.0
         self.last_fire_sfx = -999.0
-        self._fire_sprite_tex = load_optional_texture(self.loader, FIRE_SPRITE_TEXTURE_CANDIDATES)
+        self._fire_sprite_tex = load_optional_texture(
+            self.loader,
+            FIRE_SPRITE_TEXTURE_CANDIDATES,
+            require_alpha=True,
+            fallback_texture=lambda: make_soft_disc_texture(
+                tex_name=f"{self.id}_fire_sprite",
+                size=128,
+                warm=True,
+            ),
+        )
 
         self.max_hp = max(1.0, self._stat("max_hp", 180.0))
         self.hp = self.max_hp
@@ -92,6 +137,12 @@ class EnemyUnit:
         self._phase_telegraph_mul = 1.0
         self._phase_cooldown_mul = 1.0
         self._phase_anim_rate_mul = 1.0
+        self._death_reported = False
+        self._loot_bag_dropped = False
+        self._loot_bag_anchor_id = ""
+        self._loot_bag_node = None
+        self._visual_scale = 1.0
+        self._visual_scale_ratio = 1.0
 
         self.spawn()
 
@@ -166,8 +217,8 @@ class EnemyUnit:
         np = self.loader.loadModel(prefer_bam_path(model))
         np.reparentTo(parent)
         np.setName(name)
-        np.setScale(*scale)
-        np.setPos(*pos)
+        safe_set_scale(np, *scale)
+        safe_set_pos(np, *pos)
         np.setColor(LColor(*color))
         ensure_model_visual_defaults(np, apply_skin=False, force_two_sided=True, debug_label=f"enemy:{self.id}:{name}")
         self._apply_python_only_visual_fallback(np, debug_label=f"enemy:{self.id}:{name}")
@@ -204,18 +255,125 @@ class EnemyUnit:
     def _fallback_model_for_kind(self):
         fallback = {
             "golem": "assets/models/enemies/golem_boss.glb",
-            "fire_elemental": "assets/models/enemies/fire_elemental.glb",
-            "shadow": "assets/models/enemies/shadow_stalker.glb",
-            "goblin": "assets/models/enemies/goblin_raider.glb",
+            "fire_elemental": "assets/models/enemies/fire_elemental_animated.glb",
+            "shadow": "assets/models/enemies/shadow_stalker_animated.glb",
+            "goblin": "assets/models/enemies/goblin_raider_animated.glb",
         }
         return str(fallback.get(self.kind, "") or "").strip()
+
+    def _expected_external_model_height(self, path):
+        token = str(path or "").strip().replace("\\", "/").lower()
+        if "golem" in token or self.kind == "golem":
+            return 2.8
+        if "goblin" in token or self.kind == "goblin":
+            return 1.55
+        if "shadow" in token or self.kind == "shadow":
+            return 1.95
+        if "fire_elemental" in token or self.kind == "fire_elemental":
+            return 2.1
+        return 1.8
+
+    def _measured_external_model_height(self, node):
+        if node is None:
+            return 0.0
+        try:
+            bounds = node.getTightBounds()
+        except Exception:
+            bounds = None
+        if not bounds or len(bounds) < 2:
+            return 0.0
+        mn, mx = bounds
+        if mn is None or mx is None:
+            return 0.0
+        try:
+            height = float(mx.z - mn.z)
+        except Exception:
+            return 0.0
+        if (not math.isfinite(height)) or height <= 0.0:
+            return 0.0
+        return height
+
+    def _normalize_external_model_scale(self, path, authored_scale, raw_height):
+        try:
+            scale = float(authored_scale)
+        except Exception:
+            scale = 1.0
+        if (not math.isfinite(scale)) or scale <= 0.0:
+            scale = 1.0
+        try:
+            measured_height = float(raw_height)
+        except Exception:
+            return scale
+        if (not math.isfinite(measured_height)) or measured_height <= 0.0:
+            return scale
+
+        target_height = self._expected_external_model_height(path)
+        # Animated exports from Blender/Mixamo can arrive in scene units that are
+        # hundreds or thousands of times larger than gameplay world units.
+        if measured_height <= max(12.0, target_height * 4.0):
+            return scale
+
+        corrected = scale * (target_height / measured_height)
+        return max(0.0001, corrected)
+
+    def _resolved_visual_scale_ratio(self, path, authored_scale, raw_height):
+        try:
+            scale = float(authored_scale)
+        except Exception:
+            scale = 1.0
+        if (not math.isfinite(scale)) or scale <= 0.0:
+            return 1.0
+
+        corrected = self._normalize_external_model_scale(path, scale, raw_height)
+        ratio = corrected / scale
+        if (not math.isfinite(ratio)) or ratio <= 0.0:
+            return 1.0
+        return ratio
+
+    def _is_external_model_runtime_safe(self, path, authored_scale, raw_height):
+        allow_unsafe = str(os.environ.get("XBOT_ALLOW_UNSAFE_ENEMY_EXTERNAL_MODELS", "0") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if allow_unsafe:
+            return True
+
+        corrected = self._normalize_external_model_scale(path, authored_scale, raw_height)
+        ratio = self._resolved_visual_scale_ratio(path, authored_scale, raw_height)
+        try:
+            measured_height = float(raw_height)
+        except Exception:
+            measured_height = 0.0
+        if not math.isfinite(measured_height):
+            measured_height = 0.0
+
+        if measured_height >= 100.0 and (corrected < 0.01 or ratio < 0.02):
+            return False
+        return True
 
     def _try_load_external_model(self, path, sc, prefer_actor):
         if prefer_actor:
             try:
                 actor = Actor(path)
                 actor.reparentTo(self.root)
-                actor.setScale(sc)
+                raw_height = self._measured_external_model_height(actor)
+                resolved_scale = self._normalize_external_model_scale(path, sc, raw_height)
+                self._visual_scale = resolved_scale
+                self._visual_scale_ratio = self._resolved_visual_scale_ratio(path, sc, raw_height)
+                if not self._is_external_model_runtime_safe(path, sc, raw_height):
+                    logger.warning(
+                        f"[Enemy] External model '{path}' is unsafe for live runtime on '{self.id}': "
+                        f"raw_height={raw_height:.2f}, authored_scale={float(sc or 1.0):.6f}, corrected_scale={resolved_scale:.6f}. "
+                        "Falling back to procedural runtime model. Set XBOT_ALLOW_UNSAFE_ENEMY_EXTERNAL_MODELS=1 only for local experiments."
+                    )
+                    actor.cleanup()
+                    actor.removeNode()
+                    self._visual_scale = 1.0
+                    self._visual_scale_ratio = 1.0
+                    return False
+                actor.setScale(resolved_scale)
                 ensure_model_visual_defaults(
                     actor,
                     apply_skin=True,
@@ -226,7 +384,12 @@ class EnemyUnit:
                 self.actor = actor
                 self._anim_map = self._build_actor_anim_map(actor)
                 self.fire_origin = actor.attachNewNode("origin")
-                self.fire_origin.setPos(0.0, 1.0 * sc, 1.1 * sc)
+                self.fire_origin.setPos(0.0, 1.0 * resolved_scale, 1.1 * resolved_scale)
+                if abs(resolved_scale - float(sc or 1.0)) > 1e-6:
+                    logger.warning(
+                        f"[Enemy] Model '{path}' had unrealistic visual height {raw_height:.2f}; "
+                        f"applying safe scale correction {float(sc or 1.0):.6f} -> {resolved_scale:.6f} for '{self.id}'."
+                    )
                 self.nodes = {"model": actor}
                 return True
             except Exception as exc:
@@ -240,7 +403,21 @@ class EnemyUnit:
         if not model or model.isEmpty():
             return False
         model.reparentTo(self.root)
-        model.setScale(sc)
+        raw_height = self._measured_external_model_height(model)
+        resolved_scale = self._normalize_external_model_scale(path, sc, raw_height)
+        self._visual_scale = resolved_scale
+        self._visual_scale_ratio = self._resolved_visual_scale_ratio(path, sc, raw_height)
+        if not self._is_external_model_runtime_safe(path, sc, raw_height):
+            logger.warning(
+                f"[Enemy] External model '{path}' is unsafe for live runtime on '{self.id}': "
+                f"raw_height={raw_height:.2f}, authored_scale={float(sc or 1.0):.6f}, corrected_scale={resolved_scale:.6f}. "
+                "Falling back to procedural runtime model. Set XBOT_ALLOW_UNSAFE_ENEMY_EXTERNAL_MODELS=1 only for local experiments."
+            )
+            model.removeNode()
+            self._visual_scale = 1.0
+            self._visual_scale_ratio = 1.0
+            return False
+        model.setScale(resolved_scale)
         ensure_model_visual_defaults(
             model,
             apply_skin=False,
@@ -249,7 +426,12 @@ class EnemyUnit:
         )
         self._apply_python_only_visual_fallback(model, debug_label=f"enemy_model:{self.id}")
         self.fire_origin = model.attachNewNode("origin")
-        self.fire_origin.setPos(0.0, 1.0 * sc, 1.1 * sc)
+        self.fire_origin.setPos(0.0, 1.0 * resolved_scale, 1.1 * resolved_scale)
+        if abs(resolved_scale - float(sc or 1.0)) > 1e-6:
+            logger.warning(
+                f"[Enemy] Model '{path}' had unrealistic visual height {raw_height:.2f}; "
+                f"applying safe scale correction {float(sc or 1.0):.6f} -> {resolved_scale:.6f} for '{self.id}'."
+            )
         self.nodes = {"model": model}
         return True
 
@@ -407,11 +589,22 @@ class EnemyUnit:
         self.nodes = {"body": body, "head": head, "arm_l": arm_l, "arm_r": arm_r}
 
     def spawn(self):
+        loot_node = getattr(self, "_loot_bag_node", None)
+        if loot_node:
+            try:
+                if (not hasattr(loot_node, "isEmpty")) or (not loot_node.isEmpty()):
+                    loot_node.removeNode()
+            except Exception:
+                pass
+        self._loot_bag_node = None
+        self._loot_bag_dropped = False
+        self._loot_bag_anchor_id = ""
+        self._death_reported = False
         if self.root and not self.root.isEmpty():
             self.root.removeNode()
         self.root = self.render.attachNewNode(f"enemy_{self.id}")
-        self.root.setPos(self._spawn_pos())
-        self.root.setH(float(self.cfg.get("heading", 180.0) or 180.0))
+        safe_set_pos(self.root, self._spawn_pos())
+        safe_set_hpr(self.root, float(self.cfg.get("heading", 180.0) or 180.0), 0, 0)
         self.nodes = {}
         if not self._build_external_model():
             if self.kind == "golem":
@@ -448,12 +641,21 @@ class EnemyUnit:
         ring.setDepthTest(False)
         ring.setDepthWrite(False)
         ring.setBin("transparent", 30)
-        try:
-            tex = self.loader.loadTexture("assets/textures/flare.png")
-            if tex:
+        tex = load_optional_texture(
+            self.loader,
+            candidates=["assets/textures/flare.png"],
+            require_alpha=True,
+            fallback_texture=lambda: make_soft_disc_texture(
+                tex_name=f"{self.id}_telegraph_sprite",
+                size=192,
+                warm=True,
+            ),
+        )
+        if tex:
+            try:
                 ring.setTexture(tex, 1)
-        except Exception:
-            pass
+            except Exception:
+                pass
         ring.setColorScale(*self._fx_color("idle_color", (1.0, 0.25, 0.15, 0.0)))
         min_scale = self._fx_float("min_scale", 1.2, 0.2, 50.0)
         ring.setScale(max(min_scale, self._stat("attack_range", 2.4)))
@@ -598,6 +800,16 @@ class EnemyUnit:
         else:
             node.setColorScale(1.0, 0.45, 0.1, 0.92)
         self.fire_particles.append({"node": node, "vel": vel, "life": life, "max": life, "s": self._rng.uniform(0.14, 0.28)})
+        app_budget = getattr(
+            self.app,
+            "_enemy_fire_particle_budget_live",
+            getattr(self.app, "_enemy_fire_particle_budget", 320),
+        )
+        try:
+            unit_budget = max(24, int(round(float(app_budget) * 0.60)))
+        except Exception:
+            unit_budget = 192
+        enforce_particle_budget(self.fire_particles, unit_budget)
 
     def _tick_fire_particles(self, dt):
         alive = []
@@ -781,35 +993,343 @@ class EnemyUnit:
             self.state_time = 0.0
         self.state_lock = max(0.0, float(lock_duration))
 
-    def update(self, dt, player_pos):
+    def _coerce_reward_items(self, raw_items):
+        out = []
+        if not isinstance(raw_items, list):
+            return out
+        for row in raw_items:
+            if isinstance(row, str):
+                token = str(row).strip()
+                if token:
+                    out.append({"id": token, "quantity": 1})
+                continue
+            if not isinstance(row, dict):
+                continue
+            token = str(row.get("id", row.get("item_id", "")) or "").strip()
+            if not token:
+                continue
+            try:
+                qty = int(row.get("quantity", 1) or 1)
+            except Exception:
+                qty = 1
+            out.append({"id": token, "quantity": max(1, min(99, qty))})
+        return out
+
+    def _build_loot_rewards(self):
+        loot_cfg = self.cfg.get("loot", {})
+        if not isinstance(loot_cfg, dict):
+            loot_cfg = {}
+
+        base_gold_by_kind = {
+            "goblin": 18,
+            "shadow": 22,
+            "fire_elemental": 28,
+            "golem": 42,
+        }
+        base_xp_by_kind = {
+            "goblin": 10,
+            "shadow": 13,
+            "fire_elemental": 16,
+            "golem": 28,
+        }
+        default_gold = int(base_gold_by_kind.get(self.kind, 16))
+        default_xp = int(base_xp_by_kind.get(self.kind, 10))
+        if bool(self.is_boss):
+            default_gold = int(round(default_gold * 3.6))
+            default_xp = int(round(default_xp * 3.4))
+
+        try:
+            gold = int(loot_cfg.get("gold", default_gold) or default_gold)
+        except Exception:
+            gold = default_gold
+        try:
+            xp = int(loot_cfg.get("xp", loot_cfg.get("experience", default_xp)) or default_xp)
+        except Exception:
+            xp = default_xp
+        gold = max(0, gold)
+        xp = max(0, xp)
+
+        items = self._coerce_reward_items(loot_cfg.get("items", []))
+        if not items:
+            if bool(self.is_boss):
+                items = [{"id": "hunter_blade", "quantity": 1}]
+            elif self.kind == "fire_elemental":
+                items = [{"id": "rune_charm", "quantity": 1}]
+            elif self.kind in {"goblin", "shadow"}:
+                items = [{"id": "herb_bundle", "quantity": 1}]
+
+        return {
+            "xp": xp,
+            "gold": gold,
+            "items": items,
+        }
+
+    def _spawn_loot_bag_node(self, drop_pos):
+        root = self.render.attachNewNode(f"loot_bag_{self.id}")
+        root.setPos(drop_pos)
+        root.setTag("info", f"Loot Bag: {self.name}")
+
+        # Lightweight procedural bag marker: sack + strap + soft glow.
+        body = self.loader.loadModel(prefer_bam_path("models/misc/rgbCube"))
+        body.reparentTo(root)
+        body.setScale(0.42, 0.28, 0.26)
+        body.setPos(0.0, 0.0, 0.16)
+        body.setColorScale(0.48, 0.34, 0.20, 1.0)
+        ensure_model_visual_defaults(
+            body,
+            apply_skin=False,
+            force_two_sided=True,
+            debug_label=f"enemy_loot_bag:{self.id}:body",
+        )
+        self._apply_python_only_visual_fallback(body, debug_label=f"enemy_loot_bag:{self.id}:body")
+
+        strap = self.loader.loadModel(prefer_bam_path("models/misc/rgbCube"))
+        strap.reparentTo(root)
+        strap.setScale(0.46, 0.06, 0.06)
+        strap.setPos(0.0, 0.0, 0.28)
+        strap.setColorScale(0.68, 0.56, 0.30, 1.0)
+        ensure_model_visual_defaults(
+            strap,
+            apply_skin=False,
+            force_two_sided=True,
+            debug_label=f"enemy_loot_bag:{self.id}:strap",
+        )
+        self._apply_python_only_visual_fallback(strap, debug_label=f"enemy_loot_bag:{self.id}:strap")
+
+        glow = self.loader.loadModel(prefer_bam_path("models/misc/sphere"))
+        glow.reparentTo(root)
+        glow.setScale(0.18, 0.18, 0.18)
+        glow.setPos(0.0, 0.0, 0.34)
+        glow.setColorScale(1.0, 0.72, 0.28, 0.52)
+        glow.setTransparency(TransparencyAttrib.MAlpha)
+        glow.setLightOff(1)
+        ensure_model_visual_defaults(
+            glow,
+            apply_skin=False,
+            force_two_sided=True,
+            debug_label=f"enemy_loot_bag:{self.id}:glow",
+        )
+
+        return root
+
+    def _drop_loot_bag(self):
+        if bool(getattr(self, "_loot_bag_dropped", False)):
+            return False
+        if not self.root or self.root.isEmpty():
+            return False
+        try:
+            root_pos = self.root.getPos(self.render)
+            drop_pos = Vec3(float(root_pos.x), float(root_pos.y), float(root_pos.z) + 0.08)
+        except Exception:
+            return False
+
+        bag_node = self._spawn_loot_bag_node(drop_pos)
+        self._loot_bag_node = bag_node
+        self._loot_bag_dropped = True
+
+        rewards = self._build_loot_rewards()
+        anchor_id = f"enemy_loot_{self.id}"
+        self._loot_bag_anchor_id = anchor_id
+
+        app_ref = getattr(self, "app", None)
+        manager = getattr(app_ref, "story_interaction", None)
+        world = getattr(app_ref, "world", None)
+        location_name = str(getattr(world, "active_location", "") or "").strip()
+        if manager and hasattr(manager, "register_anchor"):
+            try:
+                manager.register_anchor(
+                    anchor_id,
+                    bag_node,
+                    name="Loot Bag",
+                    hint=f"Loot {self.name}",
+                    single_use=True,
+                    rewards=rewards,
+                    location_name=location_name,
+                )
+            except Exception as exc:
+                logger.debug(f"[EnemyLoot] Story anchor registration failed for '{self.id}': {exc}")
+
+        logger.info(
+            f"[EnemyLoot] Dropped loot bag for '{self.id}' "
+            f"(gold={int(rewards.get('gold', 0) or 0)} xp={int(rewards.get('xp', 0) or 0)} items={rewards.get('items', [])})"
+        )
+        return True
+
+    def _resolve_ground_z(self, fallback_z=0.0):
+        world = getattr(self.app, "world", None)
+        if world and hasattr(world, "_th") and self.root and (not self.root.isEmpty()):
+            try:
+                pos = self.root.getPos(self.render)
+                return float(world._th(float(pos.x), float(pos.y)))
+            except Exception:
+                pass
+        try:
+            return float(fallback_z)
+        except Exception:
+            return 0.0
+
+    def export_runtime_unit(self):
+        if (not HAS_CORE) or (not gc) or (not hasattr(gc, "EnemyRuntimeUnit")):
+            return None
+        if not self.root or self.root.isEmpty():
+            return None
+        try:
+            pos = self.root.getPos(self.render)
+            heading = float(self.root.getH(self.render))
+        except Exception:
+            return None
+        runtime_unit = gc.EnemyRuntimeUnit()
+        runtime_unit.id = int(abs(hash(str(self.id))) % 2147483647)
+        runtime_unit.kind = str(self.kind or "")
+        runtime_unit.alive = bool(self.is_alive)
+        runtime_unit.actorPos = gc.Vec3(float(pos.x), float(pos.y), float(pos.z))
+        runtime_unit.currentHeading = float(heading)
+        runtime_unit.runSpeed = float(self._stat("run_speed", 4.6))
+        runtime_unit.attackRange = float(self._stat("attack_range", 2.6))
+        runtime_unit.aggroRange = float(self._stat("aggro_range", 18.0))
+        runtime_unit.disengageHold = float(self._ai("disengage_hold", 4.0))
+        runtime_unit.engagedUntil = float(getattr(self, "engaged_until", 0.0) or 0.0)
+        runtime_unit.isEngaged = bool(getattr(self, "_is_engaged", False))
+        runtime_unit.state = str(self.state or "idle")
+        runtime_unit.stateLock = float(getattr(self, "state_lock", 0.0) or 0.0)
+        runtime_unit.attackCooldown = float(getattr(self, "attack_cd", 0.0) or 0.0)
+        runtime_unit.phaseSpeedMul = float(getattr(self, "_phase_speed_mul", 1.0) or 1.0)
+        runtime_unit.groundZ = float(self._resolve_ground_z(float(pos.z) - float(self.cfg.get("ground_offset", 1.2) or 1.2)))
+        runtime_unit.groundOffset = float(self.cfg.get("ground_offset", 1.2) or 1.2)
+        runtime_unit.hoverHeight = float(self.cfg.get("hover_height", 1.2) or 1.2)
+        return runtime_unit
+
+    def apply_runtime_unit(self, runtime_unit):
+        self._runtime_hint = runtime_unit
+
+    def _commit_runtime_transform(self, pos=None, heading=None):
+        if not self.root or self.root.isEmpty():
+            return False
+
+        applied = False
+        if heading is not None:
+            try:
+                heading_value = float(heading)
+            except Exception:
+                heading_value = math.nan
+            if math.isfinite(heading_value):
+                safe_set_hpr(self.root, heading_value, 0.0, 0.0)
+                applied = True
+            else:
+                logger.warning(f"[Enemy] Rejected non-finite heading for '{self.id}': {heading}")
+
+        if pos is not None:
+            next_pos = None
+            try:
+                next_pos = Vec3(float(pos.x), float(pos.y), float(pos.z))
+            except Exception:
+                try:
+                    next_pos = Vec3(float(pos[0]), float(pos[1]), float(pos[2]))
+                except Exception:
+                    next_pos = None
+            if next_pos is not None and all(
+                math.isfinite(float(value))
+                for value in (next_pos.x, next_pos.y, next_pos.z)
+            ):
+                safe_set_pos(self.root, next_pos)
+                applied = True
+            else:
+                logger.warning(f"[Enemy] Rejected non-finite position for '{self.id}': {pos}")
+
+        probe = getattr(getattr(self, "app", None), "_debug_probe_runtime_node", None)
+        if callable(probe):
+            probe(
+                f"enemy_update:{self.id}",
+                getattr(self, "root", None),
+                reference=getattr(self, "render", None),
+            )
+        return applied
+
+    def update(self, dt, player_pos, runtime_hint=None):
         if not self.root or self.root.isEmpty() or player_pos is None:
             return
         dt = max(0.0, float(dt))
+        runtime_hint = runtime_hint if runtime_hint is not None else getattr(self, "_runtime_hint", None)
+        self._runtime_hint = None
         self._sync_proxy_from_core()
         self.state_time += dt
         if not self.is_alive:
             self._change_state("dead", lock_duration=0.0, reset_time=False)
+            if not bool(getattr(self, "_death_reported", False)):
+                self._death_reported = True
+                try:
+                    self._drop_loot_bag()
+                except Exception as exc:
+                    logger.debug(f"[EnemyLoot] Failed to drop loot bag for '{self.id}': {exc}")
+                app_ref = getattr(self, "app", None)
+                on_enemy_defeated = getattr(app_ref, "on_enemy_defeated", None) if app_ref else None
+                if callable(on_enemy_defeated):
+                    payload = {
+                        "id": self.id,
+                        "name": self.name,
+                        "kind": self.kind,
+                        "is_boss": bool(self.is_boss),
+                    }
+                    try:
+                        pos = self.root.getPos(self.render)
+                        payload["position"] = [float(pos.x), float(pos.y), float(pos.z)]
+                    except Exception:
+                        pass
+                    try:
+                        on_enemy_defeated(payload)
+                    except Exception as exc:
+                        logger.debug(f"[Enemy] on_enemy_defeated callback failed for '{self.id}': {exc}")
             self._sync_proxy_to_core()
             return
         self._check_phase_transitions()
 
         pos = self.root.getPos(self.render)
-        vec = player_pos - pos
-        dist = vec.length()
         now = globalClock.getFrameTime()
-        if dist <= self._stat("aggro_range", 18.0):
-            self.engaged_until = max(self.engaged_until, now + self._ai("disengage_hold", 4.0))
-        self._is_engaged = now < self.engaged_until
+        runtime_distance = None
+        runtime_pos = None
+        runtime_heading = None
+        if runtime_hint is not None:
+            try:
+                self.engaged_until = max(
+                    float(getattr(self, "engaged_until", 0.0) or 0.0),
+                    float(getattr(runtime_hint, "engagedUntil", 0.0) or 0.0),
+                )
+            except Exception:
+                pass
+            try:
+                self._is_engaged = bool(getattr(runtime_hint, "isEngaged", False))
+            except Exception:
+                self._is_engaged = False
+            try:
+                runtime_distance = float(getattr(runtime_hint, "targetDistance", 0.0) or 0.0)
+            except Exception:
+                runtime_distance = None
+            runtime_pos = getattr(runtime_hint, "actorPos", None)
+            try:
+                runtime_heading = float(getattr(runtime_hint, "desiredHeading", 0.0) or 0.0)
+            except Exception:
+                runtime_heading = None
+        else:
+            vec_probe = player_pos - pos
+            dist_probe = vec_probe.length()
+            if dist_probe <= self._stat("aggro_range", 18.0):
+                self.engaged_until = max(self.engaged_until, now + self._ai("disengage_hold", 4.0))
+            self._is_engaged = now < self.engaged_until
+
+        vec = player_pos - pos
+        dist = float(runtime_distance) if runtime_distance is not None else float(vec.length())
 
         self.state_lock = max(0.0, self.state_lock - dt)
         self.attack_cd = max(0.0, self.attack_cd - dt)
 
         if self._is_engaged:
-            if vec.lengthSquared() > 1e-6:
+            if runtime_heading is not None:
+                self._commit_runtime_transform(heading=runtime_heading)
+            elif vec.lengthSquared() > 1e-6:
                 desired = math.degrees(math.atan2(vec.x, vec.y))
                 current = self.root.getH(self.render)
                 delta = ((desired - current + 180.0) % 360.0) - 180.0
-                self.root.setH(self.render, current + _clamp(delta, -130.0 * dt, 130.0 * dt))
+                self._commit_runtime_transform(heading=current + _clamp(delta, -130.0 * dt, 130.0 * dt))
 
         if self.state_lock <= 0.0:
             if self.state == "telegraph":
@@ -839,23 +1359,31 @@ class EnemyUnit:
                 self.state_time = min(self.state_time, 0.4)
 
         if self.state == "chase":
-            m = vec
-            m.z = 0.0
-            if m.lengthSquared() > 1e-6:
-                m.normalize()
-                speed = self._stat("run_speed", 4.6) * self._phase_speed_mul
-                pos += m * speed * dt
+            if runtime_pos is not None and bool(getattr(runtime_hint, "moving", False)):
+                try:
+                    pos = Vec3(float(runtime_pos.x), float(runtime_pos.y), float(runtime_pos.z))
+                except Exception:
+                    runtime_pos = None
+            if runtime_pos is None:
+                m = vec
+                m.z = 0.0
+                if m.lengthSquared() > 1e-6:
+                    m.normalize()
+                    speed = self._stat("run_speed", 4.6) * self._phase_speed_mul
+                    pos += m * speed * dt
+                    world = getattr(self.app, "world", None)
+                    if world and hasattr(world, "_th"):
+                        try:
+                            base = float(world._th(pos.x, pos.y)) + float(self.cfg.get("ground_offset", 1.2))
+                            if self.kind in {"fire_elemental", "shadow"}:
+                                pos.z = base + float(self.cfg.get("hover_height", 1.2)) + (math.sin(now * 2.4) * 0.2)
+                            else:
+                                pos.z = base
+                        except Exception:
+                            pass
+            if runtime_pos is not None or vec.lengthSquared() > 1e-6:
                 world = getattr(self.app, "world", None)
-                if world and hasattr(world, "_th"):
-                    try:
-                        base = float(world._th(pos.x, pos.y)) + float(self.cfg.get("ground_offset", 1.2))
-                        if self.kind in {"fire_elemental", "shadow"}:
-                            pos.z = base + float(self.cfg.get("hover_height", 1.2)) + (math.sin(now * 2.4) * 0.2)
-                        else:
-                            pos.z = base
-                    except Exception:
-                        pass
-                self.root.setPos(pos)
+                self._commit_runtime_transform(pos=pos)
 
         if self.state == "attack":
             if self._attack_mode() == "melee":
@@ -870,11 +1398,19 @@ class EnemyUnit:
                 if (not self.melee_applied) and in_window:
                     self.melee_applied = True
                     if dist <= self._stat("attack_range", 2.6) + 0.5:
-                        cs = getattr(getattr(self.app, "player", None), "cs", None)
+                        player = getattr(self.app, "player", None)
+                        cs = getattr(player, "cs", None)
                         if cs and hasattr(cs, "health"):
                             try:
                                 damage = max(1.0, float(self._ai("melee_damage", self._stat("power", 12.0))))
                                 damage *= self._phase_damage_mul
+                                damage_type = "physical"
+                                if self.kind == "fire_elemental":
+                                    damage_type = "fire"
+                                elif self.kind == "shadow":
+                                    damage_type = "arcane"
+                                if player and hasattr(player, "register_incoming_damage"):
+                                    player.register_incoming_damage(damage, damage_type=damage_type)
                                 cs.health = max(0.0, float(cs.health) - int(round(damage)))
                             except Exception:
                                 pass
@@ -889,11 +1425,14 @@ class EnemyUnit:
                 in_fire_window = fire_start <= self.state_time <= max(fire_start, fire_end)
                 if in_fire_window and self.fire_tick_acc >= 0.30 and dist <= self._stat("attack_range", 6.0):
                     self.fire_tick_acc = 0.0
-                    cs = getattr(getattr(self.app, "player", None), "cs", None)
+                    player = getattr(self.app, "player", None)
+                    cs = getattr(player, "cs", None)
                     if cs and hasattr(cs, "health"):
                         try:
                             damage = max(1.0, float(self._ai("fire_tick_damage", 9.0)))
                             damage *= self._phase_damage_mul
+                            if player and hasattr(player, "register_incoming_damage"):
+                                player.register_incoming_damage(damage, damage_type="fire")
                             cs.health = max(0.0, float(cs.health) - int(round(damage)))
                         except Exception:
                             pass
@@ -911,6 +1450,7 @@ class EnemyUnit:
         self._animate()
         self._apply_visual_state(dt)
         self._sync_proxy_to_core()
+        self._commit_runtime_transform()
 
 
 class BossManager:
@@ -924,6 +1464,13 @@ class BossManager:
         self.cfg_path = str(cfg_path)
         self.state_map_path = str(state_map_path)
         self.units = []
+        self._core_runtime = None
+        self._logged_core_runtime_path = False
+        if HAS_CORE and gc and hasattr(gc, "EnemyRuntimeSystem"):
+            try:
+                self._core_runtime = gc.EnemyRuntimeSystem()
+            except Exception as exc:
+                logger.warning(f"[EnemyRoster] Enemy runtime core unavailable: {exc}")
         self._load()
 
     def _merge_enemy_cfg(self, base_entry, *overrides):
@@ -945,8 +1492,8 @@ class BossManager:
         return merged
 
     def _load(self):
-        payload = _safe_read_json(self.cfg_path)
-        state_payload = _safe_read_json(self.state_map_path)
+        payload = _safe_read_json(self.app, self.cfg_path, default={})
+        state_payload = _safe_read_json(self.app, self.state_map_path, default={})
         default_maps = state_payload.get("defaults", {}) if isinstance(state_payload, dict) else {}
         unit_maps = state_payload.get("units", {}) if isinstance(state_payload, dict) else {}
         if not isinstance(default_maps, dict):
@@ -957,6 +1504,21 @@ class BossManager:
         entries = payload.get("enemies", []) if isinstance(payload, dict) else []
         if not isinstance(entries, list):
             entries = []
+        debug_filters = _parse_debug_enemy_roster_filters()
+        if debug_filters:
+            filtered_entries = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                unit_id = str(entry.get("id") or "").strip().lower()
+                kind = str(entry.get("kind") or "").strip().lower()
+                if unit_id in debug_filters or kind in debug_filters:
+                    filtered_entries.append(entry)
+            logger.info(
+                "[EnemyRoster] Debug roster filter active. "
+                f"Keeping {len(filtered_entries)} of {len(entries)} entries: {', '.join(sorted(debug_filters))}"
+            )
+            entries = filtered_entries
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
@@ -966,16 +1528,105 @@ class BossManager:
             unit_override = unit_maps.get(unit_id, {}) if unit_id else {}
             final_entry = self._merge_enemy_cfg(entry, kind_defaults, unit_override)
             try:
-                self.units.append(EnemyUnit(self.app, final_entry))
+                unit = EnemyUnit(self.app, final_entry)
+                self.units.append(unit)
+                probe = getattr(self.app, "_debug_probe_runtime_node", None)
+                if callable(probe):
+                    probe(
+                        f"enemy_spawn:{getattr(unit, 'id', unit_id or 'enemy')}",
+                        getattr(unit, "root", None),
+                        reference=getattr(self.app, "render", None),
+                    )
             except Exception as exc:
                 logger.warning(f"[EnemyRoster] Init failed for '{entry.get('id', '?')}': {exc}")
         logger.info(f"[EnemyRoster] Spawned units: {len(self.units)}")
 
+    def _sanitize_runtime_unit(self, source_unit, runtime_unit, dt):
+        if runtime_unit is None:
+            return None
+
+        runtime_pos = _finite_vec3_tuple(getattr(runtime_unit, "actorPos", None))
+        if runtime_pos is None:
+            logger.warning(
+                f"[EnemyRoster] Rejected runtime hint for '{getattr(source_unit, 'id', '?')}' because actorPos is not finite."
+            )
+            return None
+
+        source_pos = _finite_vec3_tuple(getattr(source_unit, "actorPos", None))
+        if source_pos is not None:
+            dx = runtime_pos[0] - source_pos[0]
+            dy = runtime_pos[1] - source_pos[1]
+            dz = runtime_pos[2] - source_pos[2]
+            distance = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+            run_speed = max(0.1, _finite_float(getattr(source_unit, "runSpeed", 4.0), 4.0))
+            phase_speed = max(0.2, _finite_float(getattr(source_unit, "phaseSpeedMul", 1.0), 1.0))
+            max_expected_step = max(6.0, (run_speed * phase_speed * max(0.0, _finite_float(dt, 0.0)) * 8.0) + 2.5)
+            if distance > max_expected_step:
+                logger.warning(
+                    f"[EnemyRoster] Rejected runtime hint for '{getattr(source_unit, 'id', '?')}' because actorPos jumped too far: "
+                    f"{distance:.2f} > {max_expected_step:.2f}."
+                )
+                return None
+
+        heading = _finite_float(getattr(runtime_unit, "desiredHeading", 0.0), 0.0)
+        runtime_unit.desiredHeading = ((heading + 180.0) % 360.0) - 180.0
+        runtime_unit.targetDistance = max(0.0, _finite_float(getattr(runtime_unit, "targetDistance", 0.0), 0.0))
+        runtime_unit.engagedUntil = _finite_float(getattr(runtime_unit, "engagedUntil", 0.0), 0.0)
+        runtime_unit.moving = bool(getattr(runtime_unit, "moving", False))
+
+        state_token = str(getattr(runtime_unit, "desiredState", "") or "").strip().lower()
+        if state_token:
+            runtime_unit.desiredState = state_token
+        else:
+            runtime_unit.desiredState = str(getattr(source_unit, "state", "idle") or "idle").strip().lower() or "idle"
+
+        return runtime_unit
+
     def update(self, dt, player_pos):
+        runtime_pairs = []
+        if self._core_runtime and player_pos is not None:
+            try:
+                if gc and hasattr(gc, "EnemyRuntimeContext") and hasattr(gc, "Vec3"):
+                    ctx = gc.EnemyRuntimeContext()
+                    ctx.dt = float(dt)
+                    ctx.gameTime = float(globalClock.getFrameTime())
+                    ctx.playerPos = gc.Vec3(float(player_pos.x), float(player_pos.y), float(player_pos.z))
+                else:
+                    ctx = type("EnemyRuntimeContextFallback", (), {})()
+                    ctx.dt = float(dt)
+                    ctx.gameTime = float(globalClock.getFrameTime())
+                    ctx.playerPos = player_pos
+                exported_units = []
+                source_units = []
+                for unit in self.units:
+                    if not hasattr(unit, "export_runtime_unit"):
+                        continue
+                    runtime_unit = unit.export_runtime_unit()
+                    if runtime_unit is None:
+                        continue
+                    exported_units.append(runtime_unit)
+                    source_units.append(unit)
+                if exported_units:
+                    updated_units = self._core_runtime.updateUnits(exported_units, ctx)
+                    runtime_pairs = list(zip(source_units, updated_units))
+                    sanitized_pairs = []
+                    for unit, source_runtime_unit, runtime_unit in zip(source_units, exported_units, updated_units):
+                        safe_runtime_unit = self._sanitize_runtime_unit(source_runtime_unit, runtime_unit, dt)
+                        if safe_runtime_unit is not None and hasattr(unit, "apply_runtime_unit"):
+                            unit.apply_runtime_unit(safe_runtime_unit)
+                        sanitized_pairs.append((unit, safe_runtime_unit))
+                    runtime_pairs = sanitized_pairs
+                    if not bool(getattr(self, "_logged_core_runtime_path", False)):
+                        logger.info("[EnemyRoster] Runtime path: C++ advisory batch")
+                        self._logged_core_runtime_path = True
+            except Exception as exc:
+                logger.warning(f"[EnemyRoster] Enemy runtime core batch failed: {exc}")
+                runtime_pairs = []
+        runtime_hint_by_unit = {id(unit): runtime_unit for unit, runtime_unit in runtime_pairs}
         alive = []
         for unit in self.units:
             try:
-                unit.update(dt, player_pos)
+                unit.update(dt, player_pos, runtime_hint=runtime_hint_by_unit.get(id(unit)))
             except Exception as exc:
                 logger.warning(f"[EnemyRoster] Update failed '{getattr(unit, 'id', '?')}': {exc}")
                 continue

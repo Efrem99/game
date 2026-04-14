@@ -1,0 +1,6 @@
+{
+    "backend": "sqlite_msgpack",
+    "sqlite_path": "save_store.sqlite3",
+    "auto_build": true,
+    "mirror_json": false
+}

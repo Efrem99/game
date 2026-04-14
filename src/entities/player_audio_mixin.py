@@ -5,6 +5,15 @@ import math
 from direct.showbase.ShowBaseGlobal import globalClock
 
 
+_CONTEXTUAL_STATE_SFX = {
+    "vaulting": ("parkour_vault", 0.46, 1.04),
+    "climbing": ("parkour_climb", 0.42, 0.96),
+    "wallrun": ("parkour_wallrun", 0.48, 1.06),
+    "flight_takeoff": ("flight_takeoff", 0.50, 1.00),
+    "flight_land": ("flight_land", 0.46, 0.98),
+}
+
+
 class PlayerAudioMixin:
     def _play_sfx(self, sfx_key, volume=1.0, rate=1.0):
         audio = getattr(self.app, "audio", None)
@@ -40,3 +49,42 @@ class PlayerAudioMixin:
         key = self._footstep_key(in_water=in_water)
         jitter = 0.96 + (0.08 * math.sin(globalClock.getFrameTime() * 7.0))
         self._play_sfx(key, volume=0.72 if running else 0.62, rate=jitter)
+
+    def _contextual_audio_flags(self):
+        cs = getattr(self, "cs", None)
+        return {
+            "in_water": bool(
+                getattr(cs, "inWater", False) or getattr(self, "_py_in_water", False)
+            ),
+            "is_flying": bool(getattr(self, "_is_flying", False)),
+        }
+
+    def _play_contextual_water_sfx(self, flags, last_flags):
+        if flags["in_water"] and not bool(last_flags.get("in_water", False)):
+            self._play_sfx("swim_enter", volume=0.44, rate=0.98)
+            return
+        if (not flags["in_water"]) and bool(last_flags.get("in_water", False)):
+            self._play_sfx("swim_exit", volume=0.40, rate=1.02)
+
+    def _play_contextual_state_change_sfx(self, current_state, last_state, flags, last_flags):
+        if current_state == last_state:
+            return
+        payload = _CONTEXTUAL_STATE_SFX.get(current_state)
+        if payload:
+            self._play_sfx(payload[0], volume=payload[1], rate=payload[2])
+            return
+        if (not flags["is_flying"]) and bool(last_flags.get("is_flying", False)):
+            self._play_sfx("flight_land", volume=0.44, rate=0.96)
+
+    def _update_contextual_state_sfx(self):
+        current_state = str(getattr(self, "_anim_state", "") or "").strip().lower()
+        flags = self._contextual_audio_flags()
+        last_flags = getattr(self, "_last_contextual_sfx_flags", None)
+        if not isinstance(last_flags, dict):
+            last_flags = {}
+
+        last_state = str(getattr(self, "_last_contextual_sfx_state", "") or "").strip().lower()
+        self._play_contextual_water_sfx(flags, last_flags)
+        self._play_contextual_state_change_sfx(current_state, last_state, flags, last_flags)
+        self._last_contextual_sfx_state = current_state
+        self._last_contextual_sfx_flags = dict(flags)

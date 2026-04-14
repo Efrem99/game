@@ -1,0 +1,82 @@
+{
+    "categories": {
+        "Characters": {
+            "Hero (Player)": {
+                "model": "assets/models/xbot/Xbot.glb",
+                "anims": "data/actors/player_animations.json"
+            },
+            "Dragon Boss": {
+                "model": "assets/models/dragon/dragon.bam",
+                "anims": "data/actors/dragon_animations.json"
+            },
+            "NPC Merchant": {
+                "model": "assets/models/npcs/merchant.bam",
+                "anims": "data/actors/npc_animations.json"
+            },
+            "NPC Guard": {
+                "model": "assets/models/npcs/guard.bam",
+                "anims": "data/actors/npc_animations.json"
+            }
+        },
+        "Props": {
+            "Barrel (Oak)": {
+                "model": "assets/models/world/props/barrel_1.glb"
+            },
+            "Camp Fire": {
+                "model": "assets/models/world/props/camp_fire.glb"
+            },
+            "Village Well": {
+                "model": "assets/models/world/props/village_well.glb"
+            },
+            "Wall Torch": {
+                "model": "assets/models/world/props/wall_torch_1.glb"
+            },
+            "Medieval House": {
+                "model": "assets/models/world/buildings/medieval_house_1.glb"
+            },
+            "Tavern Table": {
+                "model": "assets/models/world/furniture/tavern_table_1.glb"
+            }
+        },
+        "Particles": {
+            "Arcane Nova": {
+                "config": "assets/particles/nova.ptf"
+            },
+            "Meteor Impact": {
+                "config": "assets/particles/meteor_impact.ptf"
+            },
+            "Holy Ward": {
+                "config": "assets/particles/ward.ptf"
+            },
+            "Portal Rift": {
+                "config": "assets/particles/portal_rift.ptf"
+            },
+            "Rain Fall": {
+                "config": "assets/particles/rain_fall.ptf"
+            },
+            "Snow Fall": {
+                "config": "assets/particles/snow_fall.ptf"
+            }
+        }
+    },
+    "profiles": {
+        "Environment Sandbox": "environment_sandbox",
+        "Interaction Workflow": "interaction_hub",
+        "Dragon Arena": "dragon",
+        "Flight Course": "flight",
+        "Parkour Route": "parkour",
+        "Stealth & Climb": "stealth_climb",
+        "Combat Mechanics": "mechanics",
+        "Music & Ambience": "music",
+        "Journal & UI": "journal",
+        "Mounts & Vehicles": "mounts",
+        "Skills & Spells": "skills",
+        "Movement Baseline": "movement",
+        "Castle Courtyard": "castle_courtyard",
+        "Castle Interior": "castle_interior",
+        "Old Forest": "old_forest",
+        "Port Market": "port_market",
+        "Krimora Forest": "krimora_forest",
+        "Dwarven Gate": "dwarven_gate"
+    }
+}

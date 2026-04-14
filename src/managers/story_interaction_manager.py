@@ -1,4 +1,4 @@
-﻿"""Story interaction anchors for authored setpieces (e.g., dwarven cave sectors)."""
+"""Story interaction anchors for authored setpieces (e.g., dwarven cave sectors)."""
 
 from __future__ import annotations
 
@@ -232,6 +232,18 @@ class StoryInteractionManager:
     def try_interact(self, player_pos):
         if player_pos is None:
             player_pos = self._player_pos()
+        
+        # Defensive: Ensure player_pos is finite and valid
+        if player_pos is None:
+            return False
+            
+        try:
+            if not all(math.isfinite(v) for v in (player_pos.x, player_pos.y, player_pos.z)):
+                logger.warning(f"[StoryInteraction] Ignoring interaction attempt with NaN/Inf player_pos: {player_pos}")
+                return False
+        except Exception:
+            return False
+
         anchor_id, row = self._find_nearest(player_pos, radius=INTERACT_RADIUS)
         if not anchor_id or not isinstance(row, dict):
             return False
@@ -250,12 +262,19 @@ class StoryInteractionManager:
 
         event_name = str(row.get("event_name", "") or "").strip()
         if event_name:
+            payload = row.get("event_payload", {})
+            if not isinstance(payload, dict):
+                payload = {}
             emit = getattr(self.app, "_emit_cutscene_event", None)
             if callable(emit):
-                payload = row.get("event_payload", {})
-                if not isinstance(payload, dict):
-                    payload = {}
                 emit(event_name, payload)
+            if event_name == "portal_jump":
+                apply_portal_jump = getattr(self.app, "_apply_portal_jump_event", None)
+                if callable(apply_portal_jump):
+                    try:
+                        apply_portal_jump(payload)
+                    except Exception as exc:
+                        logger.debug(f"[StoryInteraction] Portal jump failed for '{anchor_id}': {exc}")
 
         if bool(row.get("single_use", True)):
             row["consumed"] = True

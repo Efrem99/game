@@ -56,6 +56,15 @@ class PlayerInputMixin:
             self.app.accept(f"{key}-up", self._key_up, [key])
         self._consumed = {key: False for key in all_listeners}
 
+    def _video_bot_input_locked(self):
+        app = getattr(self, "app", None)
+        if not app:
+            return False
+        return bool(
+            getattr(app, "_video_bot_enabled", False)
+            and getattr(app, "_video_bot_capture_input", False)
+        )
+
     def _get_action(self, action):
         k1 = self._normalize_binding_token(self.data_mgr.get_binding(action) or self._bindings.get(action))
         k2 = self._ru_map.get(k1)
@@ -83,10 +92,14 @@ class PlayerInputMixin:
                 return True
         return False
 
-    def _key_down(self, key):
+    def _key_down(self, key, synthetic=False):
+        if self._video_bot_input_locked() and not bool(synthetic):
+            return
         self._keys[key] = True
 
-    def _key_up(self, key):
+    def _key_up(self, key, synthetic=False):
+        if self._video_bot_input_locked() and not bool(synthetic):
+            return
         self._keys[key] = False
         self._consumed[key] = False
 
@@ -101,13 +114,18 @@ class PlayerInputMixin:
         if self._get_action("right"):
             mx += 1.0
         gp_axes = getattr(getattr(self, "app", None), "_gp_axes", {})
-        if isinstance(gp_axes, dict):
+        if isinstance(gp_axes, dict) and not self._video_bot_input_locked():
+            DEADZONE = 0.15
             try:
-                mx += float(gp_axes.get("move_x", 0.0) or 0.0)
+                val = float(gp_axes.get("move_x", 0.0) or 0.0)
+                if abs(val) > DEADZONE:
+                    mx += val
             except Exception:
                 pass
             try:
-                my += float(gp_axes.get("move_y", 0.0) or 0.0)
+                val = float(gp_axes.get("move_y", 0.0) or 0.0)
+                if abs(val) > DEADZONE:
+                    my += val
             except Exception:
                 pass
         mx = max(-1.0, min(1.0, mx))

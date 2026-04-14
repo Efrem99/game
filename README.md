@@ -1,53 +1,66 @@
-# Panda3D Game Project
+# King Wizard
 
-## Project Description
-This project is a simple game developed using Panda3D, a powerful game engine that enables developers to create 3D games and visualizations in Python and C++. The game features a dynamic environment where players can explore, solve puzzles, and engage with non-playable characters (NPCs).
+King Wizard is the main development workspace for the Panda3D action-RPG prototype.
+This repository is the source of truth for gameplay, rendering, UI, data, assets,
+and the optional compiled `game_core.pyd` runtime module.
 
-## Requirements
-- Python 3.6 or higher
-- Panda3D (Install via `pip install panda3d`)
-- A suitable IDE or text editor (e.g., Visual Studio Code, PyCharm)
-- Additional libraries as needed for specific features (e.g., numpy, pillow)
+## Workspace Rules
 
-## Installation Instructions
-1. **Clone the repository**:
-   ```
-   git clone https://github.com/Efrem99/game.git
-   cd game
-   ```
-2. **Install the required packages**:
-   ```
-   pip install panda3d
-   ```
-3. **Set up your development environment**:
-   Open the project in your preferred IDE.
+- This repo is the mandatory dev workspace.
+- Player-facing Windows builds are produced from `release/`.
+- Do not treat the release bundle as the editable source of truth.
 
-## Usage Guidelines
-- **Running the Game**: Execute the main script to start the game.
-   ```
-   python main.py
-   ```
-- **Controls**: 
-    - Use arrow keys to move.
-    - Press "E" to interact with NPCs.
-    - "Esc" to pause the game.
+## Quick Start
 
-- **Contributing**: Contributions are welcome! Please open an issue or submit a pull request with your changes.
+Run the game from project root:
 
-For detailed documentation, refer to the [Panda3D Documentation](https://docs.panda3d.org/).
+```powershell
+python main.py
+```
 
-## Workspace Modes
+Build the optional compiled core:
 
-- **Dev workspace (mandatory):** this repository and its source folders are the authoritative development environment.
-- **Player build:** generated separately from `release/` (EXE bundle + installer).
+```powershell
+python scripts/build_game_core.py
+```
 
-### Player Build (Windows)
+After a successful build, `game_core.pyd` should appear in project root and
+`logs/game.log` should contain `Successfully loaded game_core.pyd`.
 
-1. Build EXE bundle:
-   ```
-   powershell -ExecutionPolicy Bypass -File release/build_player_exe.ps1
-   ```
-2. Build installer:
-   ```
-   powershell -ExecutionPolicy Bypass -File release/build_installer.ps1
-   ```
+## Testing
+
+Gameplay and rendering checks:
+
+- Use `tests/video_scenarios/run_game_tests_with_video.ps1`
+- Store review artifacts in `output/non-web-mechanics-review`
+- Treat short or broken video runs as failures
+
+Non-game checks:
+
+- Use focused `pytest` runs
+
+## Primary Docs
+
+- Agent rules: `AGENTS.md`
+- Gameplay debug workflow: `docs/AGENT_GAMEPLAY_PLAYBOOK.md`
+- Visual audit and known world-system risks: `docs/VISUAL_SYSTEMS_AUDIT.md`
+- Animation pipeline: `docs/BAM_AND_ANIMATION_PIPELINE.md`
+- Animation asset status: `data/ANIMATIONS_AVAILABLE.md`
+- Animation state architecture: `data/states/STATE_ARCHITECTURE_FULL.md`
+- Windows build notes for `game_core`: `data/BUILD_GAME_CORE_WINDOWS.md`
+- Release packaging: `release/README.md`
+- Installer payload map: `release/SETUP_FILE_MAP.md`
+
+## Release Output
+
+Player build output paths:
+
+- EXE bundle: `release/dist/KingWizardRPG/`
+- Installer: `release/out/`
+
+Use these scripts:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File release/build_player_exe.ps1
+powershell -ExecutionPolicy Bypass -File release/build_installer.ps1
+```

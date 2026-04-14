@@ -12,7 +12,9 @@ set(CPP_SOURCES
     cpp/src/AnimationBlender.cpp
     cpp/src/AttentionManager.cpp
     cpp/src/CombatSystem.cpp
+    cpp/src/EnemyRuntimeSystem.cpp
     cpp/src/MagicSystem.cpp
+    cpp/src/NpcRuntimeSystem.cpp
     cpp/src/ParkourSystem.cpp
     cpp/src/ParticleSystem.cpp
     cpp/src/PhysicsEngine.cpp
@@ -49,6 +51,12 @@ target_include_directories(game_core PRIVATE
     ${Python3_INCLUDE_DIRS}
     ${PANDA_INCLUDE_DIR}
 )
+
+if(TARGET Python3::Module)
+    target_link_libraries(game_core PRIVATE Python3::Module)
+else()
+    target_link_libraries(game_core PRIVATE ${Python3_LIBRARIES})
+endif()
 
 # If the user has pybind11 headers in a weird spot, we add them
 string(REPLACE "-I" "" PYBIND11_INCLUDES_CLEAN "${PYBIND11_INCLUDES}")

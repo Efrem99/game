@@ -1,0 +1,23 @@
+{
+  "default_context": "startup",
+  "tips": {
+    "default": [
+      "Tip: Explore side paths to find hidden rewards.",
+      "Tip: Use parkour to bypass direct fights.",
+      "Tip: Save often before entering dangerous zones.",
+      "Tip: Block and dodge to keep combo momentum."
+    ],
+    "world": [
+      "Tip: The dwarven city of Sharuan hides ancient secrets. Look carefully.",
+      "Tip: Use your arcane magic to strike multiple foes.",
+      "Tip: Potions can be crafted in the wilderness.",
+      "Tip: Giant bosses telegraph their heavy attacks. Watch their shoulders!"
+    ]
+  },
+  "art_images": {
+    "default": [
+      "assets/images/ui/loading/bg_dwarven_city.png",
+      "assets/images/ui/loading/bg_forest_sword.png"
+    ]
+  }
+}

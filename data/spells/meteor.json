@@ -5,7 +5,39 @@
     "cooldown": 3.6,
     "cast_time": 0.35,
     "damage_type": "fire",
-    "anim_trigger": "cast_spell",
+    "anim_trigger": "cast_fire",
+    "runtime": {
+        "cast_family": "projectile",
+        "target_distance": 7.0,
+        "scatter": {
+            "enabled": false
+        },
+        "telegraph": {
+            "enabled": true,
+            "anchor": "impact",
+            "radius": 4.0,
+            "duration": 0.22,
+            "color": [1.0, 0.4, 0.1, 0.32]
+        },
+        "vfx_windows": {
+            "prepare": {
+                "radius": 1.0,
+                "duration": 0.12,
+                "color": [1.0, 0.5, 0.2, 0.24]
+            },
+            "release": {
+                "radius": 1.2,
+                "duration": 0.1,
+                "color": [1.0, 0.42, 0.14, 0.34]
+            },
+            "impact": {
+                "anchor": "impact",
+                "radius": 2.4,
+                "duration": 0.2,
+                "color": [1.0, 0.36, 0.12, 0.42]
+            }
+        }
+    },
     "sfx": {
         "cast": "spell_cast",
         "impact": "spell_fire"

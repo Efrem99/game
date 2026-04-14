@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "Ultimate Game QA"
+  short_description: "Gameplay video QA, autopilot, and TDD fix workflow."
+  default_prompt: "Use $ultimate-game-qa to validate this gameplay run, inspect the visual evidence, write a failing test for the top bug, and verify the fix with a real scenario."

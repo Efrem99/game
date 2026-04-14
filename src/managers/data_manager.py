@@ -1,71 +1,81 @@
-import json
 import re
 from pathlib import Path
 
+from managers.data_backend import create_data_backend
+from utils.logger import logger
+
+
 class DataManager:
-    def __init__(self):
-        self.data_dir = Path("data")
-        self.items = {}
-        self.quests = {}
-        self.spells = {}
-        self.npcs = {}
-        self.world_config = {}
-        self.controls = {}
-        self.ui_strings = {}
-        self.locales = {}
-        self.sound_config = {}
-        self.camera_profiles = {}
-        self.cutscene_triggers = {}
-        self.player_config = {}
-        self.sky_config = {}
-        self.world_layout = {}
-        self.vehicle_configs = {}
-        self.skill_trees = {}
-        self.character_logic = {}
-        self.combat_styles = {}
-        self.loading_screen_config = {}
-        self.asset_multifiles_config = {}
-        self.test_scenarios = {}
+    _RECURSIVE_RESOURCES = {
+        "items": "items",
+        "quests": "quests",
+        "spells": "spells",
+        "npcs": "npcs",
+        "vehicle_configs": "vehicles",
+        "skill_trees": "skills",
+    }
+
+    _FILE_RESOURCES = {
+        "companions": "companions.json",
+        "world_config": "world_config.json",
+        "controls": "controls.json",
+        "ui_strings": "ui_strings.json",
+        "water_config": "water_config.json",
+        "graphics_settings": "graphics_settings.json",
+        "audio_settings": "audio_settings.json",
+        "sound_config": "audio/sound_config.json",
+        "camera_profiles": "camera_profiles.json",
+        "cutscene_triggers": "cutscene_triggers.json",
+        "player_config": "actors/player.json",
+        "player_state_config": "states/player_states.json",
+        "player_animation_manifest": "actors/player_animations.json",
+        "sky_config": "sky_config.json",
+        "world_layout": "world/layout.json",
+        "location_meshes_config": "world/location_meshes.json",
+        "prop_rules_config": "world/prop_rules.json",
+        "test_scenarios": "world/test_scenarios.json",
+        "character_logic": "logic/character_brain.json",
+        "combat_styles": "combat/styles.json",
+        "loading_screen_config": "loading_screen.json",
+        "asset_multifiles_config": "asset_multifiles.json",
+        "boss_roster_config": "enemies/boss_roster.json",
+        "enemy_state_maps": "enemies/state_maps.json",
+        "dragon_enemy_config": "enemies/dragon.json",
+        "dragon_animation_manifest": "actors/dragon_animations.json",
+        "dragon_state_config": "states/dragon_states.json",
+    }
+
+    _LOCALE_FILES = {
+        "en": "locales/en.json",
+        "ru": "locales/ru.json",
+    }
+
+    def __init__(self, data_dir=None, backend_config=None, backend=None):
+        self.data_dir = Path(data_dir) if data_dir is not None else Path("data")
+        self.backend = backend if backend is not None else create_data_backend(self.data_dir, backend_config=backend_config)
+        self.backend_name = str(getattr(self.backend, "name", "json") or "json")
+        for attr_name in set(self._RECURSIVE_RESOURCES) | set(self._FILE_RESOURCES) | {"locales"}:
+            setattr(self, attr_name, {})
         self.language = "en"
 
         self.load_all()
 
     def load_all(self):
-        # Modular recursive loading for major categories
-        self.items = self._load_recursive(self.data_dir / "items")
-        self.quests = self._load_recursive(self.data_dir / "quests")
+        for attr_name, rel_dir in self._RECURSIVE_RESOURCES.items():
+            setattr(self, attr_name, self._load_recursive(self.data_dir / rel_dir))
+
         self.quests.update(self._normalize_quests(self._load_file("quests.json")))
-        self.spells = self._load_recursive(self.data_dir / "spells")
         self.spells.update(self._normalize_spells(self._load_file("spells.json")))
-        self.npcs = self._load_recursive(self.data_dir / "npcs")
-        self.vehicle_configs = self._load_recursive(self.data_dir / "vehicles")
-        self.skill_trees = self._load_recursive(self.data_dir / "skills")
-        if not self.npcs: # Fallback to npcs.json if its a single file
-             self.npcs = self._load_file("npcs.json")
 
-        # Single file configs
-        self.world_config = self._load_file("world_config.json")
-        self.controls = self._load_file("controls.json")
-        self.ui_strings = self._load_file("ui_strings.json")
+        if not self.npcs:  # Fallback to npcs.json if it's a single file.
+            self.npcs = self._load_file("npcs.json")
 
-        # Load additional root-level jsons if they exist in source
-        self.water_config = self._load_file("water_config.json")
-        self.graphics_settings = self._load_file("graphics_settings.json")
-        self.audio_settings = self._load_file("audio_settings.json")
-        self.sound_config = self._load_file("audio/sound_config.json")
-        self.camera_profiles = self._load_file("camera_profiles.json")
-        self.cutscene_triggers = self._load_file("cutscene_triggers.json")
-        self.player_config = self._load_file("actors/player.json")
-        self.sky_config = self._load_file("sky_config.json")
-        self.world_layout = self._load_file("world/layout.json")
-        self.test_scenarios = self._load_file("world/test_scenarios.json")
-        self.character_logic = self._load_file("logic/character_brain.json")
-        self.combat_styles = self._load_file("combat/styles.json")
-        self.loading_screen_config = self._load_file("loading_screen.json")
-        self.asset_multifiles_config = self._load_file("asset_multifiles.json")
+        for attr_name, rel_path in self._FILE_RESOURCES.items():
+            setattr(self, attr_name, self._load_file(rel_path))
+
         self.locales = {
-            "en": self._load_file("locales/en.json"),
-            "ru": self._load_file("locales/ru.json"),
+            lang: self._load_file(rel_path)
+            for lang, rel_path in self._LOCALE_FILES.items()
         }
         self.language = (
             self.graphics_settings.get("language")
@@ -75,47 +85,37 @@ class DataManager:
         if self.language not in self.locales or not self.locales.get(self.language):
             self.language = "en"
 
-        print(
+        logger.info(
             f"[DataManager] Loaded {len(self.items)} items, {len(self.quests)} quests, "
             f"{len(self.spells)} spells, {len(self.vehicle_configs)} vehicle configs, "
-            f"{len(self.skill_trees)} skill trees."
+            f"{len(self.skill_trees)} skill trees. Backend={self.backend_name}."
         )
-        print(f"[DataManager] Loaded {len(self.controls.get('bindings', {}))} bindings, {len(self.npcs)} NPCs.")
+        logger.info(
+            f"[DataManager] Loaded {len(self.controls.get('bindings', {}))} bindings, "
+            f"{len(self.npcs)} NPCs, {len(self.companions) if isinstance(self.companions, dict) else 0} companion defs."
+        )
 
     def _load_recursive(self, directory):
-        data_map = {}
-        if not directory.exists():
-            return data_map
-
-        for json_file in directory.rglob("*.json"):
-            try:
-                with open(json_file, 'r', encoding='utf-8-sig') as f:
-                    data = json.load(f)
-                    # Use 'id' as key, fallback to filename
-                    key = data.get("id") or json_file.stem
-                    data_map[key] = data
-            except Exception as e:
-                print(f"[DataManager] Error loading {json_file}: {e}")
-        return data_map
+        try:
+            rel_dir = Path(directory).relative_to(self.data_dir).as_posix()
+        except Exception:
+            rel_dir = Path(directory).as_posix()
+        payload = self.backend.load_recursive(rel_dir)
+        return payload if isinstance(payload, dict) else {}
 
     def _load_file(self, filename):
-        path = self.data_dir / filename
-        if not path.exists():
-            return {}
         try:
-            with open(path, 'r', encoding='utf-8-sig') as f:
-                return json.load(f)
+            payload = self.backend.load_file(filename)
+            return payload if isinstance(payload, (dict, list)) else {}
         except Exception as e:
-            print(f"[DataManager] Error loading {path}: {e}")
+            logger.error(f"[DataManager] Error loading {self.data_dir / filename}: {e}")
             return {}
 
     def save_settings(self, filename, data):
-        path = self.data_dir / filename
         try:
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=4)
+            self.backend.save_file(filename, data)
         except Exception as e:
-            print(f"[DataManager] Error saving {path}: {e}")
+            logger.error(f"[DataManager] Error saving {self.data_dir / filename}: {e}")
 
     def _normalize_spells(self, raw_spells):
         normalized = {}
@@ -389,3 +389,37 @@ class DataManager:
         if not isinstance(player, dict):
             return {}
         return dict(player)
+
+    def get_player_state_config(self):
+        payload = self.player_state_config if isinstance(self.player_state_config, dict) else {}
+        return dict(payload)
+
+    def get_player_animation_manifest(self):
+        payload = self.player_animation_manifest if isinstance(self.player_animation_manifest, dict) else {}
+        return dict(payload)
+
+    def get_location_meshes_config(self):
+        payload = self.location_meshes_config if isinstance(self.location_meshes_config, dict) else {}
+        return dict(payload)
+
+    def get_prop_rules_config(self):
+        payload = self.prop_rules_config if isinstance(self.prop_rules_config, dict) else {}
+        return dict(payload)
+
+    def get_boss_roster_config(self):
+        payload = self.boss_roster_config if isinstance(self.boss_roster_config, dict) else {}
+        return dict(payload)
+
+    def get_enemy_state_maps(self):
+        payload = self.enemy_state_maps if isinstance(self.enemy_state_maps, dict) else {}
+        return dict(payload)
+
+    def get_dragon_config_bundle(self):
+        enemy = self.dragon_enemy_config if isinstance(self.dragon_enemy_config, dict) else {}
+        anim = self.dragon_animation_manifest if isinstance(self.dragon_animation_manifest, dict) else {}
+        state = self.dragon_state_config if isinstance(self.dragon_state_config, dict) else {}
+        return {
+            "enemy": dict(enemy),
+            "anim": dict(anim),
+            "state": dict(state),
+        }

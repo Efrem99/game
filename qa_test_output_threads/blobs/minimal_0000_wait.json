@@ -1,0 +1,94 @@
+{
+  "scenario_name": "minimal",
+  "step_index": 0,
+  "step_name": "wait",
+  "action": "wait",
+  "verdict": "pass",
+  "bug_type": "unknown",
+  "reason": "",
+  "started_at": 1774881662.2138963,
+  "finished_at": 1774881662.2176368,
+  "duration_sec": 0.003740549087524414,
+  "attempts": 1,
+  "pre_state": {
+    "scene_name": "town_scene",
+    "loading": false,
+    "loading_progress": 0.0,
+    "player_pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "player_rot": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "player_velocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "current_animation": "idle",
+    "current_effects": [],
+    "ui_stack": [],
+    "input_enabled": true,
+    "control_locked": false,
+    "companion_state": {},
+    "equipment_state": {},
+    "object_states": {},
+    "misc": {}
+  },
+  "post_state": {
+    "scene_name": "town_scene",
+    "loading": false,
+    "loading_progress": 0.0,
+    "player_pos": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "player_rot": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "player_velocity": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "current_animation": "idle",
+    "current_effects": [],
+    "ui_stack": [],
+    "input_enabled": true,
+    "control_locked": false,
+    "companion_state": {},
+    "equipment_state": {},
+    "object_states": {},
+    "misc": {}
+  },
+  "perf": {
+    "fps": 55.756347677185296,
+    "frame_time_ms": 16.6,
+    "draw_calls": 107,
+    "triangles": 180000,
+    "instances": 450,
+    "lod_distribution": {}
+  },
+  "screenshots": [
+    {
+      "label": "before",
+      "path": "C:\\xampp\\htdocs\\king-wizard\\qa_test_output_threads\\screenshots\\minimal\\0000_wait\\before.txt"
+    },
+    {
+      "label": "after",
+      "path": "C:\\xampp\\htdocs\\king-wizard\\qa_test_output_threads\\screenshots\\minimal\\0000_wait\\after.txt"
+    }
+  ],
+  "evidence": {
+    "performance_failed": false,
+    "draw_calls": 111,
+    "fps": 57.22714474359722
+  }
+}

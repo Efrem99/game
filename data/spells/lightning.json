@@ -5,7 +5,13 @@
     "cooldown": 2.2,
     "cast_time": 0.24,
     "damage_type": "lightning",
-    "anim_trigger": "cast_spell",
+    "anim_trigger": "cast_lightning",
+    "runtime": {
+        "scatter": {
+            "enabled": true,
+            "max_lateral": 0.58
+        }
+    },
     "sfx": {
         "cast": "spell_cast",
         "impact": "spell_lightning"

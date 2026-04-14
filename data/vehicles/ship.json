@@ -13,5 +13,9 @@
     "mount_offset": [0.0, 0.0, 0.92],
     "dismount_offset": [1.6, 0.0, 0.16],
     "camera_profile": "mounted_ship",
-    "nav_zone_id": "coastal_sea"
+    "nav_zone_id": "coastal_sea",
+    "model": "assets/models/bosses/dragon_classic.glb",
+    "model_scale": 0.44,
+    "model_offset": [0.0, 0.0, -0.38],
+    "model_hpr": [180.0, 0.0, 0.0]
 }

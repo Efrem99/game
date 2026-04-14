@@ -4,9 +4,17 @@ Runtime animation sources are controlled by:
 
 - `data/actors/player_animations.json`
 - `manifest.strict_runtime_sources = true`
+- `manifest.auto_source_dirs` (Mixamo drop folders)
 
-That means clips are loaded from explicit manifest entries only.
-Dropping files here is not enough until the manifest is updated.
+Strict mode still keeps explicit manifest keys authoritative, but auto source dirs
+are scanned and merged for missing keys. This allows dropping extra Mixamo clips
+without overriding canonical entries.
+
+Default/standard folders:
+
+- `assets/anims/mixamo`
+- `assets/anims/mixamo/player`
+- `assets/anims/mixamo/hero`
 
 ### Mounting naming (canonical keys)
 
@@ -22,6 +30,16 @@ Use:
 
 ```bash
 python scripts/mixamo_mount_fetch.py --token-env MIXAMO_ACCESS_TOKEN
+python scripts/mixamo_player_fetch.py --token-env MIXAMO_ACCESS_TOKEN
 ```
 
 The helper downloads target clips into this folder and patches manifest paths automatically.
+
+### Auto key aliases (Mixamo-friendly)
+
+Runtime aliasing now recognizes common Mixamo naming patterns:
+
+- `stealth/sneak/crouch` -> `crouch_idle` or `crouch_move`
+- `spell/cast prepare` -> `cast_prepare`
+- `spell/cast channel` -> `cast_channel`
+- `spell/cast release` -> `cast_release`

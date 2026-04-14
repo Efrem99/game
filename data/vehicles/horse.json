@@ -9,5 +9,9 @@
     "ground_offset": 0.55,
     "mount_offset": [0.0, 0.0, 0.95],
     "dismount_offset": [1.3, -0.7, 0.0],
-    "camera_profile": "mounted_horse"
+    "camera_profile": "mounted_horse",
+    "model": "assets/anims/mounted_move_horse.glb",
+    "model_scale": 0.92,
+    "model_offset": [0.0, 0.0, -0.18],
+    "model_hpr": [180.0, 0.0, 0.0]
 }

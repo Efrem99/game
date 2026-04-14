@@ -1,4 +1,4 @@
-﻿"""Runtime audio routing for music, ambient loops, and event SFX."""
+"""Runtime audio routing for music, ambient loops, and event SFX."""
 
 import os
 import random
@@ -942,6 +942,8 @@ class AudioDirector:
         return ""
 
     def _infer_biome_key(self, location_key):
+        if any(token in location_key for token in ("cave", "vault", "forge", "crypt", "catacomb", "throne")):
+            return "caves"
         if "dock" in location_key or "sea" in location_key or "river" in location_key:
             return "sea"
         if "mount" in location_key or "peak" in location_key:
@@ -962,6 +964,7 @@ class AudioDirector:
     def _runtime_context_tags(self, location_key):
         tags = []
         low = str(location_key or "").lower()
+        cave_like = any(token in low for token in ("cave", "vault", "forge", "crypt", "catacomb", "throne"))
         if "dock" in low or "port" in low:
             tags.append("docks")
             tags.append("town")
@@ -969,6 +972,10 @@ class AudioDirector:
             tags.append("coast")
         if "forest" in low or "grove" in low:
             tags.append("forest")
+        if cave_like:
+            tags.append("caves")
+        if (not cave_like) and any(token in low for token in ("interior", "chamber", "hall", "gallery", "laundry")):
+            tags.append("interior")
         if "castle" in low or "keep" in low:
             tags.append("castle")
         if "training" in low:

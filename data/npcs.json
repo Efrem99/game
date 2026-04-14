@@ -40,5 +40,221 @@
             ],
             "armor_type": "none"
         }
+    },
+    "dracolite_sentinel": {
+        "name": "Kael-Ra",
+        "role": "Dracolite Sentinel",
+        "pos": [
+            14,
+            12,
+            0
+        ],
+        "appearance": {
+            "scale": 1.08,
+            "model": "assets/models/xbot/Xbot.glb",
+            "species": "dracolite",
+            "race": "argonian",
+            "skin_color": [
+                0.42,
+                0.64,
+                0.46
+            ],
+            "armor_type": "plate"
+        },
+        "dialog": [
+            "The wind carries old warnings.",
+            "Keep your blade ready, traveler."
+        ]
+    },
+    "emberfox": {
+        "name": "Emberfox",
+        "role": "Wayward Familiar",
+        "pos": [-13.0, -17.0, 1.1],
+        "appearance": {
+            "scale": 0.82,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.95, 0.42, 0.22],
+            "armor_type": "none"
+        },
+        "dialogue": "emberfox_taming",
+        "dialog": ["A restless ember-tailed fox watches from the roadside brush."]
+    },
+    "eldrin_elf": {
+        "name": "Eldrin",
+        "role": "Elven Scout",
+        "pos": [-28.0, 10.0, 3.2],
+        "appearance": {
+            "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.3, 0.7, 0.4],
+            "armor_type": "leather"
+        },
+        "dialogue": "eldrin_recruitment",
+        "dialog": ["The whispers of the forest guide us."]
+    },
+    "kiron_centaur": {
+        "name": "Kiron",
+        "role": "Plains Warden",
+        "pos": [-8.0, -22.0, 1.0],
+        "appearance": {
+            "scale": 1.2,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.6, 0.45, 0.35],
+            "armor_type": "plate"
+        },
+        "dialogue": "kiron_recruitment",
+        "dialog": ["The path ahead is long and fierce."]
+    },
+    "adrian": {
+        "name": "Adrian",
+        "role": "Captured Swordsman",
+        "pos": [70.0, 2.0, 3.0],
+        "appearance": {
+            "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.72, 0.58, 0.46],
+            "armor_type": "leather"
+        },
+        "dialogue": "adrian_rescue_recruitment",
+        "dialog": ["A battered fighter grips the bent bars of the Krimora cage."]
+    },
+    "torvin": {
+        "name": "Torvin",
+        "role": "Mountain Guide",
+        "pos": [92.0, -6.0, 4.0],
+        "appearance": {
+            "scale": 1.1,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.7, 0.6, 0.5],
+            "armor_type": "plate"
+        },
+        "dialogue": "torvin_recruitment",
+        "dialog": ["Careful on the slopes, friend."]
+    },
+    "torvin_guard_1": {
+        "name": "Dwarven Guard",
+        "role": "Gate Sentry",
+        "pos": [93.5, -7.0, 4.0],
+        "appearance": {
+            "scale": 1.05,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.6, 0.5, 0.4],
+            "armor_type": "plate"
+        },
+        "dialog": ["Stand fast, traveler."]
+    },
+    "torvin_guard_2": {
+        "name": "Dwarven Guard",
+        "role": "Gate Sentry",
+        "pos": [90.5, -7.0, 4.0],
+        "appearance": {
+            "scale": 1.05,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.65, 0.55, 0.45],
+            "armor_type": "plate"
+        },
+        "dialog": ["The mountains do not forgive mistakes."]
+    },
+    "torvin_guard_3": {
+        "name": "Dwarven Guard",
+        "role": "Gate Veteran",
+        "zone_id": "kremor_forest_crash",
+        "pos": [92.0, -8.5, 4.0],
+        "appearance": {
+            "scale": 1.08,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.7, 0.5, 0.4],
+            "armor_type": "plate"
+        },
+        "dialog": ["Our hammers are ready."]
+    },
+    "torvin_guard_4": {
+        "name": "Dwarven Guard",
+        "role": "Gate Scout",
+        "pos": [95.0, -6.0, 4.0],
+        "appearance": {
+            "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.6, 0.6, 0.5],
+            "armor_type": "leather"
+        },
+        "dialog": ["None shall pass without leave."]
+    },
+    "torvin_guard_5": {
+        "name": "Dwarven Guard",
+        "role": "Gate Scout",
+        "pos": [89.0, -6.0, 4.0],
+        "appearance": {
+            "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.6, 0.6, 0.5],
+            "armor_type": "leather"
+        },
+        "dialog": ["Eyes on the valley, brothers."]
+    }
+,
+    "sandbox_child": {
+        "name": "Little Timmy",
+        "role": "Village Child",
+        "pos": [12.0, 50.0, 5.0],
+        "appearance": {
+            "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb"
+        },
+        "dialog": ["I want to be a wizard some day!"]
+    },
+    "sandbox_elder": {
+        "name": "Old Martha",
+        "role": "Village Elder",
+        "pos": [15.0, 52.0, 5.0],
+        "appearance": {
+            "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb"
+        },
+        "dialog": ["The elders remember the days before the drought."]
+    },
+    "sandbox_guard": {
+        "name": "Sentry Marcus",
+        "role": "Gate Guard",
+        "pos": [18.0, 48.0, 5.0],
+        "appearance": {
+            "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb"
+        },
+        "dialog": ["Move along, citizen. Use 'E' to interact safely."]
+    },
+    "sandbox_adalin": {
+        "name": "Adalin",
+        "role": "Practical Merchant",
+        "pos": [10.0, 45.0, 5.0],
+        "appearance": {
+            "scale": 1.0,
+            "model": "assets/models/xbot/Xbot.glb"
+        },
+        "dialog": ["I've got the best supplies for any traveling wizard."]
+    },
+    "krimora_servant_1": {
+        "name": "Shade Servant",
+        "role": "Palace Attendant",
+        "pos": [78.0, 14.0, 3.2],
+        "appearance": {
+            "scale": 0.95,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.1, 0.1, 0.1],
+            "armor_type": "none"
+        },
+        "dialog": ["...the master's will is absolute..."]
+    },
+    "krimora_servant_2": {
+        "name": "Withered Sentry",
+        "role": "Palace Guard",
+        "pos": [74.0, 10.0, 3.2],
+        "appearance": {
+            "scale": 1.05,
+            "model": "assets/models/xbot/Xbot.glb",
+            "skin_color": [0.2, 0.1, 0.1],
+            "armor_type": "plate"
+        },
+        "dialog": ["Halt. Only the cursed may enter."]
     }
 }

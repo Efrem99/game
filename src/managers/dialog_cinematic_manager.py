@@ -1,4 +1,4 @@
-﻿"""Cinematic Dialog Manager â€” event-driven, letterbox-subtitled conversations.
+"""Cinematic Dialog Manager â€” event-driven, letterbox-subtitled conversations.
 
 Architecture:
   â€¢ DialogCinematicManager.start_dialogue(npc_id, dialogue_data, npc_actor)
@@ -106,6 +106,41 @@ def _extract_dialog_tags(raw_text: str):
     return cleaned, directives
 
 
+def _components_are_finite(value) -> bool:
+    try:
+        return all(
+            math.isfinite(float(getattr(value, axis)))
+            for axis in ("x", "y", "z")
+        )
+    except Exception:
+        pass
+    try:
+        return all(math.isfinite(float(token)) for token in value)
+    except Exception:
+        return False
+
+
+def _node_transform_looks_safe(node) -> bool:
+    if not node:
+        return False
+    try:
+        if node.isEmpty():
+            return False
+    except Exception:
+        return False
+    for getter_name in ("getPos", "getScale", "getHpr"):
+        getter = getattr(node, getter_name, None)
+        if not callable(getter):
+            return False
+        try:
+            value = getter()
+        except Exception:
+            return False
+        if not _components_are_finite(value):
+            return False
+    return True
+
+
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # DialogCinematicManager
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -143,6 +178,7 @@ class DialogCinematicManager:
         self._sub_text   = None
         self._spk_text   = None
         self._bars_built = False
+        self._dialog_ui_was_hidden = False
 
     # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Public API
@@ -162,7 +198,12 @@ class DialogCinematicManager:
             on_end:        Optional callback when dialogue finishes.
         """
         if self._active:
-            logger.warning("[DialogCinematic] Already active â€” ignoring new start.")
+            logger.warning("[DialogCinematic] Already active — ignoring new start.")
+            return False
+
+        # Defensive: Ensure NPC actor is healthy before dialogue starts
+        if npc_actor and (not _node_transform_looks_safe(npc_actor)):
+            logger.warning(f"[DialogCinematic] Ignoring dialogue start with corrupted NPC actor '{npc_id}'")
             return False
 
         tree = dialogue_data.get("dialogue_tree")
@@ -179,6 +220,7 @@ class DialogCinematicManager:
         self._advance_queued = False
 
         self._build_ui()
+        self._ensure_dialog_ui_layer_visible()
         self._enter_dialog_state()
         self._play_bars_in()
         self.app.taskMgr.doMethodLater(BAR_SLIDE_DURATION + 0.05,
@@ -505,10 +547,97 @@ class DialogCinematicManager:
         player = getattr(self.app, "player", None)
         npc    = self._npc_actor
 
+        # CO-LOCATION GUARD: If player and NPC are too close, over-the-shoulder shots will fail.
+        if player and npc:
+            try:
+                p_node = getattr(player, "actor", player)
+                dist = (p_node.getPos(self.app.render) - npc.getPos(self.app.render)).length()
+                if dist < 0.6:
+                    from utils.logger import logger
+                    logger.warning(f"[DialogCinematicManager] Player/NPC co-location detected ({dist:.3f}m)! Forcing wide shot.")
+                    hint = "wide"
+            except Exception:
+                pass
+
         # Determine who is speaking to decide camera side
         npc_name = str(self._dialogue_data.get("npc_name", "") or "")
         is_npc_speaker = (speaker == npc_name) or (hint == "npc")
         is_player_speaker = (hint == "player")
+
+        player_node = getattr(player, "actor", player) if player else None
+        pair_positions = None
+        if player_node and npc:
+            try:
+                player_pos = player_node.getPos(self.app.render)
+                npc_pos = npc.getPos(self.app.render)
+                pair_positions = (player_pos, npc_pos)
+            except Exception:
+                pair_positions = None
+
+        if pair_positions and hasattr(cam_dir, "play_anchor_camera_shot"):
+            player_pos, npc_pos = pair_positions
+            player_focus = self._focus_point(player_pos, 1.65)
+            npc_focus = self._focus_point(npc_pos, 1.65)
+            if hint == "wide":
+                focus = LPoint3(
+                    (float(player_pos.x) + float(npc_pos.x)) * 0.5,
+                    (float(player_pos.y) + float(npc_pos.y)) * 0.5,
+                    max(float(player_pos.z), float(npc_pos.z)) + 1.7,
+                )
+                cam_dir.play_anchor_camera_shot(
+                    name="dialog_wide",
+                    duration=0.0,
+                    profile="cinematic",
+                    center=focus,
+                    base_z=float(focus.z) - 1.7,
+                    yaw_deg=math.degrees(math.atan2(float(npc_pos.x) - float(player_pos.x), float(npc_pos.y) - float(player_pos.y))),
+                    look_target=focus,
+                    side=0.0,
+                    yaw_bias_deg=0.0,
+                    owner="dialog",
+                )
+                return
+
+            dx = float(npc_pos.x) - float(player_pos.x)
+            dy = float(npc_pos.y) - float(player_pos.y)
+            yaw_deg = math.degrees(math.atan2(dx, dy))
+            center = LPoint3(
+                (float(player_pos.x) + float(npc_pos.x)) * 0.5,
+                (float(player_pos.y) + float(npc_pos.y)) * 0.5,
+                (float(player_pos.z) + float(npc_pos.z)) * 0.5,
+            )
+            if is_npc_speaker:
+                cam_dir.play_anchor_camera_shot(
+                    name="dialog_npc",
+                    duration=0.0,
+                    profile="dialog",
+                    center=center,
+                    base_z=float(center.z),
+                    yaw_deg=yaw_deg,
+                    look_target=npc_focus,
+                    partner_target=player_focus,
+                    framing="dialog_pair",
+                    side=-1.45,
+                    yaw_bias_deg=0.0,
+                    owner="dialog",
+                )
+                return
+            if is_player_speaker:
+                cam_dir.play_anchor_camera_shot(
+                    name="dialog_player",
+                    duration=0.0,
+                    profile="dialog",
+                    center=center,
+                    base_z=float(center.z),
+                    yaw_deg=yaw_deg,
+                    look_target=player_focus,
+                    partner_target=npc_focus,
+                    framing="dialog_pair",
+                    side=1.45,
+                    yaw_bias_deg=180.0,
+                    owner="dialog",
+                )
+                return
 
         if hint == "wide" or not (player or npc):
             cam_dir.play_camera_shot("dialog_wide", duration=0.0,
@@ -537,6 +666,12 @@ class DialogCinematicManager:
                 "dialog_auto", duration=0.0,
                 profile="dialog", side=side, yaw_bias_deg=yaw,
             )
+
+    def _focus_point(self, pos, z_offset: float = 1.65):
+        try:
+            return LPoint3(float(pos.x), float(pos.y), float(pos.z) + float(z_offset))
+        except Exception:
+            return LPoint3(0.0, 0.0, float(z_offset))
 
     # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Voiceover
@@ -698,6 +833,15 @@ class DialogCinematicManager:
                 return True
         return False
 
+    def _quest_manager(self):
+        qm = getattr(self.app, "quest_mgr", None)
+        if qm:
+            return qm
+        return getattr(self.app, "quest_manager", None)
+
+    def _companion_manager(self):
+        return getattr(self.app, "companion_mgr", None)
+
     def _check_condition(self, condition) -> bool:
         if not condition:
             return True
@@ -711,16 +855,47 @@ class DialogCinematicManager:
                 return eval(f"{plvl} {op} {val}", {}, {})
             if cond.startswith("quest_active:"):
                 qid = cond[13:].strip()
-                qm  = getattr(self.app, "quest_manager", None)
-                return bool(qm and qm.is_active(qid))
+                qm  = self._quest_manager()
+                return bool(qm and hasattr(qm, "is_active") and qm.is_active(qid))
             if cond.startswith("quest_complete:"):
                 qid = cond[15:].strip()
-                qm  = getattr(self.app, "quest_manager", None)
-                return bool(qm and qm.is_complete(qid))
+                qm  = self._quest_manager()
+                return bool(qm and hasattr(qm, "is_complete") and qm.is_complete(qid))
             if cond.startswith("has_item:"):
                 iid = cond[9:].strip()
                 inv = getattr(getattr(self.app, "player", None), "inventory", None)
                 return bool(inv and inv.has(iid))
+            if cond.startswith("gold_amount:"):
+                rest = cond[12:].strip()
+                op   = ">=" if ">=" in rest else (">" if ">" in rest else "==")
+                val  = int(rest.replace(op, "").strip())
+                profile = getattr(self.app, "profile", {})
+                gold = int(profile.get("gold", 0) or 0) if isinstance(profile, dict) else 0
+                return eval(f"{gold} {op} {val}", {}, {})
+            if cond.startswith("has_companion:"):
+                cid = cond[14:].strip()
+                cm = self._companion_manager()
+                return bool(cm and hasattr(cm, "has_companion") and cm.has_companion(cid))
+            if cond.startswith("has_pet:"):
+                pid = cond[8:].strip()
+                cm = self._companion_manager()
+                return bool(cm and hasattr(cm, "has_pet") and cm.has_pet(pid))
+            if cond.startswith("active_companion:"):
+                cid = cond[17:].strip().lower()
+                cm = self._companion_manager()
+                active_id = str(cm.get_active_companion_id() or "").strip().lower() if cm and hasattr(cm, "get_active_companion_id") else ""
+                return bool(active_id and active_id == cid)
+            if cond.startswith("active_pet:"):
+                pid = cond[11:].strip().lower()
+                cm = self._companion_manager()
+                active_id = str(cm.get_active_pet_id() or "").strip().lower() if cm and hasattr(cm, "get_active_pet_id") else ""
+                return bool(active_id and active_id == pid)
+            if cond.startswith("can_recruit:"):
+                parts = [part.strip() for part in cond[12:].split(":")]
+                member_id = parts[0] if parts else ""
+                source = parts[1] if len(parts) > 1 else None
+                cm = self._companion_manager()
+                return bool(cm and hasattr(cm, "can_recruit") and cm.can_recruit(member_id, source=source))
         except Exception:
             pass
         return True  # unknown condition â†’ allow
@@ -731,12 +906,12 @@ class DialogCinematicManager:
         try:
             if action.startswith("give_quest:"):
                 qid = action[11:].strip()
-                qm  = getattr(self.app, "quest_manager", None)
+                qm  = self._quest_manager()
                 if qm and hasattr(qm, "start_quest"):
                     qm.start_quest(qid)
             elif action.startswith("complete_quest:"):
                 qid = action[15:].strip()
-                qm  = getattr(self.app, "quest_manager", None)
+                qm  = self._quest_manager()
                 if qm and hasattr(qm, "complete_quest"):
                     qm.complete_quest(qid)
             elif action.startswith("give_item:"):
@@ -749,8 +924,54 @@ class DialogCinematicManager:
             elif action.startswith("give_gold:"):
                 amount = int(action[10:].strip())
                 player = getattr(self.app, "player", None)
+                profile = getattr(self.app, "profile", None)
+                if isinstance(profile, dict):
+                    profile["gold"] = int(profile.get("gold", 0) or 0) + amount
                 if player:
                     player.gold = getattr(player, "gold", 0) + amount
+            elif action.startswith("hire_companion:"):
+                cid = action[15:].strip()
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "acquire_member"):
+                    cm.acquire_member(cid, source="hire")
+            elif action.startswith("rescue_companion:"):
+                cid = action[17:].strip()
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "acquire_member"):
+                    cm.acquire_member(cid, source="rescue")
+            elif action.startswith("story_companion:"):
+                cid = action[16:].strip()
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "acquire_member"):
+                    cm.acquire_member(cid, source="story")
+            elif action.startswith("grant_story_companion:"):
+                cid = action[22:].strip()
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "acquire_member"):
+                    cm.acquire_member(cid, source="story")
+            elif action.startswith("tame_pet:"):
+                pid = action[9:].strip()
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "acquire_member"):
+                    cm.acquire_member(pid, source="tame")
+            elif action.startswith("activate_companion:"):
+                cid = action[19:].strip()
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "activate_member"):
+                    cm.activate_member(cid)
+            elif action.startswith("activate_pet:"):
+                pid = action[13:].strip()
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "activate_member"):
+                    cm.activate_member(pid)
+            elif action == "dismiss_companion":
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "dismiss_active_companion"):
+                    cm.dismiss_active_companion()
+            elif action == "dismiss_pet":
+                cm = self._companion_manager()
+                if cm and hasattr(cm, "dismiss_active_pet"):
+                    cm.dismiss_active_pet()
             elif action == "open_shop":
                 shop_mgr = getattr(self.app, "shop_manager", None)
                 if shop_mgr and hasattr(shop_mgr, "open"):
@@ -780,6 +1001,36 @@ class DialogCinematicManager:
             except Exception:
                 pass
 
+    def _ensure_dialog_ui_layer_visible(self):
+        aspect2d = getattr(self.app, "aspect2d", None)
+        if not aspect2d:
+            self._dialog_ui_was_hidden = False
+            return
+        hidden = False
+        try:
+            hidden = bool(aspect2d.isHidden())
+        except Exception:
+            hidden = False
+        self._dialog_ui_was_hidden = hidden
+        if hidden:
+            try:
+                aspect2d.show()
+            except Exception:
+                pass
+
+    def _restore_dialog_ui_layer_visibility(self):
+        if not bool(self._dialog_ui_was_hidden):
+            return
+        aspect2d = getattr(self.app, "aspect2d", None)
+        if not aspect2d:
+            self._dialog_ui_was_hidden = False
+            return
+        try:
+            aspect2d.hide()
+        except Exception:
+            pass
+        self._dialog_ui_was_hidden = False
+
     # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # Cleanup
     # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -791,6 +1042,7 @@ class DialogCinematicManager:
         self.app.taskMgr.remove("dialog_auto_next")
         self.app.taskMgr.remove("dialog_choices")
         self._destroy_ui()
+        self._restore_dialog_ui_layer_visibility()
         self._exit_dialog_state()
         if self._on_end:
             try:

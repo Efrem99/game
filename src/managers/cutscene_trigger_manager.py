@@ -160,6 +160,39 @@ class CutsceneTriggerManager:
             logger.debug(f"[CutsceneTriggers] Failed to play shot '{shot['name']}': {exc}")
             return False
 
+    def _sequence_from_trigger(self, trigger):
+        sequence = trigger.get("sequence")
+        if not isinstance(sequence, dict):
+            return None
+        trigger_id = self._trigger_id(trigger, "trigger")
+        name = str(sequence.get("name") or trigger.get("sequence_name") or "").strip().lower()
+        if not name:
+            return None
+        return {
+            "name": name,
+            "priority": int(self._safe_float(sequence.get("priority", 68), 68)),
+            "owner": str(sequence.get("owner") or f"cutscene:{trigger_id}"),
+        }
+
+    def _play_camera_event(self, trigger):
+        sequence = self._sequence_from_trigger(trigger)
+        if isinstance(sequence, dict):
+            player = getattr(self.app, "player", None)
+            if not player or not getattr(player, "actor", None):
+                return False
+            try:
+                return bool(
+                    self.app.play_camera_sequence(
+                        name=sequence["name"],
+                        priority=sequence["priority"],
+                        owner=sequence["owner"],
+                    )
+                )
+            except Exception as exc:
+                logger.debug(f"[CutsceneTriggers] Failed to play sequence '{sequence['name']}': {exc}")
+                return False
+        return self._play_shot(trigger)
+
     def emit(self, event_name, payload=None):
         payload = payload or {}
         for idx, trigger in enumerate(self._events):
@@ -168,7 +201,7 @@ class CutsceneTriggerManager:
             trigger_id = self._trigger_id(trigger, f"event_{idx}")
             if not self._can_fire(trigger_id, trigger):
                 continue
-            fired = self._play_shot(trigger)
+            fired = self._play_camera_event(trigger)
             if fired:
                 self._mark_fired(trigger_id, trigger)
                 logger.info(
@@ -215,7 +248,7 @@ class CutsceneTriggerManager:
             if inside and (not prev_inside):
                 if not self._can_fire(zone_id, zone):
                     continue
-                fired = self._play_shot(zone.get("on_enter", zone))
+                fired = self._play_camera_event(zone.get("on_enter", zone))
                 if fired:
                     self._mark_fired(zone_id, zone)
                     logger.info(f"[CutsceneTriggers] Zone enter trigger fired: {zone_id}")

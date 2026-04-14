@@ -1,19 +1,13 @@
 import math
 from typing import Dict, List, Optional, Tuple
 
+from utils.core_runtime import gc, HAS_CORE
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import LColor, Vec3
 
 from render.model_visuals import ensure_model_visual_defaults
 from utils.logger import logger
-from world.sharuan_world import mk_box, mk_cone, mk_cyl
-
-try:
-    import game_core as gc
-    HAS_CORE = True
-except ImportError:
-    gc = None
-    HAS_CORE = False
+from world.sharuan_world import mk_box, mk_cone, mk_cyl, mk_sphere
 
 
 class VehicleManager:
@@ -21,7 +15,8 @@ class VehicleManager:
 
     DEFAULT_SPAWNS = [
         {"id": "horse_1", "kind": "horse", "pos": [9.0, 6.0], "heading": 25.0},
-        {"id": "horse_2", "kind": "horse", "pos": [13.0, 9.0], "heading": 205.0},
+        {"id": "wolf_1", "kind": "wolf", "pos": [13.0, 9.0], "heading": 205.0},
+        {"id": "stag_1", "kind": "stag", "pos": [16.0, 12.0], "heading": 154.0},
         {"id": "carriage_1", "kind": "carriage", "pos": [-11.0, 4.0], "heading": 90.0},
         {"id": "ship_1", "kind": "ship", "pos": [0.0, -77.0], "heading": 180.0},
     ]
@@ -55,6 +50,13 @@ class VehicleManager:
                 continue
             self.vehicles.append(vehicle)
             self._vehicles_by_id[vehicle["id"]] = vehicle
+            probe = getattr(self.app, "_debug_probe_runtime_node", None)
+            if callable(probe):
+                probe(
+                    f"vehicle_spawn:{vehicle['id']}",
+                    vehicle.get("node"),
+                    reference=getattr(self.app, "render", None),
+                )
 
         self._bootstrapped = True
         logger.info(
@@ -151,14 +153,14 @@ class VehicleManager:
         if self.is_mounted:
             vehicle = self.mounted_vehicle()
             if vehicle:
-                return f"X: Dismount ({vehicle['kind']})"
+                return f"X: Dismount ({self._display_kind_name(vehicle.get('kind', ''))})"
             return "X: Dismount"
 
         player_pos = player.actor.getPos(self.app.render)
         vehicle, _ = self.find_nearest_vehicle(player_pos, radius=4.2)
         if not vehicle:
             return ""
-        return f"X: Mount ({vehicle['kind']})"
+        return f"X: Mount ({self._display_kind_name(vehicle.get('kind', ''))})"
 
     def handle_interact(self, player) -> bool:
         if self.is_mounted:
@@ -318,9 +320,134 @@ class VehicleManager:
                 out.append(dict(item))
         return out if out else [dict(e) for e in self.DEFAULT_SPAWNS]
 
+    def _default_vehicle_profile(self, kind):
+        token = self._normalize_kind(kind)
+        if token == "wolf":
+            return {
+                "speed": 9.5,
+                "run_speed": 15.2,
+                "ground_offset": 0.56,
+                "mount_offset": Vec3(0.0, 0.0, 0.92),
+                "dismount_offset": Vec3(1.2, -0.7, 0.0),
+            }
+        if token == "stag":
+            return {
+                "speed": 9.0,
+                "run_speed": 14.4,
+                "ground_offset": 0.64,
+                "mount_offset": Vec3(0.0, 0.0, 0.98),
+                "dismount_offset": Vec3(1.3, -0.65, 0.0),
+            }
+        if token == "carriage":
+            return {
+                "speed": 6.0,
+                "run_speed": 9.5,
+                "ground_offset": 0.74,
+                "mount_offset": Vec3(0.0, 0.0, 1.08),
+                "dismount_offset": Vec3(1.8, -0.8, 0.0),
+            }
+        if token == "ship":
+            return {
+                "speed": 7.0,
+                "run_speed": 11.5,
+                "water_level": -1.25,
+                "ground_offset": 0.0,
+                "mount_offset": Vec3(0.0, 0.0, 0.86),
+                "dismount_offset": Vec3(1.6, 0.0, 0.15),
+                "wave_bob_amplitude": 0.12,
+                "wave_bob_speed": 2.2,
+                "nav_zone_id": "",
+            }
+        return {
+            "speed": 8.0,
+            "run_speed": 13.0,
+            "ground_offset": 0.62,
+            "mount_offset": Vec3(0.0, 0.0, 0.95),
+            "dismount_offset": Vec3(1.2, -0.6, 0.0),
+        }
+
+    def _spawn_vehicle_from_model(self, kind, vehicle_id, x, y, entry):
+        data_mgr = getattr(self.app, "data_mgr", None)
+        get_cfg = getattr(data_mgr, "get_vehicle_config", None)
+        kind_cfg = get_cfg(kind) if callable(get_cfg) else {}
+        if not isinstance(kind_cfg, dict):
+            kind_cfg = {}
+
+        model_path = str(entry.get("model", kind_cfg.get("model", "")) or "").strip()
+        if not model_path:
+            return None
+
+        loader = getattr(self.app, "loader", None)
+        render = getattr(self.app, "render", None)
+        if not loader or not render:
+            return None
+
+        profile = self._default_vehicle_profile(kind)
+        if kind == "ship":
+            z = float(entry.get("water_level", kind_cfg.get("water_level", profile.get("water_level", -1.25))) or -1.25)
+        else:
+            z = self._ground_height(x, y) + float(profile.get("ground_offset", 0.6) or 0.6)
+        root = render.attachNewNode(f"vehicle_{vehicle_id}")
+        root.setPos(x, y, z)
+
+        try:
+            model_np = loader.loadModel(model_path)
+        except Exception as exc:
+            logger.warning(f"[VehicleManager] Failed to load vehicle model '{model_path}' for {vehicle_id}: {exc}")
+            root.removeNode()
+            return None
+        if not model_np or model_np.isEmpty():
+            root.removeNode()
+            return None
+        model_np.reparentTo(root)
+
+        model_offset = self._coerce_offset(
+            entry.get("model_offset", kind_cfg.get("model_offset")),
+            Vec3(0.0, 0.0, 0.0),
+        )
+        model_np.setPos(model_offset)
+
+        model_hpr = entry.get("model_hpr", kind_cfg.get("model_hpr"))
+        if isinstance(model_hpr, (list, tuple)) and len(model_hpr) >= 3:
+            try:
+                model_np.setHpr(float(model_hpr[0]), float(model_hpr[1]), float(model_hpr[2]))
+            except Exception:
+                pass
+
+        scale_payload = entry.get("model_scale", kind_cfg.get("model_scale", 1.0))
+        if isinstance(scale_payload, (list, tuple)) and len(scale_payload) >= 3:
+            try:
+                model_np.setScale(float(scale_payload[0]), float(scale_payload[1]), float(scale_payload[2]))
+            except Exception:
+                model_np.setScale(1.0)
+        else:
+            try:
+                model_np.setScale(float(scale_payload))
+            except Exception:
+                model_np.setScale(1.0)
+
+        self._apply_vehicle_visual_defaults(model_np, debug_label=f"vehicle_model:{vehicle_id}")
+
+        out = {
+            "id": vehicle_id,
+            "kind": kind,
+            "node": root,
+            "speed": float(profile.get("speed", 8.0)),
+            "run_speed": float(profile.get("run_speed", 13.0)),
+            "ground_offset": float(profile.get("ground_offset", 0.62)),
+            "mount_offset": Vec3(profile.get("mount_offset", Vec3(0.0, 0.0, 0.95))),
+            "dismount_offset": Vec3(profile.get("dismount_offset", Vec3(1.2, -0.6, 0.0))),
+        }
+        if kind == "ship":
+            out["water_level"] = float(profile.get("water_level", -1.25))
+            out["wave_bob_amplitude"] = float(profile.get("wave_bob_amplitude", 0.12))
+            out["wave_bob_speed"] = float(profile.get("wave_bob_speed", 2.2))
+            out["nav_zone_id"] = str(profile.get("nav_zone_id", "") or "")
+        return out
+
     def _spawn_vehicle_from_entry(self, entry: Dict, fallback_index=0) -> Optional[Dict]:
         kind = self._normalize_kind(entry.get("kind", ""))
-        if kind not in {"horse", "carriage", "ship"}:
+        if kind not in {"horse", "wolf", "stag", "carriage", "ship"}:
             return None
 
         vehicle_id = str(entry.get("id") or f"{kind}_{fallback_index+1}")
@@ -331,12 +458,18 @@ class VehicleManager:
         y = float(pos[1])
         heading = float(entry.get("heading", 0.0) or 0.0)
 
-        if kind == "horse":
-            vehicle = self._spawn_horse(vehicle_id, x, y)
-        elif kind == "carriage":
-            vehicle = self._spawn_carriage(vehicle_id, x, y)
-        else:
-            vehicle = self._spawn_ship(vehicle_id, x, y)
+        vehicle = self._spawn_vehicle_from_model(kind, vehicle_id, x, y, entry)
+        if vehicle is None:
+            if kind == "horse":
+                vehicle = self._spawn_horse(vehicle_id, x, y)
+            elif kind == "wolf":
+                vehicle = self._spawn_wolf(vehicle_id, x, y)
+            elif kind == "stag":
+                vehicle = self._spawn_stag(vehicle_id, x, y)
+            elif kind == "carriage":
+                vehicle = self._spawn_carriage(vehicle_id, x, y)
+            else:
+                vehicle = self._spawn_ship(vehicle_id, x, y)
 
         vehicle["node"].setH(heading)
         self._apply_vehicle_tuning(vehicle, entry)
@@ -392,9 +525,107 @@ class VehicleManager:
 
     def _normalize_kind(self, kind):
         token = str(kind or "").strip().lower()
-        if token == "boat":
-            return "ship"
-        return token
+        aliases = {
+            "boat": "ship",
+            "skiff": "ship",
+            "sloop": "ship",
+            "pony": "horse",
+            "mare": "horse",
+            "direwolf": "wolf",
+            "dire_wolf": "wolf",
+            "warg": "wolf",
+            "deer": "stag",
+            "elk": "stag",
+            "reindeer": "stag",
+        }
+        return aliases.get(token, token)
+
+    def _display_kind_name(self, kind):
+        token = self._normalize_kind(kind)
+        labels = {
+            "horse": "Horse",
+            "wolf": "Dire Wolf",
+            "stag": "Stag",
+            "carriage": "Carriage",
+            "ship": "Ship",
+        }
+        if token in labels:
+            return labels[token]
+        return str(token).replace("_", " ").title()
+
+    def _vehicle_visual_palette(self, kind):
+        token = self._normalize_kind(kind)
+        if token == "wolf":
+            return {
+                "body": (0.28, 0.30, 0.34, 1.0),
+                "body_dark": (0.14, 0.16, 0.20, 1.0),
+                "body_light": (0.48, 0.50, 0.54, 1.0),
+                "leather": (0.18, 0.14, 0.12, 1.0),
+                "cloth": (0.24, 0.34, 0.42, 1.0),
+                "metal": (0.62, 0.66, 0.72, 1.0),
+                "accent": (0.44, 0.62, 0.78, 1.0),
+                "glow": (0.54, 0.72, 0.96, 1.0),
+            }
+        if token == "stag":
+            return {
+                "body": (0.48, 0.33, 0.22, 1.0),
+                "body_dark": (0.22, 0.16, 0.10, 1.0),
+                "body_light": (0.68, 0.58, 0.46, 1.0),
+                "leather": (0.24, 0.17, 0.10, 1.0),
+                "cloth": (0.22, 0.32, 0.22, 1.0),
+                "metal": (0.76, 0.71, 0.58, 1.0),
+                "accent": (0.58, 0.74, 0.46, 1.0),
+                "glow": (0.78, 0.86, 0.60, 1.0),
+            }
+        if token == "carriage":
+            return {
+                "body": (0.36, 0.24, 0.16, 1.0),
+                "body_dark": (0.22, 0.15, 0.10, 1.0),
+                "body_light": (0.50, 0.37, 0.24, 1.0),
+                "leather": (0.18, 0.10, 0.10, 1.0),
+                "cloth": (0.44, 0.16, 0.14, 1.0),
+                "metal": (0.70, 0.62, 0.46, 1.0),
+                "accent": (0.82, 0.66, 0.30, 1.0),
+                "glow": (0.98, 0.78, 0.44, 1.0),
+            }
+        if token == "ship":
+            return {
+                "body": (0.30, 0.21, 0.14, 1.0),
+                "body_dark": (0.19, 0.14, 0.10, 1.0),
+                "body_light": (0.46, 0.34, 0.23, 1.0),
+                "leather": (0.22, 0.17, 0.13, 1.0),
+                "cloth": (0.86, 0.84, 0.78, 0.96),
+                "metal": (0.66, 0.58, 0.44, 1.0),
+                "accent": (0.22, 0.34, 0.48, 1.0),
+                "glow": (0.96, 0.82, 0.52, 1.0),
+            }
+        if token == "horse":
+            return {
+                "body": (0.46, 0.30, 0.18, 1.0),
+                "body_dark": (0.24, 0.17, 0.11, 1.0),
+                "body_light": (0.64, 0.50, 0.34, 1.0),
+                "leather": (0.27, 0.19, 0.12, 1.0),
+                "cloth": (0.58, 0.20, 0.18, 1.0),
+                "metal": (0.72, 0.70, 0.66, 1.0),
+                "accent": (0.88, 0.68, 0.36, 1.0),
+                "glow": (0.96, 0.82, 0.54, 1.0),
+            }
+        return {
+            "body": (0.46, 0.30, 0.18, 1.0),
+            "body_dark": (0.24, 0.17, 0.11, 1.0),
+            "body_light": (0.64, 0.50, 0.34, 1.0),
+            "leather": (0.27, 0.19, 0.12, 1.0),
+            "cloth": (0.58, 0.20, 0.18, 1.0),
+            "metal": (0.72, 0.70, 0.66, 1.0),
+            "accent": (0.88, 0.68, 0.36, 1.0),
+            "glow": (0.96, 0.82, 0.54, 1.0),
+        }
+
+    def _palette_lcolor(self, palette, key, fallback=(1.0, 1.0, 1.0, 1.0)):
+        raw = palette.get(key, fallback) if isinstance(palette, dict) else fallback
+        if not isinstance(raw, (list, tuple)) or len(raw) < 4:
+            raw = fallback
+        return LColor(float(raw[0]), float(raw[1]), float(raw[2]), float(raw[3]))
 
     def _coerce_offset(self, value, fallback):
         if isinstance(value, (list, tuple)) and len(value) >= 3:
@@ -617,32 +848,180 @@ class VehicleManager:
             return h >= -0.15
         return True
 
+    def _attach_colored_geom(self, parent, geom, color, pos=(0.0, 0.0, 0.0), hpr=(0.0, 0.0, 0.0), scale=None):
+        node = parent.attachNewNode(geom)
+        node.setPos(float(pos[0]), float(pos[1]), float(pos[2]))
+        node.setHpr(float(hpr[0]), float(hpr[1]), float(hpr[2]))
+        if isinstance(scale, (list, tuple)) and len(scale) >= 3:
+            node.setScale(float(scale[0]), float(scale[1]), float(scale[2]))
+        elif isinstance(scale, (int, float)):
+            node.setScale(float(scale))
+        node.setColor(color)
+        return node
+
     def _spawn_horse(self, vehicle_id, x, y):
-        z = self._ground_height(x, y) + 0.55
+        z = self._ground_height(x, y) + 0.62
         root = self.app.render.attachNewNode(f"vehicle_{vehicle_id}")
         root.setPos(x, y, z)
 
-        body = root.attachNewNode(mk_box(f"{vehicle_id}_body", 1.7, 0.7, 0.75))
-        body.setColor(LColor(0.45, 0.29, 0.17, 1.0))
+        palette = self._vehicle_visual_palette("horse")
+        coat = self._palette_lcolor(palette, "body")
+        coat_dark = self._palette_lcolor(palette, "body_dark")
+        coat_light = self._palette_lcolor(palette, "body_light")
+        leather = self._palette_lcolor(palette, "leather")
+        cloth = self._palette_lcolor(palette, "cloth")
+        metal = self._palette_lcolor(palette, "metal")
+        accent = self._palette_lcolor(palette, "accent")
 
-        neck = root.attachNewNode(mk_box(f"{vehicle_id}_neck", 0.45, 0.35, 0.55))
-        neck.setPos(0.92, 0.0, 0.32)
-        neck.setColor(LColor(0.43, 0.27, 0.15, 1.0))
-
-        head = root.attachNewNode(mk_box(f"{vehicle_id}_head", 0.42, 0.28, 0.32))
-        head.setPos(1.20, 0.0, 0.38)
-        head.setColor(LColor(0.40, 0.24, 0.13, 1.0))
-
-        tail = root.attachNewNode(mk_cone(f"{vehicle_id}_tail", 0.10, 0.55, 10))
-        tail.setPos(-0.95, 0.0, 0.22)
-        tail.setHpr(0, -70, 0)
-        tail.setColor(LColor(0.20, 0.15, 0.10, 1.0))
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_body", 0.56, 12, 16),
+            coat,
+            pos=(0.00, 0.00, 0.36),
+            scale=(1.65, 0.82, 0.86),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_chest", 0.32, 10, 14),
+            coat,
+            pos=(0.78, 0.00, 0.42),
+            scale=(1.00, 0.92, 1.12),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_neck", 0.22, 10, 14),
+            coat,
+            pos=(1.00, 0.00, 0.74),
+            hpr=(0.0, -18.0, 0.0),
+            scale=(0.88, 0.62, 1.34),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_head", 0.26, 10, 14),
+            coat,
+            pos=(1.30, 0.00, 0.95),
+            scale=(1.18, 0.74, 0.86),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_muzzle", 0.13, 8, 12),
+            coat,
+            pos=(1.54, 0.00, 0.88),
+            scale=(1.26, 0.62, 0.56),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_blaze", 0.06, 0.18, 0.24),
+            coat_light,
+            pos=(1.36, 0.0, 0.96),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_ear_l", 0.05, 0.14, 9),
+            coat_dark,
+            pos=(1.22, 0.11, 1.16),
+            hpr=(0.0, 18.0, 6.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_ear_r", 0.05, 0.14, 9),
+            coat_dark,
+            pos=(1.22, -0.11, 1.16),
+            hpr=(0.0, 18.0, -6.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_tail", 0.09, 0.66, 12),
+            coat_dark,
+            pos=(-1.06, 0.00, 0.56),
+            hpr=(0.0, -65.0, 0.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_mane", 0.18, 0.08, 0.76),
+            coat_dark,
+            pos=(1.00, 0.0, 0.96),
+            hpr=(0.0, -24.0, 0.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_saddle", 0.62, 0.52, 0.13),
+            leather,
+            pos=(0.08, 0.00, 0.88),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_saddle_pad", 0.76, 0.64, 0.06),
+            cloth,
+            pos=(0.08, 0.00, 0.79),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_breaststrap", 0.14, 0.76, 0.06),
+            leather,
+            pos=(0.74, 0.0, 0.70),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_bridle_band", 0.16, 0.04, 0.28),
+            leather,
+            pos=(1.42, 0.0, 0.94),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_nose_guard", 0.10, 0.20, 0.12),
+            accent,
+            pos=(1.56, 0.0, 0.86),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_bedroll", 0.18, 0.52, 0.12),
+            accent,
+            pos=(-0.18, 0.0, 0.98),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_flank_cloth", 0.82, 0.08, 0.46),
+            cloth,
+            pos=(0.06, 0.0, 0.64),
+        )
 
         legs = [(-0.58, -0.22), (-0.58, 0.22), (0.52, -0.22), (0.52, 0.22)]
         for idx, (lx, ly) in enumerate(legs):
-            leg = root.attachNewNode(mk_cyl(f"{vehicle_id}_leg_{idx}", 0.08, 0.8, 8))
-            leg.setPos(lx, ly, -0.30)
-            leg.setColor(LColor(0.24, 0.18, 0.11, 1.0))
+            self._attach_colored_geom(
+                root,
+                mk_cyl(f"{vehicle_id}_leg_{idx}", 0.075, 0.82, 12),
+                LColor(0.28, 0.20, 0.12, 1.0),
+                pos=(lx, ly, -0.18),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_sphere(f"{vehicle_id}_hoof_{idx}", 0.09, 8, 10),
+                LColor(0.12, 0.09, 0.08, 1.0),
+                pos=(lx, ly, -0.60),
+                scale=(1.08, 1.08, 0.56),
+            )
+
+        for side in (-1.0, 1.0):
+            self._attach_colored_geom(
+                root,
+                mk_cyl(f"{vehicle_id}_stirrup_{'l' if side < 0 else 'r'}", 0.015, 0.28, 8),
+                metal,
+                pos=(0.02, 0.22 * side, 0.56),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_cyl(f"{vehicle_id}_rein_{'l' if side < 0 else 'r'}", 0.010, 0.62, 8),
+                leather,
+                pos=(1.08, 0.12 * side, 0.90),
+                hpr=(0.0, -58.0, 8.0 * side),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_box(f"{vehicle_id}_flank_guard_{'l' if side < 0 else 'r'}", 0.52, 0.06, 0.34),
+                accent,
+                pos=(0.00, 0.32 * side, 0.68),
+            )
 
         return {
             "id": vehicle_id,
@@ -650,33 +1029,442 @@ class VehicleManager:
             "node": root,
             "speed": 8.0,
             "run_speed": 13.0,
-            "ground_offset": 0.55,
+            "ground_offset": 0.62,
             "mount_offset": Vec3(0.0, 0.0, 0.95),
             "dismount_offset": Vec3(1.2, -0.6, 0.0),
         }
 
-    def _spawn_carriage(self, vehicle_id, x, y):
-        z = self._ground_height(x, y) + 0.65
+    def _spawn_wolf(self, vehicle_id, x, y):
+        z = self._ground_height(x, y) + 0.56
         root = self.app.render.attachNewNode(f"vehicle_{vehicle_id}")
         root.setPos(x, y, z)
 
-        base = root.attachNewNode(mk_box(f"{vehicle_id}_base", 2.7, 1.35, 0.62))
-        base.setColor(LColor(0.33, 0.22, 0.12, 1.0))
+        palette = self._vehicle_visual_palette("wolf")
+        fur_mid = self._palette_lcolor(palette, "body")
+        fur_dark = self._palette_lcolor(palette, "body_dark")
+        fur_light = self._palette_lcolor(palette, "body_light")
+        leather = self._palette_lcolor(palette, "leather")
+        cloth = self._palette_lcolor(palette, "cloth")
+        metal = self._palette_lcolor(palette, "metal")
+        accent = self._palette_lcolor(palette, "accent")
 
-        cabin = root.attachNewNode(mk_box(f"{vehicle_id}_cabin", 1.55, 1.05, 1.0))
-        cabin.setPos(0.0, 0.0, 0.72)
-        cabin.setColor(LColor(0.42, 0.29, 0.16, 1.0))
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_body", 0.54, 12, 16),
+            fur_mid,
+            pos=(0.00, 0.00, 0.34),
+            scale=(1.86, 0.76, 0.82),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_chest", 0.30, 10, 14),
+            fur_light,
+            pos=(0.72, 0.00, 0.38),
+            scale=(1.14, 0.84, 1.02),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_neck", 0.22, 10, 14),
+            fur_mid,
+            pos=(0.92, 0.00, 0.64),
+            hpr=(0.0, -14.0, 0.0),
+            scale=(0.92, 0.62, 1.20),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_head", 0.24, 10, 14),
+            fur_dark,
+            pos=(1.20, 0.00, 0.82),
+            scale=(1.14, 0.70, 0.78),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_muzzle", 0.30, 0.20, 0.18),
+            fur_light,
+            pos=(1.42, 0.00, 0.74),
+            scale=(1.08, 0.92, 0.92),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_ear_l", 0.06, 0.18, 10),
+            fur_dark,
+            pos=(1.16, 0.12, 1.01),
+            hpr=(0.0, 20.0, 7.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_ear_r", 0.06, 0.18, 10),
+            fur_dark,
+            pos=(1.16, -0.12, 1.01),
+            hpr=(0.0, 20.0, -7.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_tail", 0.08, 0.76, 12),
+            fur_dark,
+            pos=(-1.02, 0.00, 0.58),
+            hpr=(0.0, -58.0, 0.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_mane_ridge", 0.72, 0.10, 0.28),
+            fur_dark,
+            pos=(0.28, 0.0, 0.88),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_saddle", 0.58, 0.48, 0.11),
+            leather,
+            pos=(0.08, 0.00, 0.84),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_saddle_pad", 0.70, 0.60, 0.06),
+            cloth,
+            pos=(0.08, 0.00, 0.76),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_harness_chest", 0.12, 0.70, 0.05),
+            leather,
+            pos=(0.70, 0.0, 0.68),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_pack", 0.20, 0.40, 0.18),
+            accent,
+            pos=(-0.22, 0.0, 0.94),
+        )
+        for side in (-1.0, 1.0):
+            self._attach_colored_geom(
+                root,
+                mk_sphere(f"{vehicle_id}_eye_{'l' if side < 0 else 'r'}", 0.03, 8, 10),
+                metal,
+                pos=(1.34, 0.10 * side, 0.86),
+                scale=(1.0, 1.0, 0.8),
+            )
 
-        roof = root.attachNewNode(mk_box(f"{vehicle_id}_roof", 1.75, 1.20, 0.25))
-        roof.setPos(0.0, 0.0, 1.36)
-        roof.setColor(LColor(0.18, 0.12, 0.08, 1.0))
+        legs = [(-0.58, -0.20), (-0.58, 0.20), (0.56, -0.20), (0.56, 0.20)]
+        for idx, (lx, ly) in enumerate(legs):
+            self._attach_colored_geom(
+                root,
+                mk_cyl(f"{vehicle_id}_leg_{idx}", 0.07, 0.72, 12),
+                fur_dark,
+                pos=(lx, ly, -0.16),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_sphere(f"{vehicle_id}_paw_{idx}", 0.09, 8, 10),
+                LColor(0.08, 0.08, 0.09, 1.0),
+                pos=(lx, ly, -0.52),
+                scale=(1.08, 1.08, 0.50),
+            )
+
+        return {
+            "id": vehicle_id,
+            "kind": "wolf",
+            "node": root,
+            "speed": 9.5,
+            "run_speed": 15.2,
+            "ground_offset": 0.56,
+            "mount_offset": Vec3(0.0, 0.0, 0.92),
+            "dismount_offset": Vec3(1.2, -0.7, 0.0),
+        }
+
+    def _spawn_stag(self, vehicle_id, x, y):
+        z = self._ground_height(x, y) + 0.64
+        root = self.app.render.attachNewNode(f"vehicle_{vehicle_id}")
+        root.setPos(x, y, z)
+
+        palette = self._vehicle_visual_palette("stag")
+        coat = self._palette_lcolor(palette, "body")
+        coat_dark = self._palette_lcolor(palette, "body_dark")
+        coat_light = self._palette_lcolor(palette, "body_light")
+        tack = self._palette_lcolor(palette, "leather")
+        cloth = self._palette_lcolor(palette, "cloth")
+        horn = self._palette_lcolor(palette, "metal")
+        accent = self._palette_lcolor(palette, "accent")
+
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_body", 0.54, 12, 16),
+            coat,
+            pos=(0.00, 0.00, 0.38),
+            scale=(1.86, 0.72, 0.86),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_chest", 0.30, 10, 14),
+            coat_light,
+            pos=(0.82, 0.00, 0.44),
+            scale=(1.04, 0.82, 1.06),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_neck", 0.20, 10, 14),
+            coat,
+            pos=(1.08, 0.00, 0.78),
+            hpr=(0.0, -20.0, 0.0),
+            scale=(0.84, 0.56, 1.46),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_head", 0.24, 10, 14),
+            coat_dark,
+            pos=(1.42, 0.00, 1.05),
+            scale=(1.18, 0.62, 0.80),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_muzzle", 0.26, 0.16, 0.14),
+            coat_light,
+            pos=(1.62, 0.00, 0.95),
+            scale=(1.02, 0.84, 0.86),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_ear_l", 0.05, 0.16, 9),
+            coat_dark,
+            pos=(1.34, 0.11, 1.23),
+            hpr=(0.0, 18.0, 6.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_ear_r", 0.05, 0.16, 9),
+            coat_dark,
+            pos=(1.34, -0.11, 1.23),
+            hpr=(0.0, 18.0, -6.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_antler_l", 0.03, 0.46, 9),
+            horn,
+            pos=(1.26, 0.14, 1.36),
+            hpr=(0.0, 8.0, 14.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_antler_r", 0.03, 0.46, 9),
+            horn,
+            pos=(1.26, -0.14, 1.36),
+            hpr=(0.0, 8.0, -14.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_tail", 0.07, 0.48, 10),
+            coat_dark,
+            pos=(-1.04, 0.00, 0.70),
+            hpr=(0.0, -60.0, 0.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_saddle", 0.56, 0.44, 0.10),
+            tack,
+            pos=(0.12, 0.00, 0.95),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_saddle_pad", 0.70, 0.56, 0.06),
+            cloth,
+            pos=(0.12, 0.00, 0.86),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_capelet", 0.46, 0.52, 0.10),
+            accent,
+            pos=(0.02, 0.0, 1.04),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_charm", 0.05, 8, 10),
+            accent,
+            pos=(0.92, 0.0, 0.62),
+        )
+        for side in (-1.0, 1.0):
+            self._attach_colored_geom(
+                root,
+                mk_cone(f"{vehicle_id}_antler_tine_{'l' if side < 0 else 'r'}", 0.02, 0.22, 7),
+                horn,
+                pos=(1.18, 0.18 * side, 1.52),
+                hpr=(0.0, 20.0, 18.0 * side),
+            )
+
+        legs = [(-0.60, -0.18), (-0.60, 0.18), (0.64, -0.18), (0.64, 0.18)]
+        for idx, (lx, ly) in enumerate(legs):
+            self._attach_colored_geom(
+                root,
+                mk_cyl(f"{vehicle_id}_leg_{idx}", 0.060, 0.94, 10),
+                coat_dark,
+                pos=(lx, ly, -0.20),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_sphere(f"{vehicle_id}_hoof_{idx}", 0.08, 8, 10),
+                LColor(0.11, 0.09, 0.08, 1.0),
+                pos=(lx, ly, -0.67),
+                scale=(1.02, 1.02, 0.48),
+            )
+
+        return {
+            "id": vehicle_id,
+            "kind": "stag",
+            "node": root,
+            "speed": 9.0,
+            "run_speed": 14.4,
+            "ground_offset": 0.64,
+            "mount_offset": Vec3(0.0, 0.0, 0.98),
+            "dismount_offset": Vec3(1.3, -0.65, 0.0),
+        }
+
+    def _spawn_carriage(self, vehicle_id, x, y):
+        z = self._ground_height(x, y) + 0.74
+        root = self.app.render.attachNewNode(f"vehicle_{vehicle_id}")
+        root.setPos(x, y, z)
+
+        palette = self._vehicle_visual_palette("carriage")
+        wood = self._palette_lcolor(palette, "body")
+        wood_dark = self._palette_lcolor(palette, "body_dark")
+        wood_light = self._palette_lcolor(palette, "body_light")
+        leather = self._palette_lcolor(palette, "leather")
+        canopy = self._palette_lcolor(palette, "cloth")
+        metal = self._palette_lcolor(palette, "metal")
+        accent = self._palette_lcolor(palette, "accent")
+
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_frame", 0.62, 10, 14),
+            wood,
+            pos=(0.0, 0.0, 0.32),
+            scale=(2.48, 1.14, 0.46),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_floor", 2.28, 1.08, 0.12),
+            wood_dark,
+            pos=(0.0, 0.0, 0.67),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_cabin", 0.55, 10, 14),
+            wood,
+            pos=(0.0, 0.0, 1.16),
+            scale=(1.58, 1.06, 0.96),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_cabin_trim", 1.82, 1.22, 0.08),
+            accent,
+            pos=(0.0, 0.0, 1.22),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_roof", 0.52, 10, 14),
+            canopy,
+            pos=(0.0, 0.0, 1.62),
+            scale=(1.72, 1.20, 0.54),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_driver_bench", 0.54, 0.72, 0.12),
+            leather,
+            pos=(0.92, 0.0, 1.06),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_driver_back", 0.14, 0.72, 0.42),
+            wood_dark,
+            pos=(0.72, 0.0, 1.24),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_rear_trunk", 0.42, 0.78, 0.34),
+            wood_light,
+            pos=(-0.96, 0.0, 0.98),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cyl(f"{vehicle_id}_pole", 0.05, 1.66, 12),
+            wood_dark,
+            pos=(1.88, 0.0, 0.56),
+            hpr=(0.0, 90.0, 0.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_pole_wrap", 0.28, 0.10, 0.10),
+            accent,
+            pos=(1.38, 0.0, 0.56),
+        )
+
+        for side in (-1.0, 1.0):
+            self._attach_colored_geom(
+                root,
+                mk_box(f"{vehicle_id}_window_{'l' if side < 0 else 'r'}", 0.08, 0.42, 0.44),
+                LColor(0.12, 0.10, 0.08, 0.74),
+                pos=(-0.08, 0.56 * side, 1.20),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_box(f"{vehicle_id}_door_panel_{'l' if side < 0 else 'r'}", 0.10, 0.54, 0.62),
+                wood_dark,
+                pos=(0.00, 0.58 * side, 1.00),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_sphere(f"{vehicle_id}_lantern_{'l' if side < 0 else 'r'}", 0.08, 8, 10),
+                metal,
+                pos=(1.34, 0.62 * side, 1.08),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_sphere(f"{vehicle_id}_lantern_glow_{'l' if side < 0 else 'r'}", 0.05, 8, 10),
+                self._palette_lcolor(palette, "glow"),
+                pos=(1.38, 0.62 * side, 1.04),
+            )
 
         wheels = [(-1.0, -0.72), (-1.0, 0.72), (1.0, -0.72), (1.0, 0.72)]
         for idx, (wx, wy) in enumerate(wheels):
-            wheel = root.attachNewNode(mk_cyl(f"{vehicle_id}_wheel_{idx}", 0.30, 0.22, 12))
-            wheel.setPos(wx, wy, -0.35)
-            wheel.setR(90)
-            wheel.setColor(LColor(0.14, 0.10, 0.08, 1.0))
+            wheel = self._attach_colored_geom(
+                root,
+                mk_cyl(f"{vehicle_id}_wheel_{idx}", 0.42, 0.14, 20),
+                wood_dark,
+                pos=(wx, wy, -0.22),
+                hpr=(0.0, 0.0, 90.0),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_cyl(f"{vehicle_id}_rim_{idx}", 0.45, 0.05, 20),
+                metal,
+                pos=(wx, wy, -0.22),
+                hpr=(0.0, 0.0, 90.0),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_sphere(f"{vehicle_id}_hub_{idx}", 0.09, 8, 10),
+                accent,
+                pos=(wx, wy, -0.22),
+                scale=(1.0, 1.0, 0.54),
+            )
+            for spoke_idx in range(6):
+                angle = (math.tau * float(spoke_idx)) / 6.0
+                sx = wx
+                sy = wy + (math.cos(angle) * 0.22)
+                sz = -0.22 + (math.sin(angle) * 0.22)
+                spoke = self._attach_colored_geom(
+                    root,
+                    mk_cyl(f"{vehicle_id}_spoke_{idx}_{spoke_idx}", 0.015, 0.24, 8),
+                    wood,
+                    pos=(sx, sy, sz),
+                    hpr=(0.0, 90.0, math.degrees(angle)),
+                )
+                spoke.setScale(1.0, 1.0, 1.0)
+
+        for side in (-1.0, 1.0):
+            self._attach_colored_geom(
+                root,
+                mk_box(f"{vehicle_id}_curtain_{'l' if side < 0 else 'r'}", 0.06, 0.30, 0.58),
+                canopy,
+                pos=(-0.26, 0.50 * side, 1.10),
+            )
 
         return {
             "id": vehicle_id,
@@ -684,7 +1472,7 @@ class VehicleManager:
             "node": root,
             "speed": 6.0,
             "run_speed": 9.5,
-            "ground_offset": 0.65,
+            "ground_offset": 0.74,
             "mount_offset": Vec3(0.0, 0.0, 1.08),
             "dismount_offset": Vec3(1.8, -0.8, 0.0),
         }
@@ -694,20 +1482,125 @@ class VehicleManager:
         root = self.app.render.attachNewNode(f"vehicle_{vehicle_id}")
         root.setPos(x, y, water_level)
 
-        hull = root.attachNewNode(mk_box(f"{vehicle_id}_hull", 4.1, 1.3, 0.78))
-        hull.setColor(LColor(0.30, 0.20, 0.12, 1.0))
+        palette = self._vehicle_visual_palette("ship")
+        wood = self._palette_lcolor(palette, "body")
+        wood_dark = self._palette_lcolor(palette, "body_dark")
+        wood_light = self._palette_lcolor(palette, "body_light")
+        cloth = self._palette_lcolor(palette, "cloth")
+        metal = self._palette_lcolor(palette, "metal")
+        accent = self._palette_lcolor(palette, "accent")
+        glow = self._palette_lcolor(palette, "glow")
 
-        deck = root.attachNewNode(mk_box(f"{vehicle_id}_deck", 2.9, 1.02, 0.14))
-        deck.setPos(0.0, 0.0, 0.46)
-        deck.setColor(LColor(0.48, 0.35, 0.22, 1.0))
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_hull_mid", 0.68, 12, 16),
+            wood,
+            pos=(0.0, 0.0, 0.06),
+            scale=(2.92, 1.18, 0.74),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_hull_bow", 0.44, 1.08, 16),
+            wood,
+            pos=(2.02, 0.0, 0.10),
+            hpr=(0.0, 90.0, 0.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cone(f"{vehicle_id}_hull_stern", 0.52, 0.94, 16),
+            wood_dark,
+            pos=(-2.02, 0.0, 0.16),
+            hpr=(180.0, 90.0, 0.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_keel", 3.40, 0.16, 0.24),
+            wood_dark,
+            pos=(-0.02, 0.0, -0.34),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_deck", 3.22, 0.96, 0.11),
+            wood_light,
+            pos=(0.0, 0.0, 0.58),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_deck_hatch", 0.58, 0.48, 0.12),
+            wood_dark,
+            pos=(-0.42, 0.0, 0.70),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_stern_cabin", 0.64, 0.82, 0.46),
+            accent,
+            pos=(-1.20, 0.0, 0.96),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cyl(f"{vehicle_id}_mast", 0.09, 3.05, 14),
+            wood_light,
+            pos=(0.20, 0.0, 1.60),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_cyl(f"{vehicle_id}_yard", 0.04, 1.44, 10),
+            wood,
+            pos=(0.24, 0.0, 2.16),
+            hpr=(90.0, 0.0, 0.0),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_sail", 0.05, 1.12, 1.62),
+            cloth,
+            pos=(0.38, 0.0, 1.74),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_sail_stripe", 0.06, 0.94, 0.22),
+            accent,
+            pos=(0.42, 0.0, 1.92),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_rudder", 0.05, 0.34, 0.52),
+            wood_dark,
+            pos=(-1.92, 0.0, -0.04),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_box(f"{vehicle_id}_bow_trim", 0.26, 0.18, 0.46),
+            accent,
+            pos=(2.10, 0.0, 0.56),
+        )
+        self._attach_colored_geom(
+            root,
+            mk_sphere(f"{vehicle_id}_figurehead", 0.10, 8, 10),
+            glow,
+            pos=(2.24, 0.0, 0.72),
+            scale=(0.9, 0.7, 1.4),
+        )
 
-        mast = root.attachNewNode(mk_cyl(f"{vehicle_id}_mast", 0.08, 2.8, 10))
-        mast.setPos(0.25, 0.0, 1.45)
-        mast.setColor(LColor(0.42, 0.31, 0.19, 1.0))
-
-        sail = root.attachNewNode(mk_box(f"{vehicle_id}_sail", 0.06, 1.15, 1.48))
-        sail.setPos(0.42, 0.0, 1.58)
-        sail.setColor(LColor(0.86, 0.84, 0.77, 0.96))
+        for side in (-1.0, 1.0):
+            self._attach_colored_geom(
+                root,
+                mk_box(f"{vehicle_id}_rail_{'l' if side < 0 else 'r'}", 3.00, 0.08, 0.22),
+                wood_dark,
+                pos=(-0.06, 0.56 * side, 0.86),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_box(f"{vehicle_id}_rope_{'l' if side < 0 else 'r'}", 1.38, 0.03, 0.03),
+                metal,
+                pos=(0.82, 0.30 * side, 1.84),
+                hpr=(0.0, -38.0, 0.0),
+            )
+            self._attach_colored_geom(
+                root,
+                mk_sphere(f"{vehicle_id}_lamp_{'l' if side < 0 else 'r'}", 0.07, 8, 10),
+                glow,
+                pos=(-1.44, 0.28 * side, 1.24),
+            )
 
         return {
             "id": vehicle_id,

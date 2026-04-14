@@ -7,7 +7,7 @@
             "is_boss": true,
             "use_external_model": true,
             "use_actor": true,
-            "model": "assets/models/bosses/big_arm.glb",
+            "model": "assets/models/enemies/golem_boss.glb",
             "scale": 1.42,
             "spawn_point": [
                 34.0,
@@ -55,14 +55,14 @@
                         "damage_mul": 1.12,
                         "speed_mul": 1.08,
                         "telegraph_mul": 0.92,
-                        "cooldown_mul": 0.90,
+                        "cooldown_mul": 0.9,
                         "anim_rate_mul": 1.05
                     },
                     {
                         "hp_threshold": 0.36,
                         "enrage": true,
                         "damage_mul": 1.14,
-                        "speed_mul": 1.10,
+                        "speed_mul": 1.1,
                         "telegraph_mul": 0.88,
                         "cooldown_mul": 0.84,
                         "anim_rate_mul": 1.08
@@ -71,79 +71,65 @@
             }
         },
         {
-            "id": "golem_titan",
-            "name": "Titan Golem",
-            "kind": "golem",
+            "id": "krimora_boss",
+            "name": "Krimora the Sorceress",
+            "kind": "human",
             "is_boss": true,
             "use_external_model": true,
             "use_actor": true,
-            "model": "assets/models/bosses/dino.glb",
-            "scale": 1.85,
+            "model": "assets/models/xbot/Xbot.glb",
+            "role": "sorceress",
+            "gender": "female",
+            "scale": 1.05,
             "spawn_point": [
-                56.0,
-                42.0,
+                84.0,
+                -12.0,
                 0.0
             ],
-            "ground_offset": 2.2,
+            "ground_offset": 0.05,
             "animations": {
-                "idle": "CharacterArmature|Idle",
-                "chase": "CharacterArmature|Run",
-                "telegraph": "CharacterArmature|Weapon",
-                "attack": "CharacterArmature|Punch",
-                "recover": "CharacterArmature|Yes",
-                "hit": "CharacterArmature|HitReact",
-                "dead": "CharacterArmature|Death"
+                "idle": "assets/models/xbot/idle.glb",
+                "chase": "assets/models/xbot/run.glb",
+                "telegraph": "assets/anims/mixamo/player/cast_prepare.fbx",
+                "attack": "assets/anims/mixamo/player/cast_release.fbx",
+                "recover": "assets/models/xbot/idle.glb",
+                "hit": "assets/anims/mixamo/player/cast_fast.fbx",
+                "dead": "assets/anims/death_die.fbx"
             },
             "animation_rates": {
-                "chase": 0.92,
-                "telegraph": 0.84,
-                "attack": 1.02,
-                "recover": 0.84
+                "chase": 1.25,
+                "telegraph": 1.15,
+                "attack": 1.45,
+                "recover": 0.95
             },
             "stats": {
-                "max_hp": 2550,
-                "armor": 25,
-                "power": 44,
-                "run_speed": 3.5,
-                "aggro_range": 38.0,
-                "attack_range": 5.3
+                "max_hp": 2450,
+                "armor": 12,
+                "power": 48,
+                "run_speed": 6.8,
+                "aggro_range": 42.0,
+                "attack_range": 12.5
             },
+            "death_sound": "data/audio/bgm_Kremor_2.wav",
+            "hit_sound": "data/audio/sfx/hit.wav",
+            "attack_sound": "data/audio/sfx/cast.wav",
             "ai": {
-                "telegraph_duration": 0.52,
-                "attack_duration": 1.02,
-                "recover_duration": 0.48,
-                "hit_react_duration": 0.26,
-                "attack_cooldown": 3.25,
-                "melee_hit_time": 0.46,
-                "melee_window_start": 0.40,
-                "melee_window_end": 0.60,
-                "melee_damage": 31,
-                "disengage_hold": 9.0,
+                "telegraph_duration": 0.45,
+                "attack_duration": 0.65,
+                "recover_duration": 0.35,
+                "hit_react_duration": 0.18,
+                "attack_cooldown": 2.2,
+                "projectile_fire_time": 0.32,
+                "melee_damage": 32,
+                "disengage_hold": 12.0,
                 "phase_transitions": [
                     {
-                        "hp_threshold": 0.70,
-                        "damage_mul": 1.10,
-                        "speed_mul": 1.06,
-                        "telegraph_mul": 0.94,
-                        "cooldown_mul": 0.92,
-                        "anim_rate_mul": 1.04
-                    },
-                    {
-                        "hp_threshold": 0.40,
-                        "damage_mul": 1.14,
-                        "speed_mul": 1.10,
-                        "telegraph_mul": 0.90,
-                        "cooldown_mul": 0.88,
-                        "anim_rate_mul": 1.06
-                    },
-                    {
-                        "hp_threshold": 0.20,
-                        "enrage": true,
-                        "damage_mul": 1.16,
-                        "speed_mul": 1.12,
-                        "telegraph_mul": 0.86,
-                        "cooldown_mul": 0.80,
-                        "anim_rate_mul": 1.08
+                        "hp_threshold": 0.5,
+                        "damage_mul": 1.15,
+                        "speed_mul": 1.1,
+                        "telegraph_mul": 0.85,
+                        "cooldown_mul": 0.8,
+                        "anim_rate_mul": 1.15
                     }
                 ]
             }
@@ -155,7 +141,7 @@
             "is_boss": false,
             "use_external_model": true,
             "use_actor": true,
-            "model": "assets/models/bosses/dragon_evolved.glb",
+            "model": "assets/models/enemies/fire_elemental_animated.glb",
             "scale": 0.88,
             "spawn_point": [
                 8.0,
@@ -165,13 +151,13 @@
             "ground_offset": 1.2,
             "hover_height": 1.55,
             "animations": {
-                "idle": "CharacterArmature|Flying_Idle",
-                "chase": "CharacterArmature|Fast_Flying",
-                "telegraph": "CharacterArmature|No",
-                "attack": "CharacterArmature|Headbutt",
-                "recover": "CharacterArmature|Yes",
-                "hit": "CharacterArmature|HitReact",
-                "dead": "CharacterArmature|Death"
+                "idle": "idle",
+                "chase": "run",
+                "telegraph": "ComeHere1",
+                "attack": "Celebrate1",
+                "recover": "headShake",
+                "hit": "headShake",
+                "dead": "sad_pose"
             },
             "animation_rates": {
                 "idle": 1.0,
@@ -200,8 +186,8 @@
                 "disengage_hold": 5.6,
                 "phase_transitions": [
                     {
-                        "hp_threshold": 0.50,
-                        "damage_mul": 1.10,
+                        "hp_threshold": 0.5,
+                        "damage_mul": 1.1,
                         "speed_mul": 1.06,
                         "cooldown_mul": 0.92,
                         "anim_rate_mul": 1.05
@@ -211,7 +197,7 @@
                         "enrage": true,
                         "damage_mul": 1.15,
                         "speed_mul": 1.08,
-                        "telegraph_mul": 0.90,
+                        "telegraph_mul": 0.9,
                         "cooldown_mul": 0.88,
                         "anim_rate_mul": 1.07
                     }
@@ -225,7 +211,7 @@
             "is_boss": false,
             "use_external_model": true,
             "use_actor": true,
-            "model": "assets/models/bosses/dragon_classic.glb",
+            "model": "assets/models/enemies/shadow_stalker_animated.glb",
             "scale": 0.78,
             "spawn_point": [
                 -14.0,
@@ -235,13 +221,13 @@
             "ground_offset": 1.12,
             "hover_height": 1.42,
             "animations": {
-                "idle": "CharacterArmature|Flying_Idle",
-                "chase": "CharacterArmature|Fast_Flying",
-                "telegraph": "CharacterArmature|No",
-                "attack": "CharacterArmature|Punch",
-                "recover": "CharacterArmature|Yes",
-                "hit": "CharacterArmature|HitReact",
-                "dead": "CharacterArmature|Death"
+                "idle": "sneak_pose",
+                "chase": "run",
+                "telegraph": "GoAwayAnnoyed",
+                "attack": "GoAwayQuickly",
+                "recover": "headShake",
+                "hit": "headShake",
+                "dead": "sad_pose"
             },
             "animation_rates": {
                 "chase": 1.14,
@@ -270,16 +256,16 @@
                 "phase_transitions": [
                     {
                         "hp_threshold": 0.45,
-                        "damage_mul": 1.10,
+                        "damage_mul": 1.1,
                         "speed_mul": 1.12,
-                        "cooldown_mul": 0.90,
+                        "cooldown_mul": 0.9,
                         "anim_rate_mul": 1.06
                     },
                     {
-                        "hp_threshold": 0.20,
+                        "hp_threshold": 0.2,
                         "enrage": true,
                         "damage_mul": 1.14,
-                        "speed_mul": 1.10,
+                        "speed_mul": 1.1,
                         "telegraph_mul": 0.88,
                         "cooldown_mul": 0.84,
                         "anim_rate_mul": 1.08
@@ -294,7 +280,7 @@
             "is_boss": false,
             "use_external_model": true,
             "use_actor": true,
-            "model": "assets/models/bosses/dino.glb",
+            "model": "assets/models/enemies/goblin_raider_animated.glb",
             "scale": 0.72,
             "spawn_point": [
                 18.0,
@@ -303,13 +289,13 @@
             ],
             "ground_offset": 0.95,
             "animations": {
-                "idle": "CharacterArmature|Idle",
-                "chase": "CharacterArmature|Run",
-                "telegraph": "CharacterArmature|No",
-                "attack": "CharacterArmature|Punch",
-                "recover": "CharacterArmature|Yes",
-                "hit": "CharacterArmature|HitReact",
-                "dead": "CharacterArmature|Death"
+                "idle": "idle",
+                "chase": "run",
+                "telegraph": "GoAwayAngry",
+                "attack": "GoAwayQuickly",
+                "recover": "headShake",
+                "hit": "headShake",
+                "dead": "sad_pose"
             },
             "animation_rates": {
                 "chase": 1.22,
@@ -334,6 +320,76 @@
                 "melee_hit_time": 0.18,
                 "melee_damage": 8,
                 "disengage_hold": 4.0
+            }
+        },
+        {
+            "id": "golem_titan",
+            "name": "Titan Golem",
+            "kind": "golem",
+            "is_boss": true,
+            "use_external_model": true,
+            "use_actor": true,
+            "model": "assets/models/enemies/golem_boss.glb",
+            "scale": 1.85,
+            "spawn_point": [
+                102.0,
+                -24.0,
+                3.0
+            ],
+            "ground_offset": 2.2,
+            "animations": {
+                "idle": "CharacterArmature|Idle",
+                "chase": "CharacterArmature|Run",
+                "telegraph": "CharacterArmature|Weapon",
+                "attack": "CharacterArmature|Punch",
+                "recover": "CharacterArmature|Yes",
+                "hit": "CharacterArmature|HitReact",
+                "dead": "CharacterArmature|Death"
+            },
+            "animation_rates": {
+                "chase": 0.92,
+                "telegraph": 0.84,
+                "attack": 1.02,
+                "recover": 0.88
+            },
+            "stats": {
+                "max_hp": 3200,
+                "armor": 22,
+                "power": 45,
+                "run_speed": 3.4,
+                "aggro_range": 38.0,
+                "attack_range": 5.8
+            },
+            "ai": {
+                "telegraph_duration": 0.42,
+                "attack_duration": 1.05,
+                "recover_duration": 0.48,
+                "hit_react_duration": 0.28,
+                "attack_cooldown": 3.4,
+                "melee_hit_time": 0.48,
+                "melee_window_start": 0.42,
+                "melee_window_end": 0.62,
+                "melee_damage": 38,
+                "disengage_hold": 10.0,
+                "phase_transitions": [
+                    {
+                        "hp_threshold": 0.7,
+                        "damage_mul": 1.1,
+                        "speed_mul": 1.05,
+                        "telegraph_mul": 0.94,
+                        "cooldown_mul": 0.92,
+                        "anim_rate_mul": 1.04
+                    },
+                    {
+                        "hp_threshold": 0.35,
+                        "enrage": true,
+                        "damage_mul": 1.13,
+                        "speed_mul": 1.09,
+                        "telegraph_mul": 0.89,
+                        "cooldown_mul": 0.85,
+                        "anim_rate_mul": 1.07
+                    }
+                ]
             }
         }
     ]

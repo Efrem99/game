@@ -1,8 +1,18 @@
-﻿import math
+import math
 import os
 
 from direct.gui.DirectGui import DirectFrame, OnscreenImage, OnscreenText
-from panda3d.core import CardMaker, PNMImage, TextNode, Texture, TransparencyAttrib
+from panda3d.core import (
+    CardMaker,
+    LineSegs,
+    NodePath,
+    PNMImage,
+    Point3,
+    TextNode,
+    Texture,
+    TransparencyAttrib,
+    Vec4,
+)
 
 from ui.design_system import THEME, body_font, title_font, place_ui_on_top
 
@@ -81,6 +91,7 @@ class HUDOverlay:
         place_ui_on_top(self.root, 80)
 
         self._create_vignette()
+        self._create_screen_postfx()
         self._create_bars()
         self._create_combo()
         self._create_checkpoint_tracker()
@@ -88,13 +99,24 @@ class HUDOverlay:
         self._create_damage_feed()
         self._create_profile_block()
         self._create_targeting_reticle()
+        self._create_boss_health_bar()
         self._create_tutorial_hint()
         self._create_mount_hint()
         self._create_stealth_hint()
         self._create_skill_wheel()
         self._create_autosave_badge()
         self._create_npc_scene_debug()
+        self._create_video_bot_debug()
+        self._create_respawn_notification()
         self._refresh_profile_text()
+
+        # Weather & Extra FX
+        self._flash_color = [1.0, 1.0, 1.0, 0.0]
+        self._cursed_blend = 0.0
+        self._cursed_color = [0.8, 0.1, 0.0, 0.0] # Reddish but dark
+        self._flash_timer = 0.0
+        self._flash_total = 0.1
+
 
         self.root.hide()
 
@@ -124,19 +146,112 @@ class HUDOverlay:
         for node in (self.vig_top, self.vig_bottom, self.vig_left, self.vig_right):
             place_ui_on_top(node, 80)
 
-    def _apply_context_vignette(self, boost=0.0, fear=0.0, damage=0.0):
+    def _create_screen_postfx(self):
+        self.postfx_pulse = DirectFrame(
+            frameColor=(0, 0, 0, 0),
+            frameSize=(-2, 2, -1, 1),
+            parent=self.root,
+        )
+        self.postfx_flash = DirectFrame(
+            frameColor=(0, 0, 0, 0),
+            frameSize=(-2, 2, -1, 1),
+            parent=self.root,
+        )
+        place_ui_on_top(self.postfx_pulse, 81)
+        place_ui_on_top(self.postfx_flash, 82)
+
+    def _resolve_screen_postfx_layers(
+        self,
+        *,
+        boost=0.0,
+        fear=0.0,
+        damage=0.0,
+        combat_heat=0.0,
+        damage_type="",
+        damage_intensity=0.0,
+    ):
         b = max(0.0, min(1.0, float(boost or 0.0)))
         fear = max(0.0, min(1.0, float(fear or 0.0)))
         damage = max(0.0, min(1.0, float(damage or 0.0)))
+        heat = max(0.0, min(1.0, float(combat_heat or 0.0)))
+        dint = max(0.0, min(1.0, float(damage_intensity or 0.0)))
+        dcol = self._damage_color(damage_type)
+
+        flash_alpha = min(0.44, 0.015 + (0.26 * dint) + (0.08 * damage) + (0.04 * heat))
+        flash_mix = 0.22 + (0.56 * max(dint, damage * 0.7))
+        flash = (
+            min(1.0, (dcol[0] * flash_mix) + (0.06 * heat) + self._flash_color[0] * self._flash_color[3]),
+            min(1.0, (dcol[1] * flash_mix * 0.92) + (0.02 * fear) + self._flash_color[1] * self._flash_color[3]),
+            min(1.0, (dcol[2] * flash_mix * 0.84) + (0.04 * fear) + self._flash_color[2] * self._flash_color[3]),
+            max(flash_alpha, self._flash_color[3]),
+        )
+
+        pulse_alpha = min(0.38, 0.01 + (0.12 * heat) + (0.05 * b) + (0.035 * fear) + (0.18 * self._cursed_blend))
+        pulse = (
+            min(1.0, 0.10 + (0.36 * heat) + (0.05 * damage) + (self._cursed_color[0] * self._cursed_blend)),
+            min(1.0, 0.05 + (0.18 * heat) + (0.05 * fear) + (self._cursed_color[1] * self._cursed_blend)),
+            min(1.0, 0.06 + (0.10 * fear) + (0.02 * damage) + (self._cursed_color[2] * self._cursed_blend)),
+            pulse_alpha,
+        )
+        return {"flash": flash, "pulse": pulse}
+
+    def _apply_screen_postfx(
+        self,
+        *,
+        boost=0.0,
+        fear=0.0,
+        damage=0.0,
+        combat_heat=0.0,
+        damage_type="",
+        damage_intensity=0.0,
+    ):
+        layers = self._resolve_screen_postfx_layers(
+            boost=boost,
+            fear=fear,
+            damage=damage,
+            combat_heat=combat_heat,
+            damage_type=damage_type,
+            damage_intensity=damage_intensity,
+        )
+        self.postfx_flash["frameColor"] = layers["flash"]
+        self.postfx_pulse["frameColor"] = layers["pulse"]
+
+    def _apply_context_vignette(self, boost=0.0, fear=0.0, damage=0.0, damage_type="", damage_intensity=0.0):
+        b = max(0.0, min(1.0, float(boost or 0.0)))
+        fear = max(0.0, min(1.0, float(fear or 0.0)))
+        damage = max(0.0, min(1.0, float(damage or 0.0)))
+        dtype = str(damage_type or "").strip().lower()
+        dint = max(0.0, min(1.0, float(damage_intensity or 0.0)))
         top_alpha = 0.055 + (0.10 * b) + (0.05 * damage)
         side_alpha = 0.03 + (0.06 * b) + (0.03 * fear)
+        if dint > 0.0:
+            top_alpha += 0.16 * dint
+            side_alpha += 0.10 * dint
         damage_tint = 0.18 * damage
         fear_tint = 0.10 * fear
 
-        self.vig_top["frameColor"] = (damage_tint, 0.0, fear_tint, min(0.85, top_alpha))
-        self.vig_bottom["frameColor"] = (damage_tint, 0.0, fear_tint, min(0.85, top_alpha))
-        self.vig_left["frameColor"] = (damage_tint, 0.0, fear_tint, min(0.75, side_alpha))
-        self.vig_right["frameColor"] = (damage_tint, 0.0, fear_tint, min(0.75, side_alpha))
+        if dint > 0.01:
+            dcol = self._damage_color(dtype)
+            tint = min(0.44, (0.12 + (0.30 * dint)))
+            ch_r = min(1.0, (dcol[0] * tint) + (damage_tint * 0.35))
+            ch_g = min(1.0, dcol[1] * tint * 0.74)
+            ch_b = min(1.0, (dcol[2] * tint * 0.62) + fear_tint)
+        else:
+            ch_r = damage_tint
+            ch_g = 0.0
+            ch_b = fear_tint
+
+        # Apply cursed blend to vignette colors
+        ch_r = min(1.0, ch_r + (self._cursed_color[0] * self._cursed_blend))
+        ch_g = min(1.0, ch_g + (self._cursed_color[1] * self._cursed_blend))
+        ch_b = min(1.0, ch_b + (self._cursed_color[2] * self._cursed_blend))
+        top_alpha = min(0.90, top_alpha + (0.15 * self._cursed_blend))
+        side_alpha = min(0.82, side_alpha + (0.10 * self._cursed_blend))
+
+        self.vig_top["frameColor"] = (ch_r, ch_g, ch_b, top_alpha)
+        self.vig_bottom["frameColor"] = (ch_r, ch_g, ch_b, top_alpha)
+        self.vig_left["frameColor"] = (ch_r, ch_g, ch_b, side_alpha)
+        self.vig_right["frameColor"] = (ch_r, ch_g, ch_b, side_alpha)
 
     def _create_bar(self, y, color):
         bg = DirectFrame(
@@ -426,6 +541,8 @@ class HUDOverlay:
             font=title_font(self.app),
         )
         place_ui_on_top(self.combo_text, 84)
+        self.combo_text.hide()
+        self._combo_banner_t = 0.0
 
         self.quest_header = OnscreenText(
             text=self.app.data_mgr.t("hud.active_quests", "ACTIVE QUESTS"),
@@ -588,13 +705,14 @@ class HUDOverlay:
     def _coerce_vec3(self, value):
         if value is None:
             return None
-        if isinstance(value, (list, tuple)) and len(value) >= 3:
-            try:
-                return (float(value[0]), float(value[1]), float(value[2]))
-            except Exception:
-                return None
         try:
-            return (float(value.x), float(value.y), float(value.z))
+            if isinstance(value, (list, tuple)) and len(value) >= 3:
+                vx, vy, vz = float(value[0]), float(value[1]), float(value[2])
+            else:
+                vx, vy, vz = float(value.x), float(value.y), float(value.z)
+            if not all(math.isfinite(v) for v in (vx, vy, vz)):
+                return None
+            return (vx, vy, vz)
         except Exception:
             return None
 
@@ -629,7 +747,7 @@ class HUDOverlay:
         dy = ty - py
         dz = tz - pz
         dist = math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
-        if dist < 3.0:
+        if not math.isfinite(dist) or dist < 3.0:
             self._hide_breadcrumbs()
             return
 
@@ -644,6 +762,9 @@ class HUDOverlay:
                 node.hide()
                 continue
             t = float(idx + 1) / float(count + 1)
+            if not math.isfinite(t):
+                node.hide()
+                continue
             wobble = 0.08 * math.sin(self._breadcrumb_pulse + (idx * 0.6))
             node.show()
             node.setPos(px + (dx * t), py + (dy * t), pz + (dz * t) + 0.25 + wobble)
@@ -707,6 +828,66 @@ class HUDOverlay:
             font=body_font(self.app),
         )
         place_ui_on_top(self.damage_text, 84)
+    def push_damage_event(self, amount, damage_type):
+        """Called when player takes damage. Triggers visual effects but no floating numbers."""
+        pass
+
+    def notify_respawn(self, duration=4.0):
+        self._respawn_active = True
+        self._respawn_timer = float(duration)
+        if hasattr(self, "respawn_root"):
+            self.respawn_root.show()
+
+    def _create_respawn_notification(self):
+        self._respawn_active = False
+        self._respawn_timer = 0.0
+        self.respawn_root = DirectFrame(
+            frameColor=(0, 0, 0, 0),
+            frameSize=(-2, 2, -1, 1),
+            parent=self.root,
+        )
+        self.respawn_bg = DirectFrame(
+            frameColor=(0.05, 0.01, 0.01, 0.0),
+            frameSize=(-2, 2, -1, 1),
+            parent=self.respawn_root,
+        )
+        self.respawn_title = OnscreenText(
+            text=self.app.data_mgr.t("hud.fainted", "YOU HAVE FAINTED"),
+            pos=(0.0, 0.12),
+            scale=0.10,
+            fg=(0.92, 0.24, 0.24, 0.0),
+            shadow=(0, 0, 0, 0.0),
+            align=TextNode.ACenter,
+            parent=self.respawn_root,
+            mayChange=True,
+            font=title_font(self.app),
+        )
+        self.respawn_hint = OnscreenText(
+            text=self.app.data_mgr.t("hud.respawn_tip", "Respawn available soon..."),
+            pos=(0.0, -0.05),
+            scale=0.035,
+            fg=(0.85, 0.85, 0.88, 0.0),
+            shadow=(0, 0, 0, 0.0),
+            align=TextNode.ACenter,
+            parent=self.respawn_root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        self.respawn_timer_text = OnscreenText(
+            text="",
+            pos=(0.0, -0.15),
+            scale=0.05,
+            fg=(0.95, 0.90, 0.60, 0.0),
+            shadow=(0, 0, 0, 0.0),
+            align=TextNode.ACenter,
+            parent=self.respawn_root,
+            mayChange=True,
+            font=title_font(self.app),
+        )
+        for node in (self.respawn_bg, self.respawn_title, self.respawn_hint, self.respawn_timer_text):
+            place_ui_on_top(node, 95)
+        self.respawn_root.hide()
+
 
     def _damage_color(self, damage_type):
         t = str(damage_type or "").lower()
@@ -716,10 +897,16 @@ class HUDOverlay:
             return (0.75, 0.90, 1.00, 1.0)
         if t == "ice":
             return (0.55, 0.80, 1.00, 1.0)
+        if t == "poison":
+            return (0.52, 0.88, 0.34, 1.0)
         if t == "arcane":
             return (0.80, 0.55, 1.00, 1.0)
         if t == "holy":
             return (0.95, 0.90, 0.60, 1.0)
+        if t in {"bleed", "slash"}:
+            return (0.92, 0.24, 0.24, 1.0)
+        if t in {"crush", "impact"}:
+            return (0.96, 0.72, 0.56, 1.0)
         if t == "physical":
             return (0.95, 0.82, 0.68, 1.0)
         return THEME["text_main"]
@@ -748,8 +935,20 @@ class HUDOverlay:
             mayChange=True,
             font=b_font,
         )
+        self.location_text = OnscreenText(
+            text="",
+            pos=(-1.36, 0.78),
+            scale=0.032,
+            fg=THEME["text_muted"],
+            shadow=(0, 0, 0, 0.75),
+            align=TextNode.ALeft,
+            parent=self.root,
+            mayChange=True,
+            font=b_font,
+        )
         place_ui_on_top(self.xp_text, 84)
         place_ui_on_top(self.gold_text, 84)
+        place_ui_on_top(self.location_text, 84)
 
     def _create_targeting_reticle(self):
         self.reticle_root = DirectFrame(
@@ -817,6 +1016,116 @@ class HUDOverlay:
         ):
             place_ui_on_top(node, 86)
 
+    def _create_boss_health_bar(self):
+        self.boss_hp_root = DirectFrame(
+            frameColor=(0, 0, 0, 0),
+            frameSize=(-0.50, 0.50, -0.08, 0.08),
+            pos=(0.0, 0.0, 0.88),
+            parent=self.root,
+        )
+        self.boss_hp_bg = DirectFrame(
+            frameColor=(0.08, 0.02, 0.02, 0.80),
+            frameSize=(-0.42, 0.42, -0.022, 0.022),
+            parent=self.boss_hp_root,
+        )
+        self.boss_hp_fill = DirectFrame(
+            frameColor=(0.86, 0.22, 0.20, 0.96),
+            frameSize=(-0.418, 0.418, -0.018, 0.018),
+            parent=self.boss_hp_root,
+        )
+        self.boss_hp_trim = DirectFrame(
+            frameColor=(0.86, 0.72, 0.40, 0.58),
+            frameSize=(-0.426, 0.426, -0.028, 0.028),
+            parent=self.boss_hp_root,
+        )
+        self.boss_hp_name = OnscreenText(
+            text="",
+            pos=(0.0, 0.040),
+            scale=0.030,
+            fg=THEME["gold_soft"],
+            shadow=(0, 0, 0, 0.86),
+            align=TextNode.ACenter,
+            parent=self.boss_hp_root,
+            mayChange=True,
+            font=title_font(self.app),
+        )
+        self.boss_hp_value = OnscreenText(
+            text="",
+            pos=(0.0, -0.011),
+            scale=0.024,
+            fg=THEME["text_main"],
+            shadow=(0, 0, 0, 0.80),
+            align=TextNode.ACenter,
+            parent=self.boss_hp_root,
+            mayChange=True,
+            font=body_font(self.app),
+        )
+        for node in (
+            self.boss_hp_root,
+            self.boss_hp_bg,
+            self.boss_hp_fill,
+            self.boss_hp_trim,
+            self.boss_hp_name,
+            self.boss_hp_value,
+        ):
+            place_ui_on_top(node, 87)
+        self.boss_hp_root.hide()
+
+    def _update_boss_health_bar(self, target_info=None):
+        resolver = getattr(type(self), "_resolve_boss_bar_target_info", None)
+        if not callable(resolver):
+            resolver = getattr(HUDOverlay, "_resolve_boss_bar_target_info", None)
+        if callable(resolver):
+            info = resolver(self, target_info)
+        else:
+            info = target_info if isinstance(target_info, dict) else {}
+        is_enemy = str(info.get("kind", "") or "").strip().lower() == "enemy"
+        is_boss = bool(info.get("is_boss", False))
+        if not (is_enemy and is_boss):
+            self.boss_hp_root.hide()
+            self.boss_hp_name.setText("")
+            self.boss_hp_value.setText("")
+            return
+
+        try:
+            hp = max(0.0, float(info.get("hp", 0.0) or 0.0))
+        except Exception:
+            hp = 0.0
+        try:
+            max_hp = max(1.0, float(info.get("max_hp", 1.0) or 1.0))
+        except Exception:
+            max_hp = 1.0
+        hp = min(max_hp, hp)
+        ratio = float(info.get("hp_ratio", hp / max_hp) or (hp / max_hp))
+        ratio = max(0.0, min(1.0, ratio))
+
+        full_half = 0.418
+        left = -full_half
+        right = left + ((full_half * 2.0) * ratio)
+        self.boss_hp_fill["frameSize"] = (left, max(left, right), -0.018, 0.018)
+
+        name = str(info.get("name", "") or "").strip()
+        title = self.app.data_mgr.t("hud.boss_health", "BOSS HP")
+        self.boss_hp_name.setText(f"{title}: {name or 'Boss'}")
+        self.boss_hp_value.setText(f"{int(round(hp))}/{int(round(max_hp))}")
+        self.boss_hp_root.show()
+
+    def _resolve_boss_bar_target_info(self, target_info=None):
+        info = target_info if isinstance(target_info, dict) else {}
+        is_enemy = str(info.get("kind", "") or "").strip().lower() == "enemy"
+        is_boss = bool(info.get("is_boss", False))
+        if is_enemy and is_boss:
+            return info
+        getter = getattr(getattr(self, "app", None), "get_active_boss_target_info", None)
+        if callable(getter):
+            try:
+                resolved = getter()
+            except Exception:
+                resolved = None
+            if isinstance(resolved, dict):
+                return resolved
+        return {}
+
     def _update_targeting_reticle(self, dt, target_info=None):
         dt = max(0.0, float(dt or 0.0))
         self._reticle_pulse = (self._reticle_pulse + dt * 4.0) % (math.pi * 4.0)
@@ -873,7 +1182,9 @@ class HUDOverlay:
         outer = 0.026 + offset
         thickness = 0.0016 + (0.0003 * pulse * pulse_boost)
         dot_half = 0.0018 + (0.0007 * pulse * max(0.3, pulse_boost))
-        self.reticle_root.setScale(1.0 + (0.07 * pulse * pulse_boost))
+        new_scale = 1.0 + (0.07 * pulse * pulse_boost)
+        if math.isfinite(new_scale):
+            self.reticle_root.setScale(new_scale)
         self.reticle_line_top["frameSize"] = (-thickness, thickness, inner, outer)
         self.reticle_line_bottom["frameSize"] = (-thickness, thickness, -outer, -inner)
         self.reticle_line_left["frameSize"] = (-outer, -inner, -thickness, thickness)
@@ -890,6 +1201,7 @@ class HUDOverlay:
         self.reticle_dot["frameColor"] = dot_color
         self.target_label.setText(label)
         self.target_hint.setText(hint)
+        self._update_boss_health_bar(target_info)
 
     def _create_mount_hint(self):
         self.mount_hint_text = OnscreenText(
@@ -1203,7 +1515,8 @@ class HUDOverlay:
         pulse = 1.0 + (0.012 * math.sin(self._tutorial_complete_anim_t * 6.0))
         overlay_alpha = min(0.12, 0.02 + (ttl * 0.015))
         self.tutorial_complete_overlay["frameColor"] = (0.01, 0.02, 0.02, overlay_alpha)
-        self.tutorial_complete_panel.setScale(pulse)
+        if math.isfinite(pulse):
+            self.tutorial_complete_panel.setScale(pulse)
         self.tutorial_complete_overlay.show()
         self.tutorial_complete_title.setText(
             self.app.data_mgr.t("ui.tutorial_banner_title", "Training Completed")
@@ -1606,22 +1919,18 @@ class HUDOverlay:
             else:
                 icon_image.show()
                 icon_text.hide()
-            friendly = raw.replace("_", " ").strip()
-            if len(friendly) > 16:
-                friendly = f"{friendly[:15]}."
-            label.setText(friendly.title() if friendly else "Unknown")
 
-            is_hover = idx == self._skill_hover_idx
             is_active = idx == display_active_idx
+            is_hover = isinstance(self._skill_hover_idx, int) and idx == int(self._skill_hover_idx)
             is_ult = idx == self._ultimate_skill_idx
+            label.setText(raw.replace("_", " ").title())
 
-            ring_color = (0.10, 0.10, 0.12, 0.92)
-            plate_color = (tint[0] * 0.20, tint[1] * 0.20, tint[2] * 0.20, 0.92)
-            glow_color = (tint[0], tint[1], tint[2], 0.0)
-            icon_fg = (tint[0], tint[1], tint[2], 1.0)
-            icon_img_scale = (1.0, 1.0, 1.0, 0.92)
+            ring_color = (0.18, 0.18, 0.22, 0.92)
+            plate_color = (0.11, 0.11, 0.14, 0.90)
+            glow_color = (0.22, 0.24, 0.30, 0.18)
+            icon_fg = tint
+            icon_img_scale = (1.0, 1.0, 1.0, 1.0)
             label_fg = THEME["text_muted"]
-
             if is_active and is_ult:
                 ring_color = (0.72, 0.32, 0.18, 0.96)
                 plate_color = (0.50, 0.25, 0.16, 0.95)
@@ -1806,6 +2115,127 @@ class HUDOverlay:
         else:
             self.npc_scene_debug_text.setText("")
 
+    def _create_video_bot_debug(self):
+        """Initialize the specialized overlay for automated Video-Bot verification."""
+        self._video_bot_debug_root = DirectFrame(
+            frameColor=(0, 0, 0, 0),
+            frameSize=(-2, 2, -1, 1),
+            parent=self.root,
+        )
+        place_ui_on_top(self._video_bot_debug_root, 90)
+
+        t_font = title_font(self.app)
+        b_font = body_font(self.app)
+
+        # Bot "Brain" (Plan status)
+        self.bot_plan_label = OnscreenText(
+            text="VIDEO-BOT: ACTIVE",
+            pos=(-1.30, 0.88),
+            scale=0.038,
+            fg=THEME["gold_primary"],
+            shadow=(0, 0, 0, 1),
+            align=TextNode.ALeft,
+            parent=self._video_bot_debug_root,
+            mayChange=True,
+            font=t_font,
+        )
+        self.bot_action_label = OnscreenText(
+            text="[No Plan]",
+            pos=(-1.30, 0.83),
+            scale=0.026,
+            fg=THEME["text_main"],
+            shadow=(0, 0, 0, 0.85),
+            align=TextNode.ALeft,
+            parent=self._video_bot_debug_root,
+            mayChange=True,
+            font=b_font,
+        )
+
+        # Bot status (Telemetry)
+        self.bot_telemetry_label = OnscreenText(
+            text="Pos: 0, 0, 0 | Vel: 0",
+            pos=(-1.30, -0.78),
+            scale=0.022,
+            fg=THEME["text_muted"],
+            shadow=(0, 0, 0, 0.75),
+            align=TextNode.ALeft,
+            parent=self._video_bot_debug_root,
+            mayChange=True,
+            font=b_font,
+        )
+
+        # Virtual Cursor Visualizer (Lines/Dot)
+        self._bot_cursor_geom = self.app.aspect2d.attachNewNode("bot_cursor_debug")
+        place_ui_on_top(self._bot_cursor_geom, 95)
+        self._bot_cursor_visible = False
+        
+        self._video_bot_debug_root.hide()
+
+    def _update_video_bot_debug(self, dt):
+        """Update telemetry data and visual aids for the bot runtime."""
+        bot_enabled = bool(getattr(self.app, "_video_bot_enabled", False))
+        if not bot_enabled:
+            if hasattr(self, "_video_bot_debug_root"):
+                self._video_bot_debug_root.hide()
+            if hasattr(self, "_bot_cursor_geom"):
+                self._bot_cursor_geom.hide()
+            return
+
+        self._video_bot_debug_root.show()
+
+        # Update labels from App state
+        plan_name = str(getattr(self.app, "_video_bot_plan_name", "None"))
+        idx = int(getattr(self.app, "_video_bot_event_idx", 0) or 0)
+        plan = getattr(self.app, "_video_bot_plan", [])
+        total = len(plan) if isinstance(plan, list) else 0
+        
+        self.bot_plan_label.setText(f"VIDEO-BOT: {plan_name.upper()}")
+        
+        curr_action = "IDLE/WAIT"
+        if 0 <= idx < total:
+            row = plan[idx]
+            curr_action = f"STEP {idx+1}/{total}: {str(row.get('action', '???')).upper()}"
+        elif getattr(self.app, "_video_bot_done", False):
+            curr_action = "COMPLETED"
+            
+        self.bot_action_label.setText(curr_action)
+
+        # Update Telemetry
+        player = getattr(self.app, "player", None)
+        if player and hasattr(player, "actor"):
+            pos = player.actor.getPos(self.app.render)
+            vel = 0.0
+            if hasattr(player, "cs") and hasattr(player.cs, "velocity"):
+                v = player.cs.velocity
+                vel = math.sqrt(v.x**2 + v.y**2 + v.z**2)
+            self.bot_telemetry_label.setText(
+                f"XYZ: {pos.x:.2f}, {pos.y:.2f}, {pos.z:.2f} | SPD: {vel:.2f} | "
+                f"FPS: {int(globalClock.getAverageFrameRate())}"
+            )
+
+        # Update Virtual Cursor
+        cx, cy = getattr(self.app, "_video_bot_cursor_pos", (0.0, 0.0))
+        cursor_visible = bool(getattr(self.app, "_video_bot_cursor_visible", False))
+        
+        if cursor_visible:
+            self._bot_cursor_geom.show()
+            self._bot_cursor_geom.node().removeAllChildren()
+            
+            # Simple red cross/dot for the virtual cursor
+            ls = LineSegs("bot_cursor")
+            ls.setColor(1, 0, 0, 1)
+            ls.setThickness(2.5)
+            # Draw a small cross
+            s = 0.03
+            ls.moveTo(cx - s, 0, cy)
+            ls.drawTo(cx + s, 0, cy)
+            ls.moveTo(cx, 0, cy - s)
+            ls.drawTo(cx, 0, cy + s)
+            
+            self._bot_cursor_geom.node().addChild(ls.create())
+        else:
+            self._bot_cursor_geom.hide()
+
     def show(self):
         self.root.show()
 
@@ -1817,8 +2247,11 @@ class HUDOverlay:
         self.minimap_hint.setText("")
         self.target_label.setText("")
         self.target_hint.setText("")
+        self._update_boss_health_bar(None)
         self._clear_tutorial_hint()
-        self.npc_scene_debug_text.setText("")
+        npc_scene_debug_text = getattr(self, "npc_scene_debug_text", None)
+        if npc_scene_debug_text is not None:
+            npc_scene_debug_text.setText("")
 
     def refresh_locale(self):
         self._refresh_control_hint_tokens()
@@ -1830,6 +2263,8 @@ class HUDOverlay:
         self._xp_label_text = self.app.data_mgr.t("stats.xp", "XP")
         self._gold_label_text = self.app.data_mgr.t("stats.gold", "Gold")
         self._refresh_profile_text()
+        if not self.boss_hp_root.isHidden():
+            self.boss_hp_name.setText(self.app.data_mgr.t("hud.boss_health", "BOSS HP"))
         if self._autosave_on:
             self.autosave_text.setText(self.app.data_mgr.t("ui.autosaving", "Autosaving..."))
 
@@ -1881,6 +2316,16 @@ class HUDOverlay:
     def _refresh_profile_text(self):
         self.xp_text.setText(f"{self._xp_label_text}: {self._xp}")
         self.gold_text.setText(f"{self._gold_label_text}: {self._gold}")
+        
+    def set_location_name(self, name):
+        """Update the displayed location/region name on the HUD."""
+        if hasattr(self, "location_text"):
+            clean_name = str(name or "").strip().upper()
+            self.location_text.setText(clean_name)
+            if clean_name:
+                self.location_text.show()
+            else:
+                self.location_text.hide()
 
     def _format_dist(self, value):
         if value is None:
@@ -1944,6 +2389,70 @@ class HUDOverlay:
         self._checkpoint_marker_root.setScale(0.95 * pulse)
         self._update_breadcrumbs(dt, player_pos, (tx, ty, tz))
 
+    def update_cursed_effect(self, blend):
+        """Update the reddish hue blend for Krimora."""
+        val = float(blend if blend is not None else 0.0)
+        self._cursed_blend = max(0.0, min(1.0, val if not (math.isnan(val) or math.isinf(val)) else 0.0))
+
+    def trigger_screen_flash(self, color=(1, 1, 1), duration=0.25):
+        """Triggers a full-screen color flash (e.g. for lightning or heavy hits)."""
+        # Ensure color has an alpha component, default to 1.0 if not provided
+        if len(color) == 3:
+            color = (color[0], color[1], color[2], 1.0)
+        self._flash_color = Vec4(color[0], color[1], color[2], color[3])
+        self._flash_timer = float(duration)
+        self._flash_total = float(duration)
+
+    def _combo_banner_text(self, combo_state):
+        payload = combo_state if isinstance(combo_state, dict) else {}
+        try:
+            count = max(0, int(payload.get("count", 0) or 0))
+        except Exception:
+            count = 0
+        if count <= 0:
+            return ""
+        label = self.app.data_mgr.t("hud.combo", "COMBO")
+        return f"{count}x {label}"
+
+    def _combo_banner_color(self, combo_state):
+        payload = combo_state if isinstance(combo_state, dict) else {}
+        try:
+            count = max(0, int(payload.get("count", 0) or 0))
+        except Exception:
+            count = 0
+        kind = str(payload.get("kind", "melee") or "melee").strip().lower()
+        if kind == "magic":
+            if count >= 5:
+                return (0.62, 0.88, 1.0, 0.98)
+            if count >= 3:
+                return (0.50, 0.80, 1.0, 0.96)
+            return (0.42, 0.72, 0.98, 0.92)
+        if count >= 5:
+            return (1.0, 0.92, 0.44, 0.98)
+        if count >= 3:
+            return (0.98, 0.84, 0.34, 0.96)
+        return THEME["gold_primary"]
+
+    def _update_combo_banner(self, dt, combo_state):
+        payload = combo_state if isinstance(combo_state, dict) else {}
+        text = self._combo_banner_text(payload)
+        remain = 0.0
+        try:
+            remain = max(0.0, float(payload.get("remain", 0.0) or 0.0))
+        except Exception:
+            remain = 0.0
+        if (not text) or remain <= 0.0:
+            self.combo_text.setText("")
+            self.combo_text.hide()
+            self._combo_banner_t = 0.0
+            return
+        self._combo_banner_t = max(0.0, float(getattr(self, "_combo_banner_t", 0.0) or 0.0)) + max(0.0, float(dt or 0.0))
+        pulse = 1.0 + (0.04 * math.sin(self._combo_banner_t * 9.0))
+        self.combo_text.setText(text)
+        self.combo_text.setFg(self._combo_banner_color(payload))
+        self.combo_text.setScale(0.08 * pulse)
+        self.combo_text.show()
+
     def update(
         self,
         dt,
@@ -1960,7 +2469,13 @@ class HUDOverlay:
         tutorial_state=None,
         target_info=None,
         stealth_state=None,
+        combo_state=None,
     ):
+        if self._flash_timer > 0:
+            self._flash_timer -= dt
+            alpha = max(0, self._flash_timer / self._flash_total)
+            self._flash_color.setW(alpha * self._flash_color.getX()) # using X as target alpha
+
         if not isinstance(profile, dict):
             profile = getattr(self.app, "profile", {})
         if isinstance(profile, dict):
@@ -1986,91 +2501,28 @@ class HUDOverlay:
                 camera_fx = director.get_screen_effect_state() or {}
             except Exception:
                 camera_fx = {}
+        player = getattr(self.app, "player", None)
+        damage_vignette = {}
+        if player and hasattr(player, "get_damage_vignette_state"):
+            try:
+                damage_vignette = player.get_damage_vignette_state() or {}
+            except Exception:
+                damage_vignette = {}
         self._apply_context_vignette(
             boost=camera_fx.get("vignette_boost", 0.0) if isinstance(camera_fx, dict) else 0.0,
             fear=camera_fx.get("fear_tint", 0.0) if isinstance(camera_fx, dict) else 0.0,
             damage=camera_fx.get("damage_tint", 0.0) if isinstance(camera_fx, dict) else 0.0,
+            damage_type=damage_vignette.get("type", "") if isinstance(damage_vignette, dict) else "",
+            damage_intensity=damage_vignette.get("intensity", 0.0) if isinstance(damage_vignette, dict) else 0.0,
         )
-
-        if not char_state:
-            if self._autosave_on and self.autosave_logo:
-                self._logo_spin = (self._logo_spin + dt * 100.0) % 360.0
-                self.autosave_logo.setR(self._logo_spin)
-            self.damage_text.setText("")
-            self.hp_value.setText("")
-            self.sp_value.setText("")
-            self.mp_value.setText("")
-            self._bar_seeded = False
-            self._set_fill(self.hp_fill, 0.0)
-            self._set_fill(self.sp_fill, 0.0)
-            self._set_fill(self.mp_fill, 0.0)
-            self.quest_header.hide()
-            self.checkpoint_text.setText("")
-            self.checkpoint_hint_text.setText("")
-            self._checkpoint_marker_root.hide()
-            self._hide_breadcrumbs()
-            self.minimap_pin.hide()
-            self.minimap_hint.setText("")
-            self._update_targeting_reticle(dt, target_info=None)
-            self._clear_tutorial_hint()
-            self.stealth_text.setText("")
-            return
-        hp_ratio = char_state.health / max(1.0, char_state.maxHealth)
-        sp_ratio = char_state.stamina / max(1.0, char_state.maxStamina)
-        mp_ratio = char_state.mana / max(1.0, char_state.maxMana)
-        if not self._bar_seeded:
-            self._bar_values["hp"] = hp_ratio
-            self._bar_values["stamina"] = sp_ratio
-            self._bar_values["mana"] = mp_ratio
-            self._bar_seeded = True
-        else:
-            self._bar_values["hp"] = self._smooth_ratio(self._bar_values.get("hp", hp_ratio), hp_ratio, dt)
-            self._bar_values["stamina"] = self._smooth_ratio(self._bar_values.get("stamina", sp_ratio), sp_ratio, dt)
-            self._bar_values["mana"] = self._smooth_ratio(self._bar_values.get("mana", mp_ratio), mp_ratio, dt)
-
-        self._set_fill(self.hp_fill, self._bar_values["hp"])
-        self._set_fill(self.sp_fill, self._bar_values["stamina"])
-        self._set_fill(self.mp_fill, self._bar_values["mana"])
-        self.hp_value.setText(f"{int(round(self._bar_values['hp'] * 100.0))}%")
-        self.sp_value.setText(f"{int(round(self._bar_values['stamina'] * 100.0))}%")
-        self.mp_value.setText(f"{int(round(self._bar_values['mana'] * 100.0))}%")
-
-        combo_count = int(getattr(char_state, "comboCount", 0))
-        if combo_count > 1:
-            label = self.app.data_mgr.t("ui.combo", "COMBO")
-            self.combo_text.setText(f"{label} x{combo_count}")
-        else:
-            self.combo_text.setText("")
-
-        if quest_data:
-            lines = []
-            for idx, entry in enumerate(quest_data[:3]):
-                if not isinstance(entry, dict):
-                    continue
-                title = str(entry.get("title", "")).strip()
-                objective = str(entry.get("objective", "")).strip()
-                status = str(entry.get("status", "")).strip() or "Objective"
-                dist_txt = self._format_dist(entry.get("distance"))
-                if title and objective:
-                    prefix = "●" if idx == 0 else "•"
-                    lines.append(f"{prefix} {title}")
-                    lines.append(f"  {status}: {objective} ({dist_txt})")
-                elif title:
-                    lines.append(title)
-            if lines:
-                self.quest_header.show()
-                self.quest_text.setText("\n".join(lines))
-            else:
-                self.quest_header.hide()
-                self.quest_text.setText("")
-        else:
-            self.quest_header.hide()
-            self.quest_text.setText("")
-        resolved_player_pos = self._coerce_vec3(player_pos) or self._get_player_world_pos(char_state)
-        self._update_checkpoint_tracker(dt, quest_data or [], resolved_player_pos)
-        self._update_minimap(quest_data or [], resolved_player_pos)
-        self._update_targeting_reticle(dt, target_info=target_info)
-
+        self._apply_screen_postfx(
+            boost=camera_fx.get("vignette_boost", 0.0) if isinstance(camera_fx, dict) else 0.0,
+            fear=camera_fx.get("fear_tint", 0.0) if isinstance(camera_fx, dict) else 0.0,
+            damage=camera_fx.get("damage_tint", 0.0) if isinstance(camera_fx, dict) else 0.0,
+            combat_heat=camera_fx.get("combat_heat", 0.0) if isinstance(camera_fx, dict) else 0.0,
+            damage_type=damage_vignette.get("type", "") if isinstance(damage_vignette, dict) else "",
+            damage_intensity=damage_vignette.get("intensity", 0.0) if isinstance(damage_vignette, dict) else 0.0,
+        )
         if isinstance(mount_hint, str):
             self.mount_hint_text.setText(mount_hint)
         else:
@@ -2099,6 +2551,7 @@ class HUDOverlay:
 
         self._update_tutorial_hint(dt, tutorial_state=tutorial_state, tutorial_message=tutorial_message)
         self._update_npc_scene_debug(dt)
+        self._update_video_bot_debug(dt)
 
         if isinstance(combat_event, dict):
             amount = int(combat_event.get("amount", 0) or 0)
@@ -2110,6 +2563,162 @@ class HUDOverlay:
         else:
             self.damage_text.setText("")
 
+        self._update_combo_banner(dt, combo_state)
+
         if self._autosave_on and self.autosave_logo:
             self._logo_spin = (self._logo_spin + dt * 100.0) % 360.0
             self.autosave_logo.setR(self._logo_spin)
+
+    def _create_video_bot_debug(self):
+        """Initialize Video-Bot telemetry and visual aids."""
+        self.bot_debug_root = DirectFrame(
+            frameColor=(0, 0, 0, 0.45),
+            frameSize=(-0.45, 0.45, -0.12, 0.12),
+            pos=(1.05, 0, 0.88),
+            parent=self.root,
+        )
+        place_ui_on_top(self.bot_debug_root, 90)
+        self.bot_debug_root.hide()
+
+        b_font = body_font(self.app)
+        self.bot_plan_label = OnscreenText(
+            text="BOT PLAN: None",
+            pos=(-0.42, 0.08),
+            scale=0.032,
+            fg=(0.4, 0.9, 1.0, 1.0),
+            align=TextNode.ALeft,
+            parent=self.bot_debug_root,
+            font=b_font,
+        )
+        self.bot_task_label = OnscreenText(
+            text="TASK: Idle",
+            pos=(-0.42, 0.04),
+            scale=0.028,
+            fg=THEME["text_muted"],
+            align=TextNode.ALeft,
+            parent=self.bot_debug_root,
+            font=b_font,
+        )
+        self.bot_pos_label = OnscreenText(
+            text="POS: 0, 0, 0",
+            pos=(-0.42, 0.00),
+            scale=0.026,
+            fg=THEME["text_main"],
+            align=TextNode.ALeft,
+            parent=self.bot_debug_root,
+            font=b_font,
+        )
+
+        # Virtual Cursor (2D aspect2d dot)
+        self.bot_cursor = DirectFrame(
+            frameColor=(1.0, 0.2, 0.2, 0.85),
+            frameSize=(-0.015, 0.015, -0.015, 0.015),
+            parent=self.app.aspect2d,
+        )
+        place_ui_on_top(self.bot_cursor, 95)
+        self.bot_cursor.hide()
+
+        # Navigation Visual Aids (3D Line & Marker)
+        self.bot_nav_root = self.app.render.attachNewNode("bot_nav_visuals")
+        self.bot_nav_root.setLightOff(1)
+        self.bot_nav_root.setBin("fixed", 50)
+        self.bot_nav_root.setDepthTest(False)
+        self.bot_nav_root.setDepthWrite(False)
+        self.bot_nav_root.hide()
+
+        self._bot_nav_line_node = None
+
+    def _is_valid_point(self, pt):
+        """Check if all components of a vector/point are finite numbers."""
+        from panda3d.core import Vec3
+        if isinstance(pt, (list, tuple)):
+            return all(math.isfinite(x) for x in pt)
+        if hasattr(pt, "x") and hasattr(pt, "y") and hasattr(pt, "z"):
+            return math.isfinite(pt.x) and math.isfinite(pt.y) and math.isfinite(pt.z)
+        return False
+
+    def _update_video_bot_debug(self, dt):
+        """Update real-time bot telemetry and world-space debug lines."""
+        bot_enabled = bool(getattr(self.app, "_video_bot_enabled", False))
+        if not bot_enabled:
+            self.bot_debug_root.hide()
+            self.bot_cursor.hide()
+            self.bot_nav_root.hide()
+            return
+
+        self.bot_debug_root.show()
+
+        # Update Labels
+        plan_name = str(getattr(self.app, "_video_bot_plan_name", "None"))
+        idx = int(getattr(self.app, "_video_bot_event_idx", 0) or 0)
+        plan = getattr(self.app, "_video_bot_plan", [])
+        
+        current_event = "Idle"
+        if 0 <= idx < len(plan):
+            evt = plan[idx]
+            current_event = f"[{idx}] {evt.get('type', '???')} ({evt.get('action', evt.get('target', ''))})"
+            
+        self.bot_plan_label.setText(f"BOT PLAN: {plan_name}")
+        self.bot_task_label.setText(f"TASK: {current_event}")
+        
+        player = getattr(self.app, "player", None)
+        actor = getattr(player, "actor", None) if player else None
+        if actor:
+            pos = actor.getPos(self.app.render)
+            self.bot_pos_label.setText(f"POS: {pos.x:.1f}, {pos.y:.1f}, {pos.z:.1f}")
+
+        # Update Virtual Cursor (2D)
+        cx, cy = getattr(self.app, "_video_bot_cursor_pos", (0.0, 0.0))
+        visible = bool(getattr(self.app, "_video_bot_cursor_visible", False))
+        if visible and math.isfinite(cx) and math.isfinite(cy):
+            self.bot_cursor.setPos(cx, 0, cy)
+            self.bot_cursor.show()
+            # Pulse color if clicking
+            clicking = bool(getattr(self.app, "_video_bot_cursor_clicking", False))
+            if clicking:
+                self.bot_cursor["frameColor"] = (1.0, 1.0, 1.0, 1.0)
+            else:
+                self.bot_cursor["frameColor"] = (1.0, 0.2, 0.2, 0.85)
+        else:
+            self.bot_cursor.hide()
+
+        # Update Navigation Line (3D)
+        target = getattr(self.app, "_video_bot_move_target", None)
+        if target and actor:
+            ppos = actor.getPos(self.app.render)
+            if self._is_valid_point(ppos) and self._is_valid_point(target):
+                self.bot_nav_root.show()
+                self._draw_bot_nav_line(ppos, target)
+            else:
+                self.bot_nav_root.hide()
+        else:
+            self.bot_nav_root.hide()
+
+    def _draw_bot_nav_line(self, start, end):
+        """Draw a 3D line from player to movement target."""
+        if self._bot_nav_line_node:
+            self._bot_nav_line_node.removeNode()
+
+        ls = LineSegs("bot_nav_line")
+        ls.setThickness(3.0)
+        ls.setColor(0.4, 0.9, 1.0, 0.75)
+        ls.moveTo(start.x, start.y, start.z + 0.5) # Elevation for visibility
+        ls.drawTo(end.x, end.y, end.z + 0.2)
+        
+        # Add a small crosshair/X at the end
+        ls.setColor(1.0, 0.8, 0.2, 0.9)
+        size = 0.4
+        ls.moveTo(end.x - size, end.y, end.z + 0.2)
+        ls.drawTo(end.x + size, end.y, end.z + 0.2)
+        ls.moveTo(end.x, end.y - size, end.z + 0.2)
+        ls.drawTo(end.x, end.y + size, end.z + 0.2)
+        
+        self._bot_nav_line_node = self.bot_nav_root.attachNewNode(ls.create())
+
+    def _create_npc_scene_debug(self):
+        """Stub for NPC scene debug visualization."""
+        pass
+
+    def _update_npc_scene_debug(self, dt):
+        """Stub for NPC scene debug update."""
+        pass

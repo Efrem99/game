@@ -1,14 +1,59 @@
 {
   "water_level": -0.5,
-  "size": 200,
-  "resolution": 40,
-  "wave_height": 0.15,
-  "wave_speed": 0.5,
-  "buoyancy_force": 15.0,
-  "water_drag": 0.85,
-  "swim_speed_multiplier": 0.6,
+  "size": 220,
+  "resolution": 52,
+  "wave_height": 0.22,
+  "wave_speed": 0.65,
+  "wave_count": 6,
+  "wave_phase_spread": 1.8,
+  "buoyancy_force": 18.0,
+  "water_drag": 0.82,
+  "swim_speed_multiplier": 0.55,
+  "swim_surface_z_offset": 0.18,
+  "dive_z_threshold": -1.6,
+  "foam_width": 3.2,
+  "foam_alpha": 0.42,
+  "reflection_strength": 0.38,
+  "refraction_strength": 0.28,
+  "fresnel_power": 2.4,
+  "depth_fade_distance": 8.0,
+  "river_level": -0.3,
   "color": {
-    "shallow": [0.2, 0.5, 0.8, 0.6],
-    "deep": [0.1, 0.3, 0.6, 0.7]
+    "shallow": [
+      0.24,
+      0.55,
+      0.82,
+      0.62
+    ],
+    "mid": [
+      0.14,
+      0.38,
+      0.66,
+      0.72
+    ],
+    "deep": [
+      0.06,
+      0.18,
+      0.46,
+      0.84
+    ],
+    "river": [
+      0.18,
+      0.46,
+      0.72,
+      0.58
+    ],
+    "river_foam": [
+      0.72,
+      0.84,
+      0.92,
+      0.38
+    ]
+  },
+  "animate": {
+    "scroll_u": 0.04,
+    "scroll_v": 0.015,
+    "distortion_strength": 0.12,
+    "distortion_speed": 0.8
   }
 }

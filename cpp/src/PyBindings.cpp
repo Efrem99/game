@@ -4,8 +4,10 @@
 
 #include "PhysicsEngine.h"
 #include "CombatSystem.h"
+#include "EnemyRuntimeSystem.h"
 #include "ParkourSystem.h"
 #include "MagicSystem.h"
+#include "NpcRuntimeSystem.h"
 #include "WaterSimulation.h"
 #include "AnimationBlender.h"
 #include "ParticleSystem.h"
@@ -235,6 +237,41 @@ PYBIND11_MODULE(game_core, m) {
         .def("canCast",     &MagicSystem::canCast)
         .def("getCooldown", &MagicSystem::getCooldown);
 
+    py::class_<EnemyRuntimeContext>(m, "EnemyRuntimeContext")
+        .def(py::init<>())
+        .def_readwrite("dt",         &EnemyRuntimeContext::dt)
+        .def_readwrite("gameTime",   &EnemyRuntimeContext::gameTime)
+        .def_readwrite("playerPos",  &EnemyRuntimeContext::playerPos);
+
+    py::class_<EnemyRuntimeUnit>(m, "EnemyRuntimeUnit")
+        .def(py::init<>())
+        .def_readwrite("id",              &EnemyRuntimeUnit::id)
+        .def_readwrite("kind",            &EnemyRuntimeUnit::kind)
+        .def_readwrite("alive",           &EnemyRuntimeUnit::alive)
+        .def_readwrite("actorPos",        &EnemyRuntimeUnit::actorPos)
+        .def_readwrite("currentHeading",  &EnemyRuntimeUnit::currentHeading)
+        .def_readwrite("runSpeed",        &EnemyRuntimeUnit::runSpeed)
+        .def_readwrite("attackRange",     &EnemyRuntimeUnit::attackRange)
+        .def_readwrite("aggroRange",      &EnemyRuntimeUnit::aggroRange)
+        .def_readwrite("disengageHold",   &EnemyRuntimeUnit::disengageHold)
+        .def_readwrite("engagedUntil",    &EnemyRuntimeUnit::engagedUntil)
+        .def_readwrite("isEngaged",       &EnemyRuntimeUnit::isEngaged)
+        .def_readwrite("state",           &EnemyRuntimeUnit::state)
+        .def_readwrite("stateLock",       &EnemyRuntimeUnit::stateLock)
+        .def_readwrite("attackCooldown",  &EnemyRuntimeUnit::attackCooldown)
+        .def_readwrite("phaseSpeedMul",   &EnemyRuntimeUnit::phaseSpeedMul)
+        .def_readwrite("groundZ",         &EnemyRuntimeUnit::groundZ)
+        .def_readwrite("groundOffset",    &EnemyRuntimeUnit::groundOffset)
+        .def_readwrite("hoverHeight",     &EnemyRuntimeUnit::hoverHeight)
+        .def_readwrite("desiredHeading",  &EnemyRuntimeUnit::desiredHeading)
+        .def_readwrite("desiredState",    &EnemyRuntimeUnit::desiredState)
+        .def_readwrite("targetDistance",  &EnemyRuntimeUnit::targetDistance)
+        .def_readwrite("moving",          &EnemyRuntimeUnit::moving);
+
+    py::class_<EnemyRuntimeSystem>(m, "EnemyRuntimeSystem")
+        .def(py::init<>())
+        .def("updateUnits", &EnemyRuntimeSystem::updateUnits);
+
     // ─── WaterSimulation ─────────────────────────────
     py::class_<WaterSimulation>(m, "WaterSimulation")
         .def(py::init<int,float>(), py::arg("gridSize")=64, py::arg("worldSize")=40.f)
@@ -261,6 +298,49 @@ PYBIND11_MODULE(game_core, m) {
         .def("update",          &AnimationBlender::update)
         .def("getLayers",       &AnimationBlender::getLayers)
         .def("consumeFootstep", &AnimationBlender::consumeFootstep);
+
+    py::class_<NpcRuntimeContext>(m, "NpcRuntimeContext")
+        .def(py::init<>())
+        .def_readwrite("dt",         &NpcRuntimeContext::dt)
+        .def_readwrite("weather",    &NpcRuntimeContext::weather)
+        .def_readwrite("phase",      &NpcRuntimeContext::phase)
+        .def_readwrite("isNight",    &NpcRuntimeContext::isNight)
+        .def_readwrite("visibility", &NpcRuntimeContext::visibility);
+
+    py::class_<NpcRuntimeUnit>(m, "NpcRuntimeUnit")
+        .def(py::init<>())
+        .def_readwrite("id",                &NpcRuntimeUnit::id)
+        .def_readwrite("home",              &NpcRuntimeUnit::home)
+        .def_readwrite("target",            &NpcRuntimeUnit::target)
+        .def_readwrite("actorPos",          &NpcRuntimeUnit::actorPos)
+        .def_readwrite("baseWalkSpeed",     &NpcRuntimeUnit::baseWalkSpeed)
+        .def_readwrite("walkSpeed",         &NpcRuntimeUnit::walkSpeed)
+        .def_readwrite("baseWanderRadius",  &NpcRuntimeUnit::baseWanderRadius)
+        .def_readwrite("wanderRadius",      &NpcRuntimeUnit::wanderRadius)
+        .def_readwrite("baseIdleMin",       &NpcRuntimeUnit::baseIdleMin)
+        .def_readwrite("baseIdleMax",       &NpcRuntimeUnit::baseIdleMax)
+        .def_readwrite("idleMin",           &NpcRuntimeUnit::idleMin)
+        .def_readwrite("idleMax",           &NpcRuntimeUnit::idleMax)
+        .def_readwrite("idleTimer",         &NpcRuntimeUnit::idleTimer)
+        .def_readwrite("suspicion",         &NpcRuntimeUnit::suspicion)
+        .def_readwrite("alerted",           &NpcRuntimeUnit::alerted)
+        .def_readwrite("detectedPlayer",    &NpcRuntimeUnit::detectedPlayer)
+        .def_readwrite("role",              &NpcRuntimeUnit::role)
+        .def_readwrite("activity",          &NpcRuntimeUnit::activity)
+        .def_readwrite("anim",              &NpcRuntimeUnit::anim)
+        .def_readwrite("actionRoll",        &NpcRuntimeUnit::actionRoll)
+        .def_readwrite("targetAngle",       &NpcRuntimeUnit::targetAngle)
+        .def_readwrite("targetDistance01",  &NpcRuntimeUnit::targetDistance01)
+        .def_readwrite("idleReset01",       &NpcRuntimeUnit::idleReset01)
+        .def_readwrite("desiredHeading",    &NpcRuntimeUnit::desiredHeading)
+        .def_readwrite("desiredPlayRate",   &NpcRuntimeUnit::desiredPlayRate)
+        .def_readwrite("desiredAnim",       &NpcRuntimeUnit::desiredAnim)
+        .def_readwrite("moving",            &NpcRuntimeUnit::moving)
+        .def_readwrite("targetChanged",     &NpcRuntimeUnit::targetChanged);
+
+    py::class_<NpcRuntimeSystem>(m, "NpcRuntimeSystem")
+        .def(py::init<>())
+        .def("updateUnits", &NpcRuntimeSystem::updateUnits);
 
     // ─── ParticleVertex ──────────────────────────────
     py::class_<ParticleVertex>(m, "ParticleVertex")

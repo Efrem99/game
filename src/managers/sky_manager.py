@@ -6,6 +6,7 @@ Keeps lighting/fog/cloud state in sync with time-of-day and weather presets.
 import math
 import os
 import random
+import json
 
 from panda3d.core import (
     CardMaker,
@@ -34,9 +35,9 @@ class SkyManager:
         self.weather_hold_min = max(8.0, self._as_float(self.cfg.get("weather_hold_min", 85.0), 85.0))
         self.weather_hold_max = max(self.weather_hold_min, self._as_float(self.cfg.get("weather_hold_max", 180.0), 180.0))
         self._weather_timer = self.weather_hold_min
-        self.min_visibility = max(0.10, min(1.0, self._as_float(self.cfg.get("min_visibility", 0.36), 0.36)))
-        self.min_ambient_light = max(0.00, min(1.0, self._as_float(self.cfg.get("min_ambient_light", 0.22), 0.22)))
-        self.min_sun_light = max(0.00, min(1.0, self._as_float(self.cfg.get("min_sun_light", 0.14), 0.14)))
+        self.min_visibility = max(0.10, min(1.0, self._as_float(self.cfg.get("min_visibility", 0.46), 0.46)))
+        self.min_ambient_light = max(0.00, min(1.0, self._as_float(self.cfg.get("min_ambient_light", 0.30), 0.30)))
+        self.min_sun_light = max(0.00, min(1.0, self._as_float(self.cfg.get("min_sun_light", 0.20), 0.20)))
 
         tr = self._as_dict(self.cfg.get("transitions", {}))
         self.time_transition_speed = max(0.01, self._as_float(tr.get("time_transition_speed", 0.08), 0.08))
@@ -79,6 +80,7 @@ class SkyManager:
         self.app.render.setFog(self._fog)
 
         self._cloud_layers = []
+        self._cloud_puffs = []  # individual puff card records
         self._rain_layers = []
         self._sky_root = None
         self._stars_node = None
@@ -88,10 +90,94 @@ class SkyManager:
         self._lightning_overlay = None
         self._sky_dome = None
         self._rain_root = None
+        self._puff_rng = random.Random(4271)
         self._build_celestial_layers()
         self._build_cloud_layers()
         self._build_rain_layers()
         self._apply_now(force=True)
+
+        # Dev Overrides Polling
+        self._last_dev_update_time = 0.0
+        self._dev_update_interval = 0.25 # Poll every 250ms
+        self.app.taskMgr.add(self._poll_dev_overrides, "sky_dev_overrides")
+
+    def _poll_dev_overrides(self, task):
+        now = task.time
+        if now - self._last_dev_update_time < self._dev_update_interval:
+            return task.cont
+        self._last_dev_update_time = now
+
+        update_path = os.path.join(getattr(self.app, "project_root", "."), "dev/dev_env_update.json")
+        if not os.path.exists(update_path):
+            return task.cont
+
+        try:
+            with open(update_path, "r") as f:
+                data = json.load(f)
+            
+            if not data: return task.cont
+            
+            # Apply overrides
+            changed = False
+            if "time" in data:
+                new_time = float(data["time"])
+                if abs(self.time_value - new_time) > 0.001:
+                    self.time_value = new_time
+                    self.time_target = self.time_value
+                    changed = True
+            
+            if "fog_density" in data:
+                self._fog.setExpDensity(float(data["fog_density"]))
+                
+            if "ambient" in data:
+                self.min_ambient_light = float(data["ambient"]) / 2.0
+                changed = True
+                
+            if "sun" in data:
+                self.min_sun_light = float(data["sun"]) / 2.0
+                changed = True
+            
+            if "preset" in data:
+                preset = data.pop("preset")
+                self._apply_special_preset(preset)
+                # Save back without preset to avoid loop
+                with open(update_path, "w") as f:
+                    json.dump(data, f, indent=4)
+                changed = True
+
+            if changed:
+                self._apply_now(force=True)
+                
+        except Exception as e:
+            from utils.logger import logger
+            logger.debug(f"[SkyManager] Failed to poll dev overrides: {e}")
+
+        return task.cont
+
+    def _apply_special_preset(self, key):
+        token = str(key).lower()
+        from utils.logger import logger
+        logger.info(f"[SkyManager] Applying special preset: {token}")
+
+        if token == "default":
+            self.set_time_preset("noon", instant=True)
+            self.set_weather_preset("clear", instant=True)
+        elif token == "kremora":
+            # Reddish, oppressive atmosphere
+            self.time_value = 0.72 # Evening-ish
+            self.time_target = 0.72
+            self.weather_key = "overcast"
+            self.weather_blend = 0.8
+            self._fog.setColor(0.65, 0.12, 0.08) # Bloody Red
+            self._fog.setExpDensity(0.012)
+            if self._sky_dome:
+                self._sky_dome.setColorScale(0.4, 0.05, 0.02, 1.0)
+            self.min_ambient_light = 0.2
+            self.min_sun_light = 0.4
+        elif token == "night":
+            self.set_time_preset("midnight", instant=True)
+        elif token == "storm":
+            self.set_weather_preset("stormy", instant=True)
 
     def _as_dict(self, value):
         return value if isinstance(value, dict) else {}
@@ -183,18 +269,29 @@ class SkyManager:
             return float(default)
         return self._as_float(payload.get(field, default), default)
 
-    def set_time_preset(self, key):
+    def set_time_preset(self, key, instant=False):
         token = str(key or "").strip().lower()
         if token in self.time_presets:
             self.time_key = token
             self.time_target = self._preset_time_value(token)
+            if bool(instant):
+                self.time_value = float(self.time_target)
+                self._apply_now(force=True)
             return True
         return False
 
-    def set_weather_preset(self, key):
+    def set_weather_preset(self, key, instant=False):
         token = str(key or "").strip().lower()
         if token in self.weather_presets:
             self.weather_key = token
+            if bool(instant):
+                self.weather_blend = float(
+                    self._weather_value(self.weather_key, "cloud_coverage", self.weather_blend)
+                )
+                self.weather_visibility = float(
+                    self._weather_value(self.weather_key, "visibility", self.weather_visibility)
+                )
+                self._apply_now(force=True)
             return True
         return False
 
@@ -235,6 +332,28 @@ class SkyManager:
         tex.set_wrap_v(SamplerState.WM_clamp)
         return tex
 
+    def _make_cloud_puff_texture(self, size=256):
+        """Generate a cumulus-shaped puff: bright centre, soft feathered edges."""
+        img = PNMImage(size, size, 4)
+        half = max(1.0, size * 0.5)
+        for y in range(size):
+            ny = (y - half) / half
+            for x in range(size):
+                nx = (x - half) / half
+                dist = math.sqrt((nx * nx) + (ny * ny))
+                t = max(0.0, 1.0 - dist)
+                alpha = (t ** 1.6) * (1.0 - (max(0.0, dist - 0.55) * 1.8))
+                alpha = max(0.0, min(1.0, alpha))
+                bright = 0.86 + (alpha * 0.14)
+                cold = max(0.0, 0.82 + (alpha * 0.16) - (dist * 0.08))
+                img.set_xel_a(x, y, min(1.0, bright), min(1.0, bright),
+                              min(1.0, cold + 0.04), alpha)
+        tex = Texture("sky_cloud_puff")
+        tex.load(img)
+        tex.set_wrap_u(SamplerState.WM_clamp)
+        tex.set_wrap_v(SamplerState.WM_clamp)
+        return tex
+
     def _make_star_texture(self, size=1024):
         img = PNMImage(size, size, 4)
         for y in range(size):
@@ -268,7 +387,7 @@ class SkyManager:
                 dome.setDepthWrite(False)
                 dome.setDepthTest(False)
                 dome.setBin("background", 0)
-                dome.setColorScale(0.08, 0.10, 0.18, 1.0)
+                dome.setColorScale(0.22, 0.30, 0.48, 1.0)
                 dome.setLightOff(1)
                 dome.setShaderOff(1)
                 self._sky_dome = dome
@@ -371,46 +490,100 @@ class SkyManager:
             )
 
     def _build_cloud_layers(self):
+        """Build individual puff billboard cloud cards with parallax depth."""
         root = (self._sky_root if self._sky_root is not None else self.app.render).attachNewNode("sky_cloud_layers")
         root.setLightOff(1)
         root.setShaderOff(1)
+        if hasattr(self, "_fog"):
+            root.setFog(self._fog)
         self._cloud_root = root
 
         cloud_tex = self._load_texture_candidate([
+            "assets/textures/cloud_puff.png",
             "assets/textures/clouds.png",
             "assets/textures/cloud_layer.png",
-            "assets/textures/flare.png",
-        ]) or self._make_soft_disc_texture(256, warm=False)
+        ]) or self._make_cloud_puff_texture(256)
 
-        layer_specs = [
-            {"size": 260.0, "z": 52.0, "speed": 0.22, "alpha": 0.32, "tilt": 6.0},
-            {"size": 320.0, "z": 66.0, "speed": -0.14, "alpha": 0.24, "tilt": -4.0},
-            {"size": 380.0, "z": 86.0, "speed": 0.09, "alpha": 0.18, "tilt": 2.0},
+        puff_cfg = self._as_dict(self.cfg.get("cloud_puff", {}))
+        default_layers = [
+            {"height": 52.0, "count": 22, "min_scale": 8.0, "max_scale": 22.0,
+             "speed": 0.18, "base_alpha": 0.56, "parallax_factor": 0.82,
+             "scatter_radius": 180.0, "color": [0.96, 0.96, 1.0]},
+            {"height": 68.0, "count": 16, "min_scale": 14.0, "max_scale": 36.0,
+             "speed": -0.11, "base_alpha": 0.42, "parallax_factor": 0.62,
+             "scatter_radius": 220.0, "color": [0.92, 0.94, 1.0]},
+            {"height": 90.0, "count": 10, "min_scale": 28.0, "max_scale": 60.0,
+             "speed": 0.07, "base_alpha": 0.28, "parallax_factor": 0.38,
+             "scatter_radius": 280.0, "color": [0.88, 0.90, 0.96]},
         ]
+        layer_specs_raw = puff_cfg.get("layers", default_layers)
+        if not isinstance(layer_specs_raw, list) or not layer_specs_raw:
+            layer_specs_raw = default_layers
 
-        for idx, spec in enumerate(layer_specs):
-            cm = CardMaker(f"sky_cloud_layer_{idx}")
-            hs = spec["size"] * 0.5
-            cm.setFrame(-hs, hs, -hs, hs)
-            node = root.attachNewNode(cm.generate())
-            node.setP(-90.0 + float(spec["tilt"]))
-            node.setPos(0.0, 0.0, float(spec["z"]))
-            node.setTransparency(TransparencyAttrib.MAlpha)
-            node.setTwoSided(True)
-            node.setColorScale(1.0, 1.0, 1.0, float(spec["alpha"]))
-            if cloud_tex:
-                try:
-                    node.setTexture(cloud_tex, 1)
-                except Exception:
-                    pass
-            self._cloud_layers.append(
-                {
+        for layer_idx, spec in enumerate(layer_specs_raw):
+            if not isinstance(spec, dict):
+                continue
+            height_min  = self._as_float(spec.get("height_min", 50.0), 50.0)
+            height_max  = self._as_float(spec.get("height_max", height_min + 20.0), height_min + 20.0)
+            count       = max(1, int(spec.get("count", 12) or 12))
+            scale_min   = self._as_float(spec.get("scale_min", spec.get("min_scale", 8.0)), 8.0)
+            scale_max   = self._as_float(spec.get("scale_max", spec.get("max_scale", 22.0)), 22.0)
+            speed       = self._as_float(spec.get("speed", 0.15), 0.15)
+            base_alpha  = self._as_float(spec.get("base_alpha", 0.35), 0.35)
+            scatter     = self._as_float(spec.get("scatter_radius", 400.0), 400.0)
+            color_raw   = spec.get("color", [1.0, 1.0, 1.0])
+            if isinstance(color_raw, list) and len(color_raw) >= 3:
+                cr, cg, cb = float(color_raw[0]), float(color_raw[1]), float(color_raw[2])
+            else:
+                cr, cg, cb = 1.0, 1.0, 1.0
+
+            layer_puffs = []
+            for puff_idx in range(count):
+                angle = self._puff_rng.uniform(0, math.tau)
+                dist  = self._puff_rng.uniform(0, scatter)
+                ox    = math.cos(angle) * dist
+                oy    = math.sin(angle) * dist
+                pz    = self._puff_rng.uniform(height_min, height_max)
+                scale = self._puff_rng.uniform(scale_min, scale_max)
+                aspect = self._puff_rng.uniform(1.2, 2.8)
+
+                cm = CardMaker(f"sky_puff_{layer_idx}_{puff_idx}")
+                hs  = scale * 0.5
+                hsv = hs / aspect
+                cm.setFrame(-hs, hs, -hsv, hsv)
+                node = root.attachNewNode(cm.generate())
+                node.setBillboardPointEye()
+                node.setPos(ox, oy, pz)
+                node.setTransparency(TransparencyAttrib.MAlpha)
+                node.setDepthWrite(False)
+                node.setDepthTest(False)
+                node.setBin("background", 2)
+                node.setColorScale(cr, cg, cb, 0.0)
+                if cloud_tex:
+                    try:
+                        node.setTexture(cloud_tex, 1)
+                    except Exception:
+                        pass
+
+                puff_rec = {
                     "node": node,
-                    "speed": float(spec["speed"]),
-                    "phase": idx * 0.4,
-                    "base_alpha": float(spec["alpha"]),
+                    "ox": ox, "oy": oy,
+                    "height": pz,
+                    "speed": speed,
+                    "phase": self._puff_rng.uniform(0, math.tau),
+                    "base_alpha": base_alpha,
+                    "cr": cr, "cg": cg, "cb": cb,
                 }
-            )
+                layer_puffs.append(puff_rec)
+                self._cloud_puffs.append(puff_rec)
+
+            self._cloud_layers.append({
+                "node": layer_puffs[0]["node"] if layer_puffs else None,
+                "puffs": layer_puffs,
+                "speed": speed,
+                "phase": layer_idx * 0.4,
+                "base_alpha": base_alpha,
+            })
 
     def _time_gradient(self, t, celestial=None, weather_profile=None):
         cel = celestial if isinstance(celestial, dict) else self.compute_celestial_factors(t, self.weather_blend)
@@ -422,29 +595,29 @@ class SkyManager:
 
         if sun <= 0.01:
             sky = Vec4(
-                0.06 + (moon * 0.10),
                 0.08 + (moon * 0.12),
-                0.14 + (moon * 0.20),
+                0.10 + (moon * 0.14),
+                0.16 + (moon * 0.24),
                 1.0,
             )
             fog = Vec4(
-                0.07 + (moon * 0.09),
                 0.09 + (moon * 0.10),
-                0.15 + (moon * 0.16),
+                0.11 + (moon * 0.12),
+                0.17 + (moon * 0.18),
                 1.0,
             )
         else:
             warm = max(0.0, 1.0 - abs(t - 0.5) * 3.0)
             sky = Vec4(
-                0.22 + (0.24 * sun) + (0.15 * warm),
-                0.31 + (0.28 * sun) + (0.07 * warm),
-                0.46 + (0.34 * sun),
+                0.26 + (0.30 * sun) + (0.16 * warm),
+                0.36 + (0.30 * sun) + (0.10 * warm),
+                0.52 + (0.34 * sun) + (0.04 * warm),
                 1.0,
             )
             fog = Vec4(
-                0.16 + (0.23 * sun) + (0.12 * warm),
-                0.22 + (0.24 * sun) + (0.07 * warm),
-                0.31 + (0.31 * sun),
+                0.18 + (0.24 * sun) + (0.12 * warm),
+                0.25 + (0.24 * sun) + (0.08 * warm),
+                0.35 + (0.30 * sun),
                 1.0,
             )
 
@@ -542,10 +715,13 @@ class SkyManager:
             self._stars_node.setColorScale(1.0, 1.0, 1.0, star_alpha)
         if self._sky_dome:
             moon_tint = float(celestial.get("moon_light", 0.0))
+            sun_tint = float(celestial.get("sun_elevation", 0.0))
+            twilight = float(celestial.get("twilight", 0.0))
+            shade = max(0.58, 1.0 - (cloud_dark * 0.32))
             self._sky_dome.setColorScale(
-                0.08 + (moon_tint * 0.05),
-                0.09 + (moon_tint * 0.06),
-                0.16 + (moon_tint * 0.10),
+                (0.10 + (sun_tint * 0.34) + (twilight * 0.12) + (moon_tint * 0.08)) * shade,
+                (0.12 + (sun_tint * 0.36) + (twilight * 0.10) + (moon_tint * 0.10)) * shade,
+                (0.18 + (sun_tint * 0.44) + (twilight * 0.08) + (moon_tint * 0.16)) * shade,
                 1.0,
             )
 
@@ -669,13 +845,31 @@ class SkyManager:
             self._cloud_root.setPos(pos.x, pos.y, 0.0)
 
         for layer in self._cloud_layers:
-            node = layer["node"]
+            puffs = layer.get("puffs", [])
             speed = float(layer["speed"])
-            phase = float(layer["phase"])
-            alpha = max(0.04, min(0.92, float(layer["base_alpha"]) + (coverage * 0.24)))
+            base_alpha = float(layer["base_alpha"])
+            alpha = max(0.04, min(0.92, base_alpha + (coverage * 0.28)))
             shade = max(0.58, 1.0 - (weather_profile["cloud_darkening"] * 0.34))
-            node.setH((now * speed * 20.0) + (phase * 50.0))
-            node.setColorScale(shade, shade, min(1.0, shade + 0.06), alpha)
+            if puffs:
+                for puff in puffs:
+                    pnode = puff["node"]
+                    if not pnode:
+                        continue
+                    drift = (now * puff["speed"] * 4.0) + puff["phase"]
+                    nx = puff["ox"] + math.sin(drift * 0.12) * 12.0
+                    ny = puff["oy"] + math.cos(drift * 0.08) * 8.0
+                    pnode.setPos(nx, ny, puff["height"])
+                    puff_alpha = alpha * (0.8 + 0.2 * math.sin(drift * 0.31 + puff["phase"]))
+                    puff_alpha = max(0.0, min(0.95, puff_alpha))
+                    cr = puff["cr"] * shade
+                    cg = puff["cg"] * shade
+                    cb = min(1.0, puff["cb"] * shade + 0.04)
+                    pnode.setColorScale(cr, cg, cb, puff_alpha)
+            else:
+                node = layer["node"]
+                if node:
+                    node.setH((now * speed * 20.0) + (float(layer["phase"]) * 50.0))
+                    node.setColorScale(shade, shade, min(1.0, shade + 0.06), alpha)
 
         self._update_celestial_visuals(now, celestial, weather_profile)
         self._update_rain_fx(self._dt_last, weather_profile)

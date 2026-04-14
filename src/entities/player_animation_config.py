@@ -307,6 +307,7 @@ STATE_ANIM_FALLBACK = {
     "flight_hover":     ["flight_hover", "flying", "idle"],
     "flight_dive":      ["flight_dive", "flying", "falling"],
     "flight_airdash":   ["flight_airdash", "flying", "run"],
+    "flight_land":      ["flight_land", "landing", "recovering"],
     "dead":             ["dead", "idle"],
     "walk":             ["walk", "idle"],
     "run":              ["run", "walk"],
@@ -335,6 +336,9 @@ ANIM_TOKEN_ALIASES = {
     "spellcast":        ["cast_release", "casting", "idle", "run"],
     "spellprepare":     ["cast_prepare", "casting", "idle"],
     "spellchannel":     ["cast_channel", "casting", "idle"],
+    "castfast":         ["cast_fast", "cast_release", "casting", "idle"],
+    "bowaim":           ["bow_aim", "blocking", "idle"],
+    "bowshoot":         ["bow_shoot", "attack_light_both", "attack", "attacking"],
     "vaultover":        ["vault_low", "vaulting", "run", "walk"],
     "ledgeclimb":       ["climb_fast", "climbing", "run", "walk"],
     "wallrun":          ["wallrun", "run", "walk"],
@@ -433,4 +437,27 @@ DEFAULT_STATE_DURATIONS = {
     # Flight
     "flight_takeoff":   0.50,
     "flight_airdash":   0.35,
+    "flight_land":      0.34,
+}
+
+
+# Runtime clip lead-ins that still expose bind-pose frames on the current
+# animation stack. These hints are intentionally narrow and reversible:
+# they trim only the first few frames of known-problematic clips until the
+# source assets are rebuilt cleanly.
+CLIP_START_FRAME_HINTS = {
+    "idle": 8,
+    "walk": 6,
+    "run": 6,
+    "run_blade": 6,
+    "jumping": 2,
+    "falling": 1,
+    "landing": 2,
+    "flying": 6,
+    "flight_hover": 6,
+    "flight_glide": 6,
+    "flight_airdash": 6,
+    "flight_takeoff": 2,
+    "flight_dive": 1,
+    "flight_land": 2,
 }

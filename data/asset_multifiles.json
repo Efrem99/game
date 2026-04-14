@@ -27,7 +27,9 @@
       "prewarm": [
         "assets/models/bosses/dragon_evolved.glb",
         "assets/models/enemies/golem_boss.glb",
-        "assets/models/enemies/goblin_raider.glb"
+        "assets/models/enemies/goblin_raider_animated.glb",
+        "assets/models/enemies/fire_elemental_animated.glb",
+        "assets/models/enemies/shadow_stalker_animated.glb"
       ]
     },
     "opening_memory": {
@@ -41,7 +43,9 @@
       ],
       "prewarm": [
         "assets/models/enemies/golem_boss.glb",
-        "assets/models/bosses/dragon_evolved.glb"
+        "assets/models/enemies/goblin_raider_animated.glb",
+        "assets/models/enemies/fire_elemental_animated.glb",
+        "assets/models/enemies/shadow_stalker_animated.glb"
       ]
     }
   },
@@ -78,8 +82,9 @@
       ],
       "prewarm": [
         "assets/models/enemies/golem_boss.glb",
-        "assets/models/enemies/goblin_raider.glb",
-        "assets/models/bosses/dragon_evolved.glb"
+        "assets/models/enemies/goblin_raider_animated.glb",
+        "assets/models/enemies/fire_elemental_animated.glb",
+        "assets/models/enemies/shadow_stalker_animated.glb"
       ]
     },
     "audio_core": {

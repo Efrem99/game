@@ -1,25 +1,22 @@
 """Dragon boss controller with procedural fallback model and fire breath VFX."""
 
-import json
 import math
 import random
-from pathlib import Path
 
 from direct.actor.Actor import Actor
 from direct.showbase.ShowBaseGlobal import globalClock
 from panda3d.core import CardMaker, LColor, NodePath, TransparencyAttrib, Vec3
 
-from render.fx_policy import FIRE_SPRITE_TEXTURE_CANDIDATES, load_optional_texture
+from render.fx_policy import (
+    FIRE_SPRITE_TEXTURE_CANDIDATES,
+    enforce_particle_budget,
+    load_optional_texture,
+    make_soft_disc_texture,
+)
+from managers.runtime_data_access import load_data_file
 from render.model_visuals import ensure_model_visual_defaults
 from utils.asset_pathing import prefer_bam_path
 from utils.logger import logger
-
-
-def _safe_read_json(path):
-    try:
-        return json.loads(Path(path).read_text(encoding="utf-8-sig"))
-    except Exception:
-        return {}
 
 
 def _clamp(val, lo, hi):
@@ -36,6 +33,9 @@ class DragonBoss:
         self.render = app.render
         self.loader = app.loader
         self._rng = random.Random(94173)
+        self.id = "dragon_boss"
+        self.name = "Ashen Dragon"
+        self.is_boss = True
 
         self.root = None
         self.actor = None
@@ -48,6 +48,9 @@ class DragonBoss:
         self._fire_tick_accum = 0.0
         self._fire_particles = []
         self._is_engaged = False
+        self.awareness = "idle"
+        self.stealth_meter = 0.0
+        self.last_known_player_pos = None
 
         self._neck = None
         self._head = None
@@ -65,7 +68,20 @@ class DragonBoss:
         self._active_clip = ""
         self._body_base_scale = Vec3(1.0, 1.0, 1.0)
         self._last_fire_sfx_time = -999.0
-        self._fire_sprite_tex = load_optional_texture(self.loader, FIRE_SPRITE_TEXTURE_CANDIDATES)
+        self._damage_flash = 0.0
+        self._pending_hit_react = 0.0
+        self.max_hp = 1.0
+        self.hp = 1.0
+        self._fire_sprite_tex = load_optional_texture(
+            self.loader,
+            FIRE_SPRITE_TEXTURE_CANDIDATES,
+            require_alpha=True,
+            fallback_texture=lambda: make_soft_disc_texture(
+                tex_name="dragon_fire_sprite",
+                size=128,
+                warm=True,
+            ),
+        )
 
         self.cfg = self._load_dragon_config()
         self.spawn()
@@ -74,15 +90,43 @@ class DragonBoss:
     def is_engaged(self):
         return bool(self._is_engaged)
 
+    @property
+    def is_alive(self):
+        try:
+            return float(self.hp) > 0.0
+        except Exception:
+            return False
+
     def _load_dragon_config(self):
-        enemy_cfg = _safe_read_json("data/enemies/dragon.json")
-        anim_cfg = _safe_read_json("data/actors/dragon_animations.json")
-        state_cfg = _safe_read_json("data/states/dragon_states.json")
+        getter = getattr(getattr(self.app, "data_mgr", None), "get_dragon_config_bundle", None)
+        if callable(getter):
+            try:
+                payload = getter()
+                if isinstance(payload, dict) and payload:
+                    return {
+                        "enemy": payload.get("enemy", {}) if isinstance(payload.get("enemy"), dict) else {},
+                        "anim": payload.get("anim", {}) if isinstance(payload.get("anim"), dict) else {},
+                        "state": payload.get("state", {}) if isinstance(payload.get("state"), dict) else {},
+                    }
+            except Exception as exc:
+                logger.warning(f"[DragonBoss] Failed to read dragon config bundle from DataManager: {exc}")
+        enemy_cfg = load_data_file(self.app, self._dragon_enemy_rel_path(), default={})
+        anim_cfg = load_data_file(self.app, self._dragon_anim_rel_path(), default={})
+        state_cfg = load_data_file(self.app, self._dragon_state_rel_path(), default={})
         return {
             "enemy": enemy_cfg if isinstance(enemy_cfg, dict) else {},
             "anim": anim_cfg if isinstance(anim_cfg, dict) else {},
             "state": state_cfg if isinstance(state_cfg, dict) else {},
         }
+
+    def _dragon_enemy_rel_path(self):
+        return "enemies/dragon.json"
+
+    def _dragon_anim_rel_path(self):
+        return "actors/dragon_animations.json"
+
+    def _dragon_state_rel_path(self):
+        return "states/dragon_states.json"
 
     def _resolve_spawn_position(self):
         enemy_cfg = self.cfg["enemy"]
@@ -117,6 +161,9 @@ class DragonBoss:
         if self.root and not self.root.isEmpty():
             self.root.removeNode()
 
+        self.name = str(self.cfg["enemy"].get("name", self.name) or self.name)
+        self.max_hp = max(1.0, float(self._stat("max_hp", 1500.0)))
+        self.hp = float(self.max_hp)
         self.root = self.render.attachNewNode("dragon_boss_root")
         self.root.setPos(self._resolve_spawn_position())
         self.root.setH(180.0)
@@ -127,6 +174,9 @@ class DragonBoss:
         self._fire_emit_accum = 0.0
         self._fire_tick_accum = 0.0
         self._is_engaged = False
+        self.awareness = "idle"
+        self.stealth_meter = 0.0
+        self.last_known_player_pos = None
 
         if not self._build_actor_dragon():
             self._build_procedural_dragon()
@@ -138,6 +188,39 @@ class DragonBoss:
             debug_label="dragon_boss_root",
         )
         logger.info("[Dragon] Spawned upgraded dragon boss.")
+
+    def take_damage(self, amount, damage_type="physical", source=None):
+        del source
+        if not self.is_alive:
+            return False
+        try:
+            raw = float(amount or 0.0)
+        except Exception:
+            raw = 0.0
+        if raw <= 0.0:
+            return False
+
+        damage_kind = str(damage_type or "physical").strip().lower()
+        armor = max(0.0, float(self._stat("armor", 0.0)))
+        mitigation = armor * 0.28
+        if damage_kind == "fire":
+            mitigation = armor * 0.14
+        elif damage_kind == "arcane":
+            mitigation = armor * 0.08
+        dealt = max(1.0, raw - mitigation)
+        prev_hp = max(0.0, float(getattr(self, "hp", 0.0) or 0.0))
+        self.hp = max(0.0, prev_hp - dealt)
+        self._damage_flash = max(float(getattr(self, "_damage_flash", 0.0) or 0.0), 0.16)
+
+        if self.hp <= 0.0:
+            self._is_engaged = False
+            self.awareness = "idle"
+            self._fire_emit_accum = 0.0
+            self._fire_tick_accum = 0.0
+            self._set_state("death", lock=0.0)
+        elif self._state not in {"fire_breath", "telegraph_fire", "tail_sweep"}:
+            self._pending_hit_react = max(float(getattr(self, "_pending_hit_react", 0.0) or 0.0), 0.18)
+        return self.hp < prev_hp
 
     def _build_actor_dragon(self):
         anim_cfg = self.cfg["anim"]
@@ -443,14 +526,15 @@ class DragonBoss:
         self._state = new_state
         self._state_time = 0.0
         self._state_lock = max(0.0, float(lock))
-        if self.actor:
+        actor = getattr(self, "actor", None)
+        if actor:
             clip = self._pick_actor_clip(new_state)
             if clip and clip != self._active_clip:
                 try:
                     if self._state_lock > 0.0:
-                        self.actor.play(clip)
+                        actor.play(clip)
                     else:
-                        self.actor.loop(clip)
+                        actor.loop(clip)
                     self._active_clip = clip
                 except Exception:
                     self._active_clip = ""
@@ -513,6 +597,16 @@ class DragonBoss:
                 "size": size,
             }
         )
+        app_budget = getattr(
+            self.app,
+            "_enemy_fire_particle_budget_live",
+            getattr(self.app, "_enemy_fire_particle_budget", 320),
+        )
+        try:
+            dragon_budget = max(36, int(round(float(app_budget) * 0.90)))
+        except Exception:
+            dragon_budget = 240
+        enforce_particle_budget(self._fire_particles, dragon_budget)
 
     def _tick_fire_particles(self, dt):
         if not self._fire_particles:
@@ -570,7 +664,7 @@ class DragonBoss:
             return
         damage = int(self._ai_value("fire_tick_damage", 12.0))
         try:
-            char_state.health = max(0.0, float(char_state.health) - damage)
+            player.take_damage(damage, "fire", source=self)
         except Exception:
             pass
 
@@ -636,23 +730,77 @@ class DragonBoss:
             self._body_base_scale.z * breath,
         )
 
-    def _tick_state_machine(self, dt, player_pos):
+    def _update_stealth(self, dt, player_pos, stealth_state=None):
+        if not player_pos or not self.root or self._is_engaged:
+            if self._is_engaged:
+                self.awareness = "alert"
+                self.stealth_meter = 1.0
+            return
+
+        ss = stealth_state if isinstance(stealth_state, dict) else {}
+        pos = self.root.getPos(self.render)
+        vec = player_pos - pos
+        dist = vec.length()
+        
+        # Dragon has acute senses scaled by stealth manager
+        radius_mult = float(ss.get("detection_radius_mult", 1.0))
+        det_range = 45.0 * radius_mult
+        fov_cos = math.cos(math.radians(85.0)) # Wide FOV for dragon
+        
+        in_fov = False
+        if dist < det_range:
+            fwd = self.root.getQuat(self.render).getForward()
+            fwd.normalize()
+            target_dir = vec / dist
+            if fwd.dot(target_dir) > fov_cos:
+                in_fov = True
+            elif dist < 9.0 * float(ss.get("is_crouched", False) and 0.55 or 1.0): 
+                in_fov = True
+
+        if in_fov:
+            dist_factor = 1.0 - (dist / det_range)
+            gain_mult = float(ss.get("awareness_gain_mult", 1.0))
+            det_rate = (0.18 + (dist_factor * 1.25)) * gain_mult
+            self.stealth_meter = min(1.0, self.stealth_meter + det_rate * dt)
+            self.last_known_player_pos = player_pos
+        else:
+            decay_mult = float(ss.get("awareness_decay_mult", 1.0))
+            self.stealth_meter = max(0.0, self.stealth_meter - 0.18 * decay_mult * dt)
+
+        if self.stealth_meter >= 1.0:
+            self.awareness = "alert"
+            self._is_engaged = True
+        elif self.stealth_meter > 0.1:
+            self.awareness = "suspicious"
+        else:
+            self.awareness = "idle"
+
+    def _tick_state_machine(self, dt, player_pos, stealth_state=None):
         origin = self.root.getPos(self.render)
         to_player = player_pos - origin
         dist = to_player.length()
-        aggro = self._stat("aggro_range", 28.0)
         fire_range = self._ai_value("fire_range", 19.0)
 
-        self._is_engaged = dist <= (aggro * 1.2)
+        self._update_stealth(dt, player_pos, stealth_state)
+        
+        if self.awareness != "alert" and dist <= self._stat("aggro_range", 8.0):
+            # Immediate detection if too close
+            self.stealth_meter = 1.0
+            self.awareness = "alert"
+            self._is_engaged = True
         if self._state_lock > 0.0:
             self._state_lock = max(0.0, self._state_lock - dt)
 
         if self._state_lock <= 0.0:
             if self._is_engaged and dist <= fire_range and self._fire_cooldown <= 0.0:
-                self._set_state("fire_breath", lock=self._ai_value("fire_duration", 2.2))
+                # Add a telegraph phase before fire
+                self._set_state("telegraph_fire", lock=1.0)
                 self._fire_cooldown = self._ai_value("fire_cooldown", 5.8)
                 self._fire_emit_accum = 0.0
                 self._fire_tick_accum = 0.0
+            elif self._is_engaged and dist <= 12.0 and self._fire_cooldown > 2.0 and self._rng.random() < 0.15:
+                # AOE Tail Sweep if player is close
+                self._set_state("telegraph_tail", lock=0.8)
             elif self._is_engaged and globalClock.getFrameTime() >= self._next_roar_time:
                 self._set_state("roar", lock=1.15)
                 self._next_roar_time = globalClock.getFrameTime() + self._rng.uniform(6.0, 9.0)
@@ -661,16 +809,32 @@ class DragonBoss:
             else:
                 self._set_state("idle")
 
+        # Handle telegraph transitions
+        if self._state == "telegraph_fire" and self._state_lock <= 0.001:
+            self._set_state("fire_breath", lock=self._ai_value("fire_duration", 2.2))
+        elif self._state == "telegraph_tail" and self._state_lock <= 0.001:
+            self._set_state("tail_sweep", lock=1.2)
+            self._apply_tail_sweep_aoe(player_pos)
+        
         self._fire_cooldown = max(0.0, self._fire_cooldown - dt)
 
-    def update(self, dt, player_pos):
+    def update(self, dt, player_pos, stealth_state=None):
         if not self.root or self.root.isEmpty():
             return
         if player_pos is None:
             return
+        if not self.is_alive:
+            self._is_engaged = False
+            self.awareness = "idle"
+            self._fire_emit_accum = 0.0
+            self._fire_tick_accum = 0.0
+            if self._state != "death":
+                self._set_state("death", lock=0.0)
+            self._tick_fire_particles(dt)
+            return
 
         self._state_time += max(0.0, float(dt))
-        self._tick_state_machine(dt, player_pos)
+        self._tick_state_machine(dt, player_pos, stealth_state)
         self._update_facing(player_pos, dt)
         self._animate_procedural(dt)
 
@@ -692,5 +856,30 @@ class DragonBoss:
                 self._last_fire_sfx_time = now
 
             self._apply_fire_damage(player_pos, dt)
+        
+        if self._state == "telegraph_fire":
+            # Visual indicator for fire breath
+            if self._rng.random() < 0.25:
+                self._emit_fire_particle()
 
         self._tick_fire_particles(dt)
+
+    def _apply_tail_sweep_aoe(self, player_pos):
+        origin = self.root.getPos(self.render)
+        dist = (player_pos - origin).length()
+        radius = 12.0
+        if dist <= radius:
+            player = getattr(self.app, "player", None)
+            if player:
+                damage = int(self._stat("melee_damage", 35.0))
+                player.take_damage(damage, "physical", source=self)
+                # Blowback effect
+                if hasattr(player, "cs") and hasattr(player.cs, "velocity"):
+                    vec = player_pos - origin
+                    vec.z = 0
+                    vec.normalize()
+                    try:
+                        player.cs.velocity += vec * 15.0
+                    except Exception:
+                        pass
+

@@ -52,6 +52,13 @@ def normalize_location_mesh_entries(layout):
                 "scale": scale,
                 "label": label,
                 "is_platform": is_platform,
+                "batch_static": bool(row.get("batch_static", True)),
+                "never_cull": bool(row.get("never_cull", False)),
+                "hlod_enabled": bool(row.get("hlod_enabled", True)),
+                "location": str(row.get("location", row.get("zone", "")) or "").strip(),
+                "hlod_group": str(row.get("hlod_group", row.get("cluster", "")) or "").strip(),
+                "lod_profile": str(row.get("lod_profile", "") or "").strip(),
+                "impostor_model": str(row.get("impostor_model", "") or "").strip().replace("\\", "/"),
             }
         )
     return out

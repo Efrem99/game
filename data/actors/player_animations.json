@@ -1,6 +1,11 @@
 {
     "manifest": {
         "strict_runtime_sources": true,
+        "auto_source_dirs": [
+            "assets/anims/mixamo",
+            "assets/anims/mixamo/player",
+            "assets/anims/mixamo/hero"
+        ],
         "sources": [
             {
                 "key": "jumping",
@@ -39,7 +44,7 @@
             },
             {
                 "key": "attack_light_right",
-                "path": "assets/anims/attack_sword_slash.fbx",
+                "path": "assets/anims/mixamo/player/attack_light_right.fbx",
                 "loop": false
             },
             {
@@ -79,7 +84,7 @@
             },
             {
                 "key": "attack_thrust_right",
-                "path": "assets/anims/attack_sword_slash.fbx",
+                "path": "assets/anims/mixamo/player/attack_thrust_right.fbx",
                 "loop": false
             },
             {
@@ -129,7 +134,7 @@
             },
             {
                 "key": "blocking",
-                "path": "assets/anims/block_guard.fbx",
+                "path": "assets/anims/mixamo/player/blocking.fbx",
                 "loop": true
             },
             {
@@ -185,12 +190,12 @@
             {
                 "key": "climbing",
                 "path": "assets/anims/climb_up.fbx",
-                "loop": false
+                "loop": true
             },
             {
                 "key": "wallrun",
                 "path": "assets/anims/wallrun_side.fbx",
-                "loop": false
+                "loop": true
             },
             {
                 "key": "swim",
@@ -200,6 +205,66 @@
             {
                 "key": "flying",
                 "path": "assets/anims/flying_loop.fbx",
+                "loop": true
+            },
+            {
+                "key": "flight_airdash",
+                "path": "assets/anims/flying_loop.fbx",
+                "loop": true
+            },
+            {
+                "key": "flying_loop",
+                "path": "assets/anims/flying_loop.fbx",
+                "loop": true
+            },
+            {
+                "key": "swim_loop",
+                "path": "assets/anims/swim_loop.fbx",
+                "loop": true
+            },
+            {
+                "key": "vault_over",
+                "path": "assets/anims/vault_over.fbx",
+                "loop": false
+            },
+            {
+                "key": "wallrun_side",
+                "path": "assets/anims/wallrun_side.fbx",
+                "loop": true
+            },
+            {
+                "key": "dodge_roll",
+                "path": "assets/anims/dodge_roll.fbx",
+                "loop": false
+            },
+            {
+                "key": "block_guard",
+                "path": "assets/anims/mixamo/player/blocking.fbx",
+                "loop": true
+            },
+            {
+                "key": "flight_takeoff",
+                "path": "assets/anims/jump_takeoff.fbx",
+                "loop": false
+            },
+            {
+                "key": "flight_land",
+                "path": "assets/anims/land_recover.fbx",
+                "loop": false
+            },
+            {
+                "key": "flight_glide",
+                "path": "assets/anims/flying_loop.fbx",
+                "loop": true
+            },
+            {
+                "key": "flight_hover",
+                "path": "assets/anims/flying_loop.fbx",
+                "loop": true
+            },
+            {
+                "key": "flight_dive",
+                "path": "assets/anims/fall_air.fbx",
                 "loop": true
             },
             {
@@ -229,7 +294,7 @@
             },
             {
                 "key": "mounted_idle",
-                "path": "assets/models/xbot/idle.glb",
+                "path": "assets/models/xbot/Xbot.glb",
                 "loop": true
             },
             {
@@ -254,7 +319,7 @@
             },
             {
                 "key": "mounted_move",
-                "path": "assets/models/xbot/walk.glb",
+                "path": "assets/models/xbot/Xbot.glb",
                 "loop": true
             },
             {
@@ -296,6 +361,121 @@
                 "key": "dismounting_boat",
                 "path": "assets/anims/dismounting_boat.fbx",
                 "loop": false
+            },
+            {
+                "key": "crouch_idle",
+                "path": "assets/anims/mixamo/player/crouch_idle.fbx",
+                "loop": true
+            },
+            {
+                "key": "crouch_move",
+                "path": "assets/anims/mixamo/player/crouch_move.fbx",
+                "loop": true
+            },
+            {
+                "key": "cast_prepare",
+                "path": "assets/anims/mixamo/player/cast_prepare.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_release",
+                "path": "assets/anims/mixamo/player/cast_release.fbx",
+                "loop": false
+            },
+            {
+                "key": "climb_fast",
+                "path": "assets/anims/mixamo/player/climb_fast.fbx",
+                "loop": false
+            },
+            {
+                "key": "climb_slow",
+                "path": "assets/anims/mixamo/player/climb_slow.fbx",
+                "loop": false
+            },
+            {
+                "key": "vault_low",
+                "path": "assets/anims/mixamo/player/vault_low.fbx",
+                "loop": false
+            },
+            {
+                "key": "vault_high",
+                "path": "assets/anims/mixamo/player/vault_high.fbx",
+                "loop": false
+            },
+            {
+                "key": "wallrun_start",
+                "path": "assets/anims/mixamo/player/wallrun_start.fbx",
+                "loop": false
+            },
+            {
+                "key": "wallrun_exit",
+                "path": "assets/anims/mixamo/player/wallrun_exit.fbx",
+                "loop": false
+            },
+            {
+                "key": "swim_surface",
+                "path": "assets/anims/mixamo/player/swim_surface.fbx",
+                "loop": true
+            },
+            {
+                "key": "cast_channel",
+                "path": "assets/anims/mixamo/player/cast_channel.fbx",
+                "loop": true
+            },
+            {
+                "key": "run_blade",
+                "path": "assets/anims/mixamo/player/run_blade.fbx",
+                "loop": true
+            },
+            {
+                "key": "cast_fast",
+                "path": "assets/anims/mixamo/player/cast_fast.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_arcane",
+                "path": "assets/anims/mixamo/player/cast_arcane.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_fire",
+                "path": "assets/anims/mixamo/player/cast_fire.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_lightning",
+                "path": "assets/anims/mixamo/player/cast_lightning.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_ice",
+                "path": "assets/anims/mixamo/player/cast_ice.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_ward",
+                "path": "assets/anims/mixamo/player/cast_ward.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_heal",
+                "path": "assets/anims/mixamo/player/cast_heal.fbx",
+                "loop": false
+            },
+            {
+                "key": "cast_holy",
+                "path": "assets/anims/mixamo/player/cast_holy.fbx",
+                "loop": false
+            },
+            {
+                "key": "bow_aim",
+                "path": "assets/anims/mixamo/player/bow_aim.fbx",
+                "loop": true
+            },
+            {
+                "key": "bow_shoot",
+                "path": "assets/anims/mixamo/player/bow_shoot.fbx",
+                "loop": false
             }
         ]
     },
@@ -304,15 +484,18 @@
             "idle"
         ],
         "crouch_idle": [
+            "crouch_idle",
             "idle"
         ],
         "walking": [
             "walk"
         ],
         "crouch_move": [
+            "crouch_move",
             "walk"
         ],
         "running": [
+            "run_blade",
             "run"
         ],
         "jumping": [
@@ -329,31 +512,71 @@
             "attack_light_left",
             "attack_light_both",
             "attack_light_dual",
+            "attack_heavy_right",
+            "attack_heavy_left",
+            "attack_heavy_both",
+            "attack_heavy_dual",
+            "attack_thrust_right",
+            "attack_thrust_left",
             "attack_heavy_both",
             "attack_dual",
+            "attack_right",
+            "attack_left",
+            "attack_both",
             "attacking"
         ],
         "blocking": [
             "blocking"
         ],
         "casting": [
+            "cast_fast",
+            "cast_fire",
+            "cast_ice",
+            "cast_lightning",
+            "cast_arcane",
+            "cast_heal",
+            "cast_ward",
+            "cast_holy",
             "cast_right",
             "cast_left",
             "cast_both",
             "cast_dual",
+            "cast_spell_right",
+            "cast_spell_left",
+            "cast_spell_both",
+            "cast_spell_dual",
+            "casting"
+        ],
+        "cast_prepare": [
+            "cast_prepare",
+            "casting"
+        ],
+        "cast_channel": [
+            "cast_channel",
+            "casting"
+        ],
+        "cast_release": [
+            "cast_release",
+            "cast_fast",
             "casting"
         ],
         "dodging": [
             "dodging"
         ],
         "vaulting": [
-            "vaulting"
+            "vaulting",
+            "vault_low",
+            "vault_high"
         ],
         "climbing": [
-            "climbing"
+            "climbing",
+            "climb_fast",
+            "climb_slow"
         ],
         "wallrun": [
-            "wallrun"
+            "wallrun",
+            "wallrun_start",
+            "wallrun_exit"
         ],
         "sliding": [
             "sliding"
@@ -368,7 +591,8 @@
             "recovering"
         ],
         "swim": [
-            "swim"
+            "swim",
+            "swim_surface"
         ],
         "flying": [
             "flying"

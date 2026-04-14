@@ -43,9 +43,15 @@ class AdaptivePerformanceManager:
             "npc_interaction_update_interval": 0.0,
             "story_interaction_update_interval": 0.0,
             "cutscene_trigger_update_interval": 0.0,
+            "npc_logic_update_interval": 0.0,
+            "enemy_update_interval": 0.0,
             "particle_upload_interval": 1.0 / 30.0,
+            "enemy_fire_particle_budget": 320.0,
             "sim_tick_rate_hz": 15.0,
             "sim_budget_scale": 1.0,
+            "world_mesh_cull_distance_scale": 1.0,
+            "world_mesh_hlod_distance_scale": 1.0,
+            "world_mesh_visibility_update_scale": 1.0,
         },
         1: {
             "sky_update_interval": 1.0 / 45.0,
@@ -54,9 +60,15 @@ class AdaptivePerformanceManager:
             "npc_interaction_update_interval": 1.0 / 30.0,
             "story_interaction_update_interval": 1.0 / 30.0,
             "cutscene_trigger_update_interval": 1.0 / 30.0,
+            "npc_logic_update_interval": 1.0 / 50.0,
+            "enemy_update_interval": 1.0 / 48.0,
             "particle_upload_interval": 1.0 / 25.0,
+            "enemy_fire_particle_budget": 260.0,
             "sim_tick_rate_hz": 12.0,
             "sim_budget_scale": 0.9,
+            "world_mesh_cull_distance_scale": 0.92,
+            "world_mesh_hlod_distance_scale": 0.86,
+            "world_mesh_visibility_update_scale": 1.10,
         },
         2: {
             "sky_update_interval": 1.0 / 24.0,
@@ -65,9 +77,15 @@ class AdaptivePerformanceManager:
             "npc_interaction_update_interval": 1.0 / 20.0,
             "story_interaction_update_interval": 1.0 / 20.0,
             "cutscene_trigger_update_interval": 1.0 / 20.0,
+            "npc_logic_update_interval": 1.0 / 30.0,
+            "enemy_update_interval": 1.0 / 28.0,
             "particle_upload_interval": 1.0 / 20.0,
+            "enemy_fire_particle_budget": 200.0,
             "sim_tick_rate_hz": 10.0,
             "sim_budget_scale": 0.75,
+            "world_mesh_cull_distance_scale": 0.80,
+            "world_mesh_hlod_distance_scale": 0.72,
+            "world_mesh_visibility_update_scale": 1.22,
         },
         3: {
             "sky_update_interval": 1.0 / 18.0,
@@ -76,9 +94,15 @@ class AdaptivePerformanceManager:
             "npc_interaction_update_interval": 1.0 / 15.0,
             "story_interaction_update_interval": 1.0 / 15.0,
             "cutscene_trigger_update_interval": 1.0 / 15.0,
+            "npc_logic_update_interval": 1.0 / 20.0,
+            "enemy_update_interval": 1.0 / 18.0,
             "particle_upload_interval": 1.0 / 15.0,
+            "enemy_fire_particle_budget": 140.0,
             "sim_tick_rate_hz": 8.0,
             "sim_budget_scale": 0.6,
+            "world_mesh_cull_distance_scale": 0.68,
+            "world_mesh_hlod_distance_scale": 0.58,
+            "world_mesh_visibility_update_scale": 1.38,
         },
     }
 
@@ -126,7 +150,7 @@ class AdaptivePerformanceManager:
         self.current_level = 0
         self.mode = _normalize_mode(mode)
         self._ewma_dt = 1.0 / self.TARGET_FPS
-        self._ewma_alpha = 0.08
+        self._ewma_alpha = 0.02
         self._pressure_time = 0.0
         self._recovery_time = 0.0
         self._base_quality = _normalize_quality(getattr(app, "_gfx_quality", "high"))
@@ -157,7 +181,7 @@ class AdaptivePerformanceManager:
         self._base_quality = token
         self._apply_quality_for_level(self.current_level, force=True)
 
-    def update(self, dt: float, is_playing: bool = True) -> None:
+    def update(self, dt: float, is_playing: bool = True, observed_fps: float | None = None) -> None:
         try:
             dt_val = float(dt or 0.0)
         except Exception:
@@ -165,7 +189,16 @@ class AdaptivePerformanceManager:
         if dt_val <= 0.0:
             return
 
-        self._ewma_dt += (dt_val - self._ewma_dt) * self._ewma_alpha
+        sample_dt = dt_val
+        if observed_fps is not None:
+            try:
+                fps_val = float(observed_fps or 0.0)
+            except Exception:
+                fps_val = 0.0
+            if fps_val > 0.0:
+                sample_dt = 1.0 / max(1e-5, fps_val)
+
+        self._ewma_dt += (sample_dt - self._ewma_dt) * self._ewma_alpha
         settings = self._MODE_SETTINGS.get(self.mode, self._MODE_SETTINGS["balanced"])
 
         desired_level = self._desired_level_from_fps(self.average_fps)
@@ -244,6 +277,8 @@ class AdaptivePerformanceManager:
             "npc_interaction_update_interval",
             "story_interaction_update_interval",
             "cutscene_trigger_update_interval",
+            "npc_logic_update_interval",
+            "enemy_update_interval",
         ):
             out[key] = max(0.0, float(base_profile.get(key, 0.0) or 0.0) * interval_scale)
 
@@ -251,6 +286,11 @@ class AdaptivePerformanceManager:
             0.0,
             float(base_profile.get("particle_upload_interval", 1.0 / 30.0) or 1.0 / 30.0)
             * particle_scale,
+        )
+        base_enemy_budget = float(base_profile.get("enemy_fire_particle_budget", 220.0) or 220.0)
+        out["enemy_fire_particle_budget"] = max(
+            32.0,
+            min(2048.0, round(base_enemy_budget / max(0.1, particle_scale))),
         )
         out["sim_tick_rate_hz"] = max(
             4.0,

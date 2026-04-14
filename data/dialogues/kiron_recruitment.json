@@ -1,0 +1,42 @@
+{
+  "npc_id": "kiron_centaur",
+  "npc_name": "Kiron",
+  "dialogue_tree": {
+    "start": {
+      "speaker": "Kiron",
+      "text": "The plains have heard your name. If your road truly turns against Krimora, I will lend it thunder and charge.",
+      "choices": [
+        {
+          "text": "Ride with me, Kiron.",
+          "condition": "can_recruit:kiron_centaur:story",
+          "action": "story_companion:kiron_centaur",
+          "next_node": "joined"
+        },
+        {
+          "text": "Stand with me again, warden.",
+          "condition": "has_companion:kiron_centaur",
+          "next_node": "already_joined"
+        },
+        {
+          "text": "Not yet.",
+          "next_node": "end"
+        }
+      ]
+    },
+    "joined": {
+      "speaker": "Kiron",
+      "text": "Then I answer the call. When your line breaks, mine will hit first.",
+      "choices": []
+    },
+    "already_joined": {
+      "speaker": "Kiron",
+      "text": "My hooves are already set beside your warpath.",
+      "choices": []
+    },
+    "end": {
+      "speaker": "Kiron",
+      "text": "The wind will find you again when the moment is right.",
+      "choices": []
+    }
+  }
+}

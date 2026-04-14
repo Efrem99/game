@@ -1,0 +1,32 @@
+{
+  "default": {
+    "model": "en_GB-alan-medium.onnx",
+    "speed": 1.0,
+    "comment": "Default neutral male voice"
+  },
+  "guard_city": {
+    "model": "en_GB-alan-medium.onnx",
+    "speed": 0.95,
+    "comment": "Captain Marcus - firm and disciplined"
+  },
+  "dragon_boss": {
+    "model": "en_US-lessac-low.onnx",
+    "speed": 0.85,
+    "comment": "Dragon - deep and intimidating"
+  },
+  "merchant": {
+    "model": "en_US-amy-low.onnx",
+    "speed": 1.05,
+    "comment": "Merchant - lively and friendly"
+  },
+  "quest_giver": {
+    "model": "en_GB-alba-medium.onnx",
+    "speed": 0.98,
+    "comment": "Quest Giver - reassuring and wise"
+  },
+  "player": {
+    "model": "en_US-joe-medium.onnx",
+    "speed": 1.0,
+    "comment": "Sherward - natural and steady"
+  }
+}

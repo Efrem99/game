@@ -1,0 +1,4 @@
+interface:
+  display_name: "Task Context Skill (King Wizard)"
+  short_description: "QA pipeline, core build, game_core import rule, and Codex skill creation without duplicates."
+  default_prompt: "Apply King Wizard QA and repo rules from task-context-skill; dedup skills before creating new ones."

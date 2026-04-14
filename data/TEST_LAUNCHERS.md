@@ -13,6 +13,7 @@ CLI equivalents:
 - `python launchers/tests/launcher_test_mounts.py`
 - `python launchers/tests/launcher_test_skills.py`
 - `python launchers/tests/launcher_test_movement.py`
+- `python launchers/tests/launcher_test_mechanics.py`
 - `python launchers/tests/launcher_test_parkour.py`
 - `python launchers/tests/launcher_test_flight.py`
 - `python launchers/tests/launcher_test_manifest.py` (checks `data/actors/player_animations.json` integrity)
