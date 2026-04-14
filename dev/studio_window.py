@@ -10,6 +10,7 @@ import customtkinter as ctk
 from PIL import Image
 
 from launchers.studio_asset_catalog import build_asset_catalog, build_asset_properties
+from launchers.studio_dirty_state import compose_preview_status, decorate_preview_title, is_source_dirty
 from launchers.studio_docking import move_panel, normalize_studio_dock_layout
 from launchers.studio_logic_graph import (
     apply_logic_focus_patch,
@@ -82,6 +83,10 @@ class StudioShell(ctk.CTkFrame):
         self._catalog_query_var = None
         self._graph_inspector_fields = {}
         self._story_inspector_fields = {}
+        self._persisted_source_text = ""
+        self._preview_base_title = "No file selected"
+        self._preview_base_subtitle = "Choose a workspace path to start authoring."
+        self._preview_status_message = "All major panels stay in one window. Drag panel headers to re-dock them inline."
         self._workspace_tree = []
         self._zone_frames = {}
         self._panel_frames = {}
@@ -107,6 +112,7 @@ class StudioShell(ctk.CTkFrame):
             self._selected_asset_entry = None
         self._active_graph = _build_authoring_graph(preview)
         self._selected_graph_node_id = self._active_graph.get("root_id") if self._active_graph else None
+        self._persisted_source_text = str(preview.get("raw_text") or "") if preview.get("editable") else ""
         self._set_preview_state(preview.get("title") or rel_path, f"{preview.get('kind', 'preview').upper()} | {preview.get('relative_path', rel_path)}", "Editable inside shared studio shell." if preview.get("editable") else "Preview available inside shared studio shell.", bool(preview.get("editable")))
         self._render_graph(preview)
         self._render_overview(preview)
@@ -158,6 +164,8 @@ class StudioShell(ctk.CTkFrame):
         actions.pack(side="right", padx=14, pady=12)
         self._reload_btn = ctk.CTkButton(actions, text="Reload", width=110, command=self._reload_current_path)
         self._reload_btn.pack(side="left", padx=(0, 8))
+        self._revert_btn = ctk.CTkButton(actions, text="Revert", width=110, fg_color="#596275", hover_color="#4b5463", state="disabled", command=self._revert_current_file)
+        self._revert_btn.pack(side="left", padx=(0, 8))
         self._save_btn = ctk.CTkButton(actions, text="Save", width=110, fg_color="#27ae60", hover_color="#229954", command=self._save_current_file)
         self._save_btn.pack(side="left")
         body = ctk.CTkFrame(self)
@@ -226,6 +234,9 @@ class StudioShell(ctk.CTkFrame):
         else:
             self._source_text = ctk.CTkTextbox(host, font=ctk.CTkFont(family="Consolas", size=12))
             self._source_text.pack(fill="both", expand=True)
+            self._source_text.bind("<KeyRelease>", self._on_source_text_changed)
+            self._source_text.bind("<<Paste>>", self._on_source_text_changed)
+            self._source_text.bind("<<Cut>>", self._on_source_text_changed)
 
     def _apply_studio(self, studio_key: str):
         studio = get_studio_definition(self._studio_manifest, studio_key)
@@ -523,10 +534,37 @@ class StudioShell(ctk.CTkFrame):
                     return
 
     def _set_preview_state(self, title: str, subtitle: str, status: str, editable: bool):
-        self._preview_title_lbl.configure(text=title)
-        self._preview_kind_lbl.configure(text=subtitle)
-        self._preview_status_lbl.configure(text=status)
-        self._save_btn.configure(state="normal" if editable else "disabled")
+        self._preview_base_title = title
+        self._preview_base_subtitle = subtitle
+        self._preview_status_message = status
+        self._sync_preview_chrome(editable=editable)
+
+    def _current_source_buffer_text(self) -> str:
+        if self._source_text is None:
+            return str((self._active_preview or {}).get("raw_text") or "")
+        return self._source_text.get("1.0", "end-1c")
+
+    def _current_source_is_dirty(self) -> bool:
+        return is_source_dirty(
+            persisted_text=self._persisted_source_text,
+            buffer_text=self._current_source_buffer_text(),
+            editable=bool((self._active_preview or {}).get("editable")),
+        )
+
+    def _sync_preview_chrome(self, status: str | None = None, *, editable: bool | None = None):
+        is_editable = bool((self._active_preview or {}).get("editable")) if editable is None else bool(editable)
+        dirty = self._current_source_is_dirty()
+        if status is not None:
+            self._preview_status_message = status
+        self._preview_title_lbl.configure(text=decorate_preview_title(self._preview_base_title, dirty=dirty))
+        self._preview_kind_lbl.configure(text=self._preview_base_subtitle)
+        self._preview_status_lbl.configure(text=compose_preview_status(self._preview_status_message, dirty=dirty))
+        self._save_btn.configure(state="normal" if is_editable and dirty else "disabled")
+        self._revert_btn.configure(state="normal" if is_editable and dirty else "disabled")
+
+    def _on_source_text_changed(self, _event=None):
+        if self._active_preview and self._active_preview.get("editable"):
+            self._sync_preview_chrome("Unsaved changes in the shared source buffer.")
 
     def _current_preview_from_source_buffer(self):
         if not self._active_preview:
@@ -584,7 +622,7 @@ class StudioShell(ctk.CTkFrame):
             self._render_overview(self._active_preview)
             self._render_properties(self._active_preview)
             self._render_source(self._active_preview)
-            self._preview_status_lbl.configure(text=f"Selected graph node: {node_id}")
+            self._sync_preview_chrome(f"Selected graph node: {node_id}")
 
     def _render_overview(self, preview: dict):
         for child in self._overview_frame.winfo_children():
@@ -898,7 +936,7 @@ class StudioShell(ctk.CTkFrame):
 
     def _apply_preview_text(self, updated_text: str | None, success_status: str):
         if updated_text is None:
-            self._preview_status_lbl.configure(text="Couldn't apply changes. Check that the source buffer still contains valid canonical JSON.")
+            self._sync_preview_chrome("Couldn't apply changes. Check that the source buffer still contains valid canonical JSON.")
             return False
         updated_preview = dict(self._current_preview_from_source_buffer() or self._active_preview or {})
         updated_preview["raw_text"] = updated_text
@@ -907,7 +945,7 @@ class StudioShell(ctk.CTkFrame):
         if self._active_graph and self._selected_graph_node_id not in {node["id"] for node in self._active_graph.get("nodes", [])}:
             self._selected_graph_node_id = self._active_graph.get("root_id")
         self._render_graph(updated_preview); self._render_overview(updated_preview); self._render_properties(updated_preview); self._render_source(updated_preview)
-        self._preview_status_lbl.configure(text=success_status)
+        self._sync_preview_chrome(success_status)
         return True
 
     def _render_source(self, preview: dict):
@@ -926,16 +964,31 @@ class StudioShell(ctk.CTkFrame):
             if start:
                 self._source_text.tag_add("graph-focus", start, f"{start}+{len(source_anchor)}c")
                 self._source_text.see(start)
+        self._sync_preview_chrome()
 
     def _reload_current_path(self):
         if self._active_path:
             self.focus_path(self._active_path)
+            self._sync_preview_chrome("Reloaded canonical source file.")
+
+    def _revert_current_file(self):
+        if self._active_preview and self._active_preview.get("editable"):
+            self._apply_preview_text(self._persisted_source_text, "Reverted unsaved changes from canonical source file.")
 
     def _save_current_file(self):
         if self._active_preview and self._active_preview.get("editable") and self._active_path:
-            save_preview_text(self._root_dir, self._active_path, self._source_text.get("1.0", "end-1c"))
-            self.focus_path(self._active_path)
-            self._preview_status_lbl.configure(text="Saved to canonical source file.")
+            selected_node_id = self._selected_graph_node_id
+            current_text = self._current_source_buffer_text()
+            save_preview_text(self._root_dir, self._active_path, current_text)
+            self._persisted_source_text = current_text
+            self.focus_path(self._active_path, keep_asset_selection=True)
+            if self._active_graph and selected_node_id in {node["id"] for node in self._active_graph.get("nodes", [])}:
+                self._selected_graph_node_id = selected_node_id
+                self._render_graph(self._active_preview)
+                self._render_overview(self._active_preview)
+                self._render_properties(self._active_preview)
+                self._render_source(self._active_preview)
+            self._sync_preview_chrome("Saved to canonical source file.")
 
     def _render_dock_layout(self):
         for panel in self._panel_frames.values():
