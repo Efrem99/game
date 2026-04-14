@@ -21,3 +21,22 @@ def test_build_studio_session_payload_handles_empty_inputs():
     assert payload["studio_key"] == ""
     assert payload["active_path"] == ""
     assert payload["dock_layout"]["left"] == ["navigator"]
+
+
+def test_build_studio_session_payload_persists_favorites_and_recent_paths():
+    payload = build_studio_session_payload(
+        studio_key="visual_studio",
+        active_path="data/scenes/village_square.json",
+        dock_layout={"left": ["navigator"], "top": ["graph"], "bottom": ["source"]},
+        favorite_paths=["src/ui/menu_main.py", "data/scenes/village_square.json", "src/ui/menu_main.py"],
+        recent_paths=["data/dialogues/merchant.json", "data/scenes/village_square.json", ""],
+    )
+
+    assert payload["favorite_paths"] == [
+        "src/ui/menu_main.py",
+        "data/scenes/village_square.json",
+    ]
+    assert payload["recent_paths"] == [
+        "data/dialogues/merchant.json",
+        "data/scenes/village_square.json",
+    ]

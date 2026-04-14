@@ -38,3 +38,7 @@ def test_studio_shell_mentions_graph_and_story_inspectors():
     assert "Validate Graph" in source
     assert "Center Selection" in source
     assert 'text="Reset Layout"' in source
+    assert "Recent Files" in source
+    assert "Favorites" in source
+    assert 'placeholder_text="Filter files and folders..."' in source
+    assert 'text="Star Current"' in source
