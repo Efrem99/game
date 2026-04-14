@@ -66,6 +66,15 @@ def _scene_asset_type(entry: dict) -> str:
     return text or "asset"
 
 
+def _coerce_vector(value, *, default: list[float]) -> list[float]:
+    if not isinstance(value, (list, tuple)):
+        return list(default)
+    rows = list(value)[:3]
+    while len(rows) < 3:
+        rows.append(default[len(rows)])
+    return [_parse_float(item, default=default[index]) for index, item in enumerate(rows[:3])]
+
+
 def _quest_type(payload: dict, *, relative_path: str = ""):
     objectives = list(payload.get("objectives", []) or [])
     rewards = dict(payload.get("rewards") or {})
@@ -507,7 +516,7 @@ def apply_story_focus_patch(preview, patch: dict, node_id: str | None = None):
     return None
 
 
-def insert_scene_asset_from_preview(preview, asset_entry: dict, *, node_id: str | None = None):
+def insert_scene_asset_from_preview(preview, asset_entry: dict, *, node_id: str | None = None, placement: dict | None = None):
     payload = _parse_preview_payload(preview)
     if not isinstance(payload, dict):
         return None
@@ -518,15 +527,16 @@ def insert_scene_asset_from_preview(preview, asset_entry: dict, *, node_id: str 
     asset_path = str(entry.get("relative_path") or "").strip()
     if not asset_path:
         return None
+    placement_data = dict(placement or {})
     props = list(payload.get("props", []) or [])
     props.append(
         {
-            "type": _scene_asset_type(entry),
+            "type": str(placement_data.get("type") or _scene_asset_type(entry)).strip() or _scene_asset_type(entry),
             "asset": asset_path,
-            "asset_kind": str(entry.get("kind") or "asset"),
-            "position": [0.0, 0.0, 0.0],
-            "rotation": [0.0, 0.0, 0.0],
-            "scale": [1.0, 1.0, 1.0],
+            "asset_kind": str(placement_data.get("asset_kind") or entry.get("kind") or "asset"),
+            "position": _coerce_vector(placement_data.get("position"), default=[0.0, 0.0, 0.0]),
+            "rotation": _coerce_vector(placement_data.get("rotation"), default=[0.0, 0.0, 0.0]),
+            "scale": _coerce_vector(placement_data.get("scale"), default=[1.0, 1.0, 1.0]),
         }
     )
     payload["props"] = props

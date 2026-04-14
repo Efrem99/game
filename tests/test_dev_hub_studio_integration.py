@@ -29,3 +29,7 @@ def test_studio_shell_mentions_graph_and_story_inspectors():
     assert "Apply Node Changes" in source
     assert "Quest Inspector" in source
     assert "Scene Inspector" in source
+    assert "Scene Placement" in source
+    assert "Insert Into Scene" in source
+    assert "Script Node Setup" in source
+    assert "Create Script Node" in source
