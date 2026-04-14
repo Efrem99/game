@@ -33,3 +33,5 @@ def test_studio_shell_mentions_graph_and_story_inspectors():
     assert "Insert Into Scene" in source
     assert "Script Node Setup" in source
     assert "Create Script Node" in source
+    assert 'text="Revert"' in source
+    assert "Unsaved changes in the shared source buffer." in source
